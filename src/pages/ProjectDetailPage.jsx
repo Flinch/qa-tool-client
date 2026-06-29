@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { useAuth } from '@clerk/clerk-react'
 import { apiFetch } from '../lib/api.js'
 
 export default function ProjectDetailPage() {
