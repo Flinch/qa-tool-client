@@ -4,7 +4,6 @@ import { apiFetch } from '../lib/api.js'
 
 export default function ProjectDetailPage() {
   const { id } = useParams()
-  const { getToken } = useAuth()
   const [project, setProject] = useState(null)
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -13,8 +12,8 @@ export default function ProjectDetailPage() {
     async function load() {
       try {
         const [p, s] = await Promise.all([
-          apiFetch(`/projects/${id}`, {}, getToken),
-          apiFetch(`/projects/${id}/stats`, {}, getToken),
+          apiFetch(`/projects/${id}`),
+          apiFetch(`/projects/${id}/stats`),
         ])
         setProject(p)
         setStats(s)
@@ -58,30 +57,13 @@ export default function ProjectDetailPage() {
           {project.client_name && <div style={{ color: 'var(--accent)', fontSize: '0.88rem', marginBottom: '0.5rem' }}>{project.client_name}</div>}
           {project.description && <div style={{ color: 'var(--muted)', fontSize: '0.9rem', maxWidth: 600 }}>{project.description}</div>}
         </div>
-
         <div className="stats-row" style={{ marginBottom: '2rem' }}>
-          <div className="stat-card">
-            <div className="stat-num">{stats?.testCases ?? 0}</div>
-            <div className="stat-label">Test cases</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-num" style={{ color: 'var(--success)' }}>{stats?.passed ?? 0}</div>
-            <div className="stat-label">Passed</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-num" style={{ color: 'var(--danger)' }}>{stats?.failed ?? 0}</div>
-            <div className="stat-label">Failed</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-num" style={{ color: 'var(--warning)' }}>{stats?.openBugs ?? 0}</div>
-            <div className="stat-label">Open bugs</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-num">{passRate}%</div>
-            <div className="stat-label">Pass rate</div>
-          </div>
+          <div className="stat-card"><div className="stat-num">{stats?.testCases ?? 0}</div><div className="stat-label">Test cases</div></div>
+          <div className="stat-card"><div className="stat-num" style={{ color: 'var(--success)' }}>{stats?.passed ?? 0}</div><div className="stat-label">Passed</div></div>
+          <div className="stat-card"><div className="stat-num" style={{ color: 'var(--danger)' }}>{stats?.failed ?? 0}</div><div className="stat-label">Failed</div></div>
+          <div className="stat-card"><div className="stat-num" style={{ color: 'var(--warning)' }}>{stats?.openBugs ?? 0}</div><div className="stat-label">Open bugs</div></div>
+          <div className="stat-card"><div className="stat-num">{passRate}%</div><div className="stat-label">Pass rate</div></div>
         </div>
-
         {stats?.testCases > 0 && (
           <div style={{ marginBottom: '2rem' }}>
             <div style={{ fontSize: '0.78rem', color: 'var(--muted)', marginBottom: '0.4rem' }}>Pass rate</div>
@@ -90,10 +72,9 @@ export default function ProjectDetailPage() {
             </div>
           </div>
         )}
-
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
           <Link to={`/projects/${id}/tests`} style={{ textDecoration: 'none' }}>
-            <div className="card" style={{ cursor: 'pointer', transition: 'border-color 0.2s', borderColor: 'var(--border)' }}
+            <div className="card" style={{ cursor: 'pointer', transition: 'border-color 0.2s' }}
               onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(224,125,60,0.3)'}
               onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
             >

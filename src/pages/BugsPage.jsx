@@ -63,9 +63,7 @@ function BugModal({ projectId, onClose, onCreated }) {
         </div>
         <div className="modal-footer">
           <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={submit} disabled={loading || !form.title.trim()}>
-            {loading ? 'Logging...' : 'Log bug'}
-          </button>
+          <button className="btn btn-primary" onClick={submit} disabled={loading || !form.title.trim()}>{loading ? 'Logging...' : 'Log bug'}</button>
         </div>
       </div>
     </div>

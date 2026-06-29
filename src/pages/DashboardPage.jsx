@@ -34,17 +34,12 @@ export default function DashboardPage() {
 
   return (
     <>
-      <div className="topbar">
-        <span className="topbar-title">Dashboard</span>
-      </div>
+      <div className="topbar"><span className="topbar-title">Dashboard</span></div>
       <div className="page-content fade-in">
         <div style={{ marginBottom: '2rem' }}>
-          <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '1.5rem', fontWeight: 700, color: 'var(--white)', marginBottom: '0.25rem' }}>
-            Hey, Malik 👋
-          </h1>
+          <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '1.5rem', fontWeight: 700, color: 'var(--white)', marginBottom: '0.25rem' }}>Hey, Malik 👋</h1>
           <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>Here's a snapshot of your QA activity.</p>
         </div>
-
         <div className="stats-row">
           <div className="stat-card"><div className="stat-num">{stats?.projects ?? 0}</div><div className="stat-label">Projects</div></div>
           <div className="stat-card"><div className="stat-num">{stats?.testCases ?? 0}</div><div className="stat-label">Test cases</div></div>
@@ -52,7 +47,6 @@ export default function DashboardPage() {
           <div className="stat-card"><div className="stat-num" style={{ color: 'var(--danger)' }}>{stats?.failed ?? 0}</div><div className="stat-label">Failed</div></div>
           <div className="stat-card"><div className="stat-num" style={{ color: 'var(--warning)' }}>{stats?.openBugs ?? 0}</div><div className="stat-label">Open bugs</div></div>
         </div>
-
         <div className="section-header">
           <div>
             <div className="section-title">Recent projects</div>
@@ -60,7 +54,6 @@ export default function DashboardPage() {
           </div>
           <Link to="/projects" className="btn btn-ghost btn-sm">View all</Link>
         </div>
-
         {recentProjects.length === 0 ? (
           <div className="empty-state">
             <h3>No projects yet</h3>

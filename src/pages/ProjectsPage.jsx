@@ -12,10 +12,7 @@ function ProjectModal({ onClose, onCreated }) {
     if (!form.name.trim()) return
     setLoading(true)
     try {
-      const project = await apiFetch('/projects', {
-        method: 'POST',
-        body: JSON.stringify(form),
-      })
+      const project = await apiFetch('/projects', { method: 'POST', body: JSON.stringify(form) })
       addToast(`Project "${project.name}" created`)
       onCreated(project)
       onClose()
@@ -44,9 +41,7 @@ function ProjectModal({ onClose, onCreated }) {
         </div>
         <div className="modal-footer">
           <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={submit} disabled={loading || !form.name.trim()}>
-            {loading ? 'Creating...' : 'Create project'}
-          </button>
+          <button className="btn btn-primary" onClick={submit} disabled={loading || !form.name.trim()}>{loading ? 'Creating...' : 'Create project'}</button>
         </div>
       </div>
     </div>
@@ -59,10 +54,7 @@ export default function ProjectsPage() {
   const [showModal, setShowModal] = useState(false)
 
   useEffect(() => {
-    apiFetch('/projects')
-      .then(setProjects)
-      .catch(console.error)
-      .finally(() => setLoading(false))
+    apiFetch('/projects').then(setProjects).catch(console.error).finally(() => setLoading(false))
   }, [])
 
   return (
