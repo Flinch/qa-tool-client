@@ -1,11 +1,8 @@
 import { useEffect, useState } from 'react'
-import { useAuth, useUser } from '@clerk/clerk-react'
 import { Link } from 'react-router-dom'
 import { apiFetch } from '../lib/api.js'
 
 export default function DashboardPage() {
-  const { getToken } = useAuth()
-  const { user } = useUser()
   const [stats, setStats] = useState(null)
   const [recentProjects, setRecentProjects] = useState([])
   const [loading, setLoading] = useState(true)
@@ -14,8 +11,8 @@ export default function DashboardPage() {
     async function load() {
       try {
         const [s, p] = await Promise.all([
-          apiFetch('/stats', {}, getToken),
-          apiFetch('/projects', {}, getToken),
+          apiFetch('/stats'),
+          apiFetch('/projects'),
         ])
         setStats(s)
         setRecentProjects(p.slice(0, 4))
@@ -28,13 +25,11 @@ export default function DashboardPage() {
     load()
   }, [])
 
-  const firstName = user?.firstName || 'there'
-
   if (loading) return (
-    <div className="page-content">
+    <>
       <div className="topbar"><span className="topbar-title">Dashboard</span></div>
       <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}><div className="spinner" /></div>
-    </div>
+    </>
   )
 
   return (
@@ -45,32 +40,17 @@ export default function DashboardPage() {
       <div className="page-content fade-in">
         <div style={{ marginBottom: '2rem' }}>
           <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '1.5rem', fontWeight: 700, color: 'var(--white)', marginBottom: '0.25rem' }}>
-            Hey, {firstName} 👋
+            Hey, Malik 👋
           </h1>
           <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>Here's a snapshot of your QA activity.</p>
         </div>
 
         <div className="stats-row">
-          <div className="stat-card">
-            <div className="stat-num">{stats?.projects ?? 0}</div>
-            <div className="stat-label">Projects</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-num">{stats?.testCases ?? 0}</div>
-            <div className="stat-label">Test cases</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-num" style={{ color: 'var(--success)' }}>{stats?.passed ?? 0}</div>
-            <div className="stat-label">Passed</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-num" style={{ color: 'var(--danger)' }}>{stats?.failed ?? 0}</div>
-            <div className="stat-label">Failed</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-num" style={{ color: 'var(--warning)' }}>{stats?.openBugs ?? 0}</div>
-            <div className="stat-label">Open bugs</div>
-          </div>
+          <div className="stat-card"><div className="stat-num">{stats?.projects ?? 0}</div><div className="stat-label">Projects</div></div>
+          <div className="stat-card"><div className="stat-num">{stats?.testCases ?? 0}</div><div className="stat-label">Test cases</div></div>
+          <div className="stat-card"><div className="stat-num" style={{ color: 'var(--success)' }}>{stats?.passed ?? 0}</div><div className="stat-label">Passed</div></div>
+          <div className="stat-card"><div className="stat-num" style={{ color: 'var(--danger)' }}>{stats?.failed ?? 0}</div><div className="stat-label">Failed</div></div>
+          <div className="stat-card"><div className="stat-num" style={{ color: 'var(--warning)' }}>{stats?.openBugs ?? 0}</div><div className="stat-label">Open bugs</div></div>
         </div>
 
         <div className="section-header">

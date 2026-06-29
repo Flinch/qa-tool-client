@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { useAuth } from '@clerk/clerk-react'
 import { apiFetch } from '../lib/api.js'
 import { useToastStore } from '../store/toastStore.jsx'
 
@@ -9,11 +8,8 @@ const STATUSES = ['open', 'in_progress', 'resolved']
 const STATUS_LABELS = { open: 'Open', in_progress: 'In progress', resolved: 'Resolved' }
 
 function BugModal({ projectId, onClose, onCreated }) {
-  const { getToken } = useAuth()
   const { addToast } = useToastStore()
-  const [form, setForm] = useState({
-    title: '', severity: 'high', steps_to_reproduce: '', expected: '', actual: '', notes: ''
-  })
+  const [form, setForm] = useState({ title: '', severity: 'high', steps_to_reproduce: '', expected: '', actual: '', notes: '' })
   const [loading, setLoading] = useState(false)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
@@ -24,7 +20,7 @@ function BugModal({ projectId, onClose, onCreated }) {
       const bug = await apiFetch(`/projects/${projectId}/bugs`, {
         method: 'POST',
         body: JSON.stringify(form),
-      }, getToken)
+      })
       addToast('Bug logged')
       onCreated(bug)
       onClose()
@@ -63,7 +59,7 @@ function BugModal({ projectId, onClose, onCreated }) {
         </div>
         <div className="form-group">
           <label className="form-label">Notes</label>
-          <textarea className="form-textarea" placeholder="Additional context, screenshots links, etc." style={{ minHeight: 60 }} value={form.notes} onChange={e => set('notes', e.target.value)} />
+          <textarea className="form-textarea" placeholder="Additional context..." style={{ minHeight: 60 }} value={form.notes} onChange={e => set('notes', e.target.value)} />
         </div>
         <div className="modal-footer">
           <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
@@ -78,7 +74,6 @@ function BugModal({ projectId, onClose, onCreated }) {
 
 export default function BugsPage() {
   const { id } = useParams()
-  const { getToken } = useAuth()
   const { addToast } = useToastStore()
   const [bugs, setBugs] = useState([])
   const [loading, setLoading] = useState(true)
@@ -86,7 +81,7 @@ export default function BugsPage() {
   const [filter, setFilter] = useState('all')
 
   useEffect(() => {
-    apiFetch(`/projects/${id}/bugs`, {}, getToken)
+    apiFetch(`/projects/${id}/bugs`)
       .then(setBugs)
       .catch(console.error)
       .finally(() => setLoading(false))
@@ -94,7 +89,7 @@ export default function BugsPage() {
 
   const updateStatus = async (bugId, status) => {
     try {
-      await apiFetch(`/bugs/${bugId}`, { method: 'PATCH', body: JSON.stringify({ status }) }, getToken)
+      await apiFetch(`/bugs/${bugId}`, { method: 'PATCH', body: JSON.stringify({ status }) })
       setBugs(bs => bs.map(b => b.id === bugId ? { ...b, status } : b))
       addToast('Status updated')
     } catch (e) {
@@ -105,9 +100,6 @@ export default function BugsPage() {
   const filtered = filter === 'all' ? bugs : bugs.filter(b =>
     SEVERITIES.includes(filter) ? b.severity === filter : b.status === filter
   )
-
-  const openCount = bugs.filter(b => b.status === 'open').length
-  const criticalCount = bugs.filter(b => b.severity === 'critical').length
 
   return (
     <>
@@ -123,17 +115,15 @@ export default function BugsPage() {
           <button className="btn btn-primary btn-sm" onClick={() => setShowModal(true)}>+ Log bug</button>
         </div>
       </div>
-
       <div className="page-content fade-in">
         {bugs.length > 0 && (
           <div className="stats-row" style={{ marginBottom: '1.5rem' }}>
             <div className="stat-card"><div className="stat-num">{bugs.length}</div><div className="stat-label">Total bugs</div></div>
-            <div className="stat-card"><div className="stat-num" style={{ color: 'var(--danger)' }}>{openCount}</div><div className="stat-label">Open</div></div>
-            <div className="stat-card"><div className="stat-num" style={{ color: 'var(--severity-critical)' }}>{criticalCount}</div><div className="stat-label">Critical</div></div>
+            <div className="stat-card"><div className="stat-num" style={{ color: 'var(--danger)' }}>{bugs.filter(b => b.status === 'open').length}</div><div className="stat-label">Open</div></div>
+            <div className="stat-card"><div className="stat-num" style={{ color: 'var(--danger)' }}>{bugs.filter(b => b.severity === 'critical').length}</div><div className="stat-label">Critical</div></div>
             <div className="stat-card"><div className="stat-num" style={{ color: 'var(--success)' }}>{bugs.filter(b => b.status === 'resolved').length}</div><div className="stat-label">Resolved</div></div>
           </div>
         )}
-
         <div className="filters-row">
           {['all', 'open', 'in_progress', 'resolved', 'critical', 'high', 'medium', 'low'].map(f => (
             <button key={f} className={`filter-btn${filter === f ? ' active' : ''}`} onClick={() => setFilter(f)}>
@@ -141,7 +131,6 @@ export default function BugsPage() {
             </button>
           ))}
         </div>
-
         {loading ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}><div className="spinner" /></div>
         ) : filtered.length === 0 ? (
@@ -161,34 +150,20 @@ export default function BugsPage() {
                       <span className={`badge badge-${bug.severity}`}>{bug.severity}</span>
                       <span className={`badge badge-${bug.status.replace('_', '-')}`}>{STATUS_LABELS[bug.status]}</span>
                     </div>
-                    {bug.steps_to_reproduce && (
-                      <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginBottom: '0.3rem' }}>
-                        <strong style={{ color: 'var(--light)' }}>Steps: </strong>{bug.steps_to_reproduce.substring(0, 120)}{bug.steps_to_reproduce.length > 120 ? '...' : ''}
-                      </div>
-                    )}
+                    {bug.steps_to_reproduce && <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginBottom: '0.3rem' }}><strong style={{ color: 'var(--light)' }}>Steps: </strong>{bug.steps_to_reproduce.substring(0, 120)}{bug.steps_to_reproduce.length > 120 ? '...' : ''}</div>}
                     {bug.expected && <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}><strong style={{ color: 'var(--light)' }}>Expected:</strong> {bug.expected}</div>}
-                    {bug.actual   && <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}><strong style={{ color: 'var(--danger)' }}>Actual:</strong> {bug.actual}</div>}
+                    {bug.actual && <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}><strong style={{ color: 'var(--danger)' }}>Actual:</strong> {bug.actual}</div>}
                   </div>
-                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexShrink: 0 }}>
-                    <select
-                      className="form-select"
-                      style={{ width: 'auto', padding: '0.3rem 0.6rem', fontSize: '0.78rem' }}
-                      value={bug.status}
-                      onChange={e => updateStatus(bug.id, e.target.value)}
-                    >
-                      {STATUSES.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
-                    </select>
-                  </div>
+                  <select className="form-select" style={{ width: 'auto', padding: '0.3rem 0.6rem', fontSize: '0.78rem' }} value={bug.status} onChange={e => updateStatus(bug.id, e.target.value)}>
+                    {STATUSES.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
+                  </select>
                 </div>
-                <div style={{ fontSize: '0.73rem', color: 'var(--muted)', marginTop: '0.6rem' }}>
-                  Logged {new Date(bug.created_at).toLocaleDateString()}
-                </div>
+                <div style={{ fontSize: '0.73rem', color: 'var(--muted)', marginTop: '0.6rem' }}>Logged {new Date(bug.created_at).toLocaleDateString()}</div>
               </div>
             ))}
           </div>
         )}
       </div>
-
       {showModal && <BugModal projectId={id} onClose={() => setShowModal(false)} onCreated={b => setBugs(bs => [b, ...bs])} />}
     </>
   )

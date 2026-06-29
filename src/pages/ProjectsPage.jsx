@@ -1,11 +1,9 @@
 import { useEffect, useState } from 'react'
-import { useAuth } from '@clerk/clerk-react'
 import { Link } from 'react-router-dom'
 import { apiFetch } from '../lib/api.js'
 import { useToastStore } from '../store/toastStore.jsx'
 
 function ProjectModal({ onClose, onCreated }) {
-  const { getToken } = useAuth()
   const { addToast } = useToastStore()
   const [form, setForm] = useState({ name: '', client_name: '', description: '' })
   const [loading, setLoading] = useState(false)
@@ -17,7 +15,7 @@ function ProjectModal({ onClose, onCreated }) {
       const project = await apiFetch('/projects', {
         method: 'POST',
         body: JSON.stringify(form),
-      }, getToken)
+      })
       addToast(`Project "${project.name}" created`)
       onCreated(project)
       onClose()
@@ -42,7 +40,7 @@ function ProjectModal({ onClose, onCreated }) {
         </div>
         <div className="form-group">
           <label className="form-label">Description</label>
-          <textarea className="form-textarea" placeholder="Brief description of the project..." value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} style={{ minHeight: 80 }} />
+          <textarea className="form-textarea" placeholder="Brief description..." value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} style={{ minHeight: 80 }} />
         </div>
         <div className="modal-footer">
           <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
@@ -56,13 +54,12 @@ function ProjectModal({ onClose, onCreated }) {
 }
 
 export default function ProjectsPage() {
-  const { getToken } = useAuth()
   const [projects, setProjects] = useState([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
 
   useEffect(() => {
-    apiFetch('/projects', {}, getToken)
+    apiFetch('/projects')
       .then(setProjects)
       .catch(console.error)
       .finally(() => setLoading(false))
@@ -90,12 +87,10 @@ export default function ProjectsPage() {
             {projects.map(p => (
               <Link to={`/projects/${p.id}`} key={p.id} style={{ textDecoration: 'none' }}>
                 <div className="card-sm" style={{ cursor: 'pointer', height: '100%' }}>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                    <div style={{ fontWeight: 600, color: 'var(--white)', fontSize: '0.95rem' }}>{p.name}</div>
-                  </div>
+                  <div style={{ fontWeight: 600, color: 'var(--white)', fontSize: '0.95rem', marginBottom: '0.25rem' }}>{p.name}</div>
                   {p.client_name && <div style={{ fontSize: '0.8rem', color: 'var(--accent)', marginBottom: '0.5rem' }}>{p.client_name}</div>}
                   {p.description && <div style={{ fontSize: '0.82rem', color: 'var(--muted)', marginBottom: '0.85rem', lineHeight: 1.55 }}>{p.description}</div>}
-                  <div style={{ display: 'flex', gap: '1.25rem', fontSize: '0.78rem', color: 'var(--muted)', marginTop: 'auto', paddingTop: '0.75rem', borderTop: '1px solid var(--border)' }}>
+                  <div style={{ display: 'flex', gap: '1.25rem', fontSize: '0.78rem', color: 'var(--muted)', paddingTop: '0.75rem', borderTop: '1px solid var(--border)' }}>
                     <span><strong style={{ color: 'var(--light)' }}>{p.test_case_count ?? 0}</strong> tests</span>
                     <span><strong style={{ color: 'var(--danger)' }}>{p.open_bug_count ?? 0}</strong> open bugs</span>
                   </div>

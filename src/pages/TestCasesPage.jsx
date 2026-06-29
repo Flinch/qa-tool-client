@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { useAuth } from '@clerk/clerk-react'
 import { apiFetch } from '../lib/api.js'
 import { useToastStore } from '../store/toastStore.jsx'
 
@@ -8,7 +7,6 @@ const TYPE_LABELS = { functional: 'Functional', integration: 'Integration', e2e:
 const STATUS_LABELS = { pass: 'Pass', fail: 'Fail', not_run: 'Not run' }
 
 function GenerateModal({ projectId, onClose, onGenerated }) {
-  const { getToken } = useAuth()
   const { addToast } = useToastStore()
   const [requirements, setRequirements] = useState('')
   const [loading, setLoading] = useState(false)
@@ -20,7 +18,7 @@ function GenerateModal({ projectId, onClose, onGenerated }) {
       const cases = await apiFetch(`/projects/${projectId}/test-cases/generate`, {
         method: 'POST',
         body: JSON.stringify({ requirements }),
-      }, getToken)
+      })
       addToast(`${cases.length} test cases generated`)
       onGenerated(cases)
       onClose()
@@ -40,13 +38,7 @@ function GenerateModal({ projectId, onClose, onGenerated }) {
         </div>
         <div className="form-group">
           <label className="form-label">Requirements</label>
-          <textarea
-            className="form-textarea"
-            style={{ minHeight: 180 }}
-            placeholder="e.g. Users should be able to create an account with email and password. The email must be unique. Password must be at least 8 characters..."
-            value={requirements}
-            onChange={e => setRequirements(e.target.value)}
-          />
+          <textarea className="form-textarea" style={{ minHeight: 180 }} placeholder="e.g. Users should be able to create an account with email and password..." value={requirements} onChange={e => setRequirements(e.target.value)} />
         </div>
         <div className="modal-footer">
           <button className="btn btn-ghost" onClick={onClose} disabled={loading}>Cancel</button>
@@ -64,7 +56,6 @@ function GenerateModal({ projectId, onClose, onGenerated }) {
 }
 
 function TestCaseRow({ tc, onStatusChange }) {
-  const { getToken } = useAuth()
   const { addToast } = useToastStore()
   const [updating, setUpdating] = useState(false)
 
@@ -75,7 +66,7 @@ function TestCaseRow({ tc, onStatusChange }) {
       await apiFetch(`/test-cases/${tc.id}`, {
         method: 'PATCH',
         body: JSON.stringify({ status: next }),
-      }, getToken)
+      })
       onStatusChange(tc.id, next)
     } catch (e) {
       addToast(e.message, 'error')
@@ -88,47 +79,32 @@ function TestCaseRow({ tc, onStatusChange }) {
     <tr>
       <td style={{ maxWidth: 320 }}>
         <div style={{ fontWeight: 500, color: 'var(--light)', marginBottom: '0.2rem' }}>{tc.title}</div>
-        {tc.steps?.length > 0 && (
-          <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>{tc.steps.length} step{tc.steps.length !== 1 ? 's' : ''}</div>
-        )}
+        {tc.steps?.length > 0 && <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>{tc.steps.length} step{tc.steps.length !== 1 ? 's' : ''}</div>}
       </td>
       <td><span className={`badge badge-${tc.type}`}>{TYPE_LABELS[tc.type]}</span></td>
       <td>
-        <button
-          onClick={cycleStatus}
-          disabled={updating}
-          className={`badge badge-${tc.status === 'not_run' ? 'not-run' : tc.status}`}
-          style={{ cursor: 'pointer', border: 'none', background: 'inherit' }}
-          title="Click to cycle status"
-        >
+        <button onClick={cycleStatus} disabled={updating} className={`badge badge-${tc.status === 'not_run' ? 'not-run' : tc.status}`} style={{ cursor: 'pointer', border: 'none', background: 'inherit' }} title="Click to cycle status">
           {STATUS_LABELS[tc.status]}
         </button>
       </td>
-      <td style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>
-        {new Date(tc.created_at).toLocaleDateString()}
-      </td>
+      <td style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>{new Date(tc.created_at).toLocaleDateString()}</td>
     </tr>
   )
 }
 
 export default function TestCasesPage() {
   const { id } = useParams()
-  const { getToken } = useAuth()
   const [testCases, setTestCases] = useState([])
   const [loading, setLoading] = useState(true)
   const [showGenerate, setShowGenerate] = useState(false)
   const [filter, setFilter] = useState('all')
 
   useEffect(() => {
-    apiFetch(`/projects/${id}/test-cases`, {}, getToken)
+    apiFetch(`/projects/${id}/test-cases`)
       .then(setTestCases)
       .catch(console.error)
       .finally(() => setLoading(false))
   }, [id])
-
-  const handleStatusChange = (tcId, newStatus) => {
-    setTestCases(tcs => tcs.map(tc => tc.id === tcId ? { ...tc, status: newStatus } : tc))
-  }
 
   const filtered = filter === 'all' ? testCases : testCases.filter(tc =>
     filter === 'pass' || filter === 'fail' || filter === 'not_run' ? tc.status === filter : tc.type === filter
@@ -154,7 +130,6 @@ export default function TestCasesPage() {
           <button className="btn btn-primary btn-sm" onClick={() => setShowGenerate(true)}>✨ Generate</button>
         </div>
       </div>
-
       <div className="page-content fade-in">
         {testCases.length > 0 && (
           <div className="stats-row" style={{ marginBottom: '1.5rem' }}>
@@ -164,7 +139,6 @@ export default function TestCasesPage() {
             <div className="stat-card"><div className="stat-num" style={{ color: 'var(--muted)' }}>{counts.not_run}</div><div className="stat-label">Not run</div></div>
           </div>
         )}
-
         <div className="filters-row">
           {['all','functional','integration','e2e','pass','fail','not_run'].map(f => (
             <button key={f} className={`filter-btn${filter === f ? ' active' : ''}`} onClick={() => setFilter(f)}>
@@ -172,7 +146,6 @@ export default function TestCasesPage() {
             </button>
           ))}
         </div>
-
         {loading ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}><div className="spinner" /></div>
         ) : filtered.length === 0 ? (
@@ -185,32 +158,14 @@ export default function TestCasesPage() {
           <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
             <div className="table-wrap">
               <table>
-                <thead>
-                  <tr>
-                    <th>Test case</th>
-                    <th>Type</th>
-                    <th>Status</th>
-                    <th>Created</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map(tc => (
-                    <TestCaseRow key={tc.id} tc={tc} onStatusChange={handleStatusChange} />
-                  ))}
-                </tbody>
+                <thead><tr><th>Test case</th><th>Type</th><th>Status</th><th>Created</th></tr></thead>
+                <tbody>{filtered.map(tc => <TestCaseRow key={tc.id} tc={tc} onStatusChange={(id, s) => setTestCases(tcs => tcs.map(t => t.id === id ? { ...t, status: s } : t))} />)}</tbody>
               </table>
             </div>
           </div>
         )}
       </div>
-
-      {showGenerate && (
-        <GenerateModal
-          projectId={id}
-          onClose={() => setShowGenerate(false)}
-          onGenerated={cases => setTestCases(tcs => [...cases, ...tcs])}
-        />
-      )}
+      {showGenerate && <GenerateModal projectId={id} onClose={() => setShowGenerate(false)} onGenerated={cases => setTestCases(tcs => [...cases, ...tcs])} />}
     </>
   )
 }
