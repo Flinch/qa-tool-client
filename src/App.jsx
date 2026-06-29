@@ -1,5 +1,4 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { useAuth, useUser } from '@clerk/clerk-react'
 import AppShell from './components/AppShell.jsx'
 import SignInPage from './pages/SignInPage.jsx'
 import DashboardPage from './pages/DashboardPage.jsx'
