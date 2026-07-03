@@ -14,6 +14,8 @@ function Icon({ name }) {
   )
 }
 
+const roleLabel = { admin: 'Admin', qa_engineer: 'QA Engineer', client: 'Client' }
+
 export default function AppShell() {
   const { toasts } = useToastStore()
   const { user, logout } = useAuth()
@@ -24,9 +26,11 @@ export default function AppShell() {
         <div className="sidebar-logo">QA<span>Tool</span></div>
         <div className="sidebar-section">
           <div className="sidebar-label">Navigation</div>
-          <NavLink to="/" end className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}>
-            <Icon name="dashboard" /> Dashboard
-          </NavLink>
+          {user?.role !== 'client' && (
+            <NavLink to="/" end className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}>
+              <Icon name="dashboard" /> Dashboard
+            </NavLink>
+          )}
           <NavLink to="/projects" className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}>
             <Icon name="projects" /> Projects
           </NavLink>
@@ -37,7 +41,7 @@ export default function AppShell() {
               {user?.name}
             </div>
             <div data-testid="sidebar-user-role">
-              {user?.role === 'qa_engineer' ? 'QA Engineer' : 'Client'}
+              {roleLabel[user?.role] || 'Client'}
             </div>
             <button
               onClick={logout}

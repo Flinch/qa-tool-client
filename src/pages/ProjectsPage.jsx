@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { apiFetch } from '../lib/api.js'
 import { useToastStore } from '../store/toastStore.jsx'
+import { useAuth } from '../store/AuthContext.jsx'
 
 function ProjectModal({ onClose, onCreated }) {
   const { addToast } = useToastStore()
@@ -49,6 +50,8 @@ function ProjectModal({ onClose, onCreated }) {
 }
 
 export default function ProjectsPage() {
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'admin'
   const [projects, setProjects] = useState([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
@@ -61,9 +64,11 @@ export default function ProjectsPage() {
     <>
       <div className="topbar">
         <span className="topbar-title">Projects</span>
-        <div className="topbar-actions">
-          <button className="btn btn-primary btn-sm" onClick={() => setShowModal(true)}>+ New project</button>
-        </div>
+        {isAdmin && (
+          <div className="topbar-actions">
+            <button className="btn btn-primary btn-sm" onClick={() => setShowModal(true)}>+ New project</button>
+          </div>
+        )}
       </div>
       <div className="page-content fade-in">
         {loading ? (
@@ -71,8 +76,8 @@ export default function ProjectsPage() {
         ) : projects.length === 0 ? (
           <div className="empty-state">
             <h3>No projects yet</h3>
-            <p>Create your first project to start managing test cases and bugs.</p>
-            <button className="btn btn-primary" onClick={() => setShowModal(true)}>Create project</button>
+            <p>{isAdmin ? 'Create your first project to start managing test cases and bugs.' : 'No projects have been shared with you yet.'}</p>
+            {isAdmin && <button className="btn btn-primary" onClick={() => setShowModal(true)}>Create project</button>}
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
