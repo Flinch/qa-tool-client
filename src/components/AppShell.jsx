@@ -1,5 +1,6 @@
 import { Outlet, NavLink } from 'react-router-dom'
 import { useToastStore } from '../store/toastStore.jsx'
+import { useAuth } from '../store/AuthContext.jsx'
 
 function Icon({ name }) {
   const icons = {
@@ -13,8 +14,11 @@ function Icon({ name }) {
   )
 }
 
+const roleLabel = { admin: 'Admin', qa_engineer: 'QA Engineer', client: 'Client' }
+
 export default function AppShell() {
   const { toasts } = useToastStore()
+  const { user, logout } = useAuth()
 
   return (
     <div className="app-shell">
@@ -22,17 +26,39 @@ export default function AppShell() {
         <div className="sidebar-logo">QA<span>Tool</span></div>
         <div className="sidebar-section">
           <div className="sidebar-label">Navigation</div>
-          <NavLink to="/" end className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}>
-            <Icon name="dashboard" /> Dashboard
-          </NavLink>
+          {user?.role !== 'client' && (
+            <NavLink to="/" end className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}>
+              <Icon name="dashboard" /> Dashboard
+            </NavLink>
+          )}
           <NavLink to="/projects" className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}>
             <Icon name="projects" /> Projects
           </NavLink>
         </div>
         <div className="sidebar-bottom">
           <div style={{ fontSize: '0.78rem', color: 'var(--muted)', padding: '0 0.5rem' }}>
-            <div style={{ color: 'var(--light)', fontWeight: 600, marginBottom: '0.1rem' }}>Malik G.</div>
-            <div>QA Engineer</div>
+            <div style={{ color: 'var(--light)', fontWeight: 600, marginBottom: '0.1rem' }} data-testid="sidebar-user-name">
+              {user?.name}
+            </div>
+            <div data-testid="sidebar-user-role">
+              {roleLabel[user?.role] || 'Client'}
+            </div>
+            <button
+              onClick={logout}
+              data-testid="logout-button"
+              style={{
+                marginTop: '0.5rem',
+                background: 'none',
+                border: 'none',
+                color: 'var(--muted)',
+                fontSize: '0.75rem',
+                cursor: 'pointer',
+                padding: 0,
+                textDecoration: 'underline',
+              }}
+            >
+              Log out
+            </button>
           </div>
         </div>
       </aside>
