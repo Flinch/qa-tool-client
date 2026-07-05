@@ -4,6 +4,8 @@ import { apiFetch } from '../lib/api.js'
 import { useToastStore } from '../store/toastStore.jsx'
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api'
+const POLL_INTERVAL_MS = 4000
+const POLL_TIMEOUT_MS = 5 * 60 * 1000
 
 function StatusPill({ status }) {
   const map = {
@@ -56,9 +58,6 @@ function SuiteCard({ suite, onRun, running }) {
 }
 
 function RunRow({ run }) {
-  const total = run.total ?? 0
-  const passRate = total > 0 ? Math.round((run.passed / total) * 100) : null
-
   return (
     <div style={{
       display: 'grid', gridTemplateColumns: '1fr auto auto auto auto', gap: '1rem', alignItems: 'center',
@@ -92,7 +91,8 @@ export default function AutomationPage() {
   const [runs, setRuns] = useState([])
   const [loading, setLoading] = useState(true)
   const [triggeringSuiteId, setTriggeringSuiteId] = useState(null)
-  const eventSourceRef = useRef(null)
+  const pollRef = useRef(null)
+  const pollStartedAt = useRef(null)
 
   const load = useCallback(async () => {
     try {
@@ -102,8 +102,10 @@ export default function AutomationPage() {
       ])
       setSuites(suiteData)
       setRuns(runData)
+      return runData
     } catch (e) {
       console.error(e)
+      return []
     } finally {
       setLoading(false)
     }
@@ -119,20 +121,49 @@ export default function AutomationPage() {
 
     const url = `${API_BASE}/projects/${id}/automation/runs/stream?token=${encodeURIComponent(token)}`
     const es = new EventSource(url)
-    eventSourceRef.current = es
 
     es.addEventListener('run_completed', () => {
       load()
       setTriggeringSuiteId(null)
+      stopPolling()
     })
 
     es.onerror = () => {
-      // Connection dropped (sleep, network blip) — just let the browser retry;
-      // a manual refresh of the page also re-establishes it.
+      // SSE dropped or never connected (e.g. token issue) — the polling
+      // fallback below still catches completion, so this is non-fatal.
     }
 
     return () => es.close()
   }, [id, load])
+
+  const stopPolling = () => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current)
+      pollRef.current = null
+    }
+  }
+
+  // Fallback: poll while anything is pending/running, in case SSE
+  // never connects or drops. Bounded so it can't run forever.
+  const startPolling = useCallback(() => {
+    stopPolling()
+    pollStartedAt.current = Date.now()
+    pollRef.current = setInterval(async () => {
+      if (Date.now() - pollStartedAt.current > POLL_TIMEOUT_MS) {
+        stopPolling()
+        addToast('Still waiting on results — check GitHub Actions directly if this persists', 'error')
+        return
+      }
+      const latest = await load()
+      const stillInFlight = latest.some(r => r.status === 'pending' || r.status === 'running')
+      if (!stillInFlight) {
+        stopPolling()
+        setTriggeringSuiteId(null)
+      }
+    }, POLL_INTERVAL_MS)
+  }, [load, addToast])
+
+  useEffect(() => () => stopPolling(), [])
 
   const runSuite = async (suite) => {
     setTriggeringSuiteId(suite.id)
@@ -142,7 +173,8 @@ export default function AutomationPage() {
         body: JSON.stringify({ suite_id: suite.id }),
       })
       addToast(`${suite.name} run started`)
-      load()
+      await load()
+      startPolling()
     } catch (e) {
       addToast(e.message, 'error')
       setTriggeringSuiteId(null)
