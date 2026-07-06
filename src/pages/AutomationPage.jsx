@@ -46,15 +46,18 @@ function SuiteCard({ suite, onRun, running }) {
     ? Math.round((suite.latest_passed / (suite.latest_passed + suite.latest_failed)) * 100)
     : null
 
+  const isRunning = running || suite.latest_status === 'pending' || suite.latest_status === 'running'
+
   return (
-    <div className="card">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+    <div className="card" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem', minHeight: '2.7rem' }}>
         <div>
-          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, color: 'var(--white)' }}>{suite.name}</div>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, color: 'var(--white)', lineHeight: 1.25 }}>{suite.name}</div>
           <div style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>{suite.test_case_count} test case{suite.test_case_count === 1 ? '' : 's'}</div>
         </div>
         {suite.latest_status && <StatusPill status={suite.latest_status} />}
       </div>
+
       {suite.latest_completed_at && (
         <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginBottom: '0.3rem' }}>
           Last run {formatWhen(suite.latest_completed_at)}
@@ -66,14 +69,29 @@ function SuiteCard({ suite, onRun, running }) {
           {suite.latest_failed > 0 && <>, <span style={{ color: 'var(--danger)' }}>{suite.latest_failed} failed</span></>}
         </div>
       )}
-      <button
-        className="btn btn-primary btn-sm"
-        onClick={() => onRun(suite)}
-        disabled={running}
-        style={{ width: '100%' }}
-      >
-        {running ? 'Running…' : 'Run suite'}
-      </button>
+
+      <div style={{ marginTop: 'auto' }}>
+        {isRunning && (
+          <div style={{
+            height: '4px', width: '100%', background: 'var(--border)',
+            borderRadius: '2px', overflow: 'hidden', marginBottom: '0.6rem', position: 'relative',
+          }}>
+            <div style={{
+              position: 'absolute', top: 0, left: 0, height: '100%', width: '40%',
+              background: 'var(--accent)', borderRadius: '2px',
+              animation: 'suiteLoaderSlide 1.1s ease-in-out infinite',
+            }} />
+          </div>
+        )}
+        <button
+          className="btn btn-primary btn-sm"
+          onClick={() => onRun(suite)}
+          disabled={isRunning}
+          style={{ width: '100%' }}
+        >
+          {isRunning ? 'Running…' : 'Run suite'}
+        </button>
+      </div>
     </div>
   )
 }
@@ -206,6 +224,12 @@ export default function AutomationPage() {
 
   return (
     <>
+      <style>{`
+  @keyframes suiteLoaderSlide {
+    0% { left: -40%; }
+    100% { left: 100%; }
+  }
+`}</style>
       <div className="topbar">
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
           <Link to="/projects" style={{ color: 'var(--muted)', textDecoration: 'none' }}>Projects</Link>
@@ -225,7 +249,7 @@ export default function AutomationPage() {
               {suites.length === 0 ? (
                 <div className="empty-state"><h3>No automation suites yet</h3><p>Suites are created via the API for now — ask your engineer to set one up.</p></div>
               ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1rem', alignItems: 'stretch' }}>
                   {suites.map(s => (
                     <SuiteCard key={s.id} suite={s} onRun={runSuite} running={triggeringSuiteId === s.id} />
                   ))}
