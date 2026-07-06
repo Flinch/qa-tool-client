@@ -25,6 +25,22 @@ function StatusPill({ status }) {
   )
 }
 
+function formatWhen(dateStr) {
+  const date = new Date(dateStr)
+  const now = new Date()
+  const diffMs = now - date
+  const diffMins = Math.floor(diffMs / 60000)
+  const diffHours = Math.floor(diffMins / 60)
+  const diffDays = Math.floor(diffHours / 24)
+
+  if (diffMins < 1) return 'just now'
+  if (diffMins < 60) return `${diffMins}m ago`
+  if (diffHours < 24) return `${diffHours}h ago`
+  if (diffDays === 1) return 'yesterday'
+  if (diffDays < 7) return `${diffDays}d ago`
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+}
+
 function SuiteCard({ suite, onRun, running }) {
   const passRate = suite.latest_passed != null && (suite.latest_passed + suite.latest_failed) > 0
     ? Math.round((suite.latest_passed / (suite.latest_passed + suite.latest_failed)) * 100)
@@ -39,9 +55,14 @@ function SuiteCard({ suite, onRun, running }) {
         </div>
         {suite.latest_status && <StatusPill status={suite.latest_status} />}
       </div>
+      {suite.latest_completed_at && (
+        <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginBottom: '0.3rem' }}>
+          Last run {formatWhen(suite.latest_completed_at)}
+        </div>
+      )}
       {passRate !== null && (
         <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginBottom: '1rem' }}>
-          Last run: <span style={{ color: 'var(--success)' }}>{suite.latest_passed} passed</span>
+          <span style={{ color: 'var(--success)' }}>{suite.latest_passed} passed</span>
           {suite.latest_failed > 0 && <>, <span style={{ color: 'var(--danger)' }}>{suite.latest_failed} failed</span></>}
         </div>
       )}
