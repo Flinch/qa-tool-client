@@ -7,6 +7,7 @@ import ProjectDetailPage from './pages/ProjectDetailPage.jsx'
 import TestCasesPage from './pages/TestCasesPage.jsx'
 import BugsPage from './pages/BugsPage.jsx'
 import SignInPage from './pages/SignInPage.jsx'
+import AutomationPage from './pages/AutomationPage.jsx'
 
 function StaffOnly({ children }) {
   const { user } = useAuth()
@@ -37,6 +38,7 @@ function Gate() {
         <Route path="projects/:id" element={<ProjectDetailPage />} />
         <Route path="projects/:id/tests" element={<StaffOnly><TestCasesPage /></StaffOnly>} />
         <Route path="projects/:id/bugs" element={<StaffOnly><BugsPage /></StaffOnly>} />
+        <Route path="projects/:id/automation" element={<StaffOnly><AutomationPage /></StaffOnly>} />
       </Route>
     </Routes>
   )

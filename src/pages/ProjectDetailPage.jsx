@@ -95,7 +95,7 @@ export default function ProjectDetailPage() {
           </div>
         )}
         {!isClient && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: isAdmin ? '2rem' : 0 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginBottom: isAdmin ? '2rem' : 0 }}>
             <Link to={`/projects/${id}/tests`} style={{ textDecoration: 'none' }}>
               <div className="card" style={{ cursor: 'pointer', transition: 'border-color 0.2s' }}
                 onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(224,125,60,0.3)'}
@@ -114,6 +114,16 @@ export default function ProjectDetailPage() {
                 <div style={{ fontSize: '1.5rem', marginBottom: '0.75rem' }}>🐛</div>
                 <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, color: 'var(--white)', marginBottom: '0.3rem' }}>Bug reports</div>
                 <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>Log, track, and resolve bugs found during testing.</div>
+              </div>
+            </Link>
+            <Link to={`/projects/${id}/automation`} style={{ textDecoration: 'none' }}>
+              <div className="card" style={{ cursor: 'pointer', transition: 'border-color 0.2s' }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(224,125,60,0.3)'}
+                onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+              >
+                <div style={{ fontSize: '1.5rem', marginBottom: '0.75rem' }}>⚙️</div>
+                <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, color: 'var(--white)', marginBottom: '0.3rem' }}>Automation</div>
+                <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>Run automated suites and view CI results, including nightly builds.</div>
               </div>
             </Link>
           </div>
