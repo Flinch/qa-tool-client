@@ -39,10 +39,10 @@ function Gate() {
         <Route path="projects" element={<ProjectsPage />} />
         <Route path="projects/:id" element={<ProjectDetailPage />} />
         <Route path="projects/:id/tests" element={<StaffOnly><TestCasesPage /></StaffOnly>} />
-        <Route path="projects/:id/bugs" element={<StaffOnly><BugsPage /></StaffOnly>} />
-        <Route path="projects/:id/automation" element={<StaffOnly><AutomationPage /></StaffOnly>} />
-        <Route path="projects/:id/executions" element={<StaffOnly><ExecutionRunsPage /></StaffOnly>} />
-        <Route path="projects/:id/executions/:runId" element={<StaffOnly><ExecutionRunDetailPage /></StaffOnly>} />
+        <Route path="projects/:id/bugs" element={<BugsPage />} />
+        <Route path="projects/:id/automation" element={<AutomationPage />} />
+        <Route path="projects/:id/executions" element={<ExecutionRunsPage />} />
+        <Route path="projects/:id/executions/:runId" element={<ExecutionRunDetailPage />} />
       </Route>
     </Routes>
   )

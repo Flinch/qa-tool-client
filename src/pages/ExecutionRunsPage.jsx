@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { apiFetch } from '../lib/api.js'
 import { useToastStore } from '../store/toastStore.jsx'
+import { useAuth } from '../store/AuthContext.jsx'
 
 const TYPE_LABELS = { functional: 'Functional', integration: 'Integration', e2e: 'E2E' }
 
@@ -184,6 +185,8 @@ function RunCard({ run, projectId }) {
 
 export default function ExecutionRunsPage() {
   const { id } = useParams()
+  const { user } = useAuth()
+  const isClient = user?.role === 'client'
   const [project, setProject] = useState(null)
   const [runs, setRuns] = useState([])
   const [loading, setLoading] = useState(true)
@@ -212,9 +215,11 @@ export default function ExecutionRunsPage() {
             <span className="topbar-title">Executions</span>
           </div>
         </div>
-        <div className="topbar-actions">
-          <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>+ New execution run</button>
-        </div>
+        {!isClient && (
+          <div className="topbar-actions">
+            <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>+ New execution run</button>
+          </div>
+        )}
       </div>
 
       <div className="page-content fade-in">
@@ -223,8 +228,8 @@ export default function ExecutionRunsPage() {
         ) : runs.length === 0 ? (
           <div className="empty-state">
             <h3>No execution runs yet</h3>
-            <p>Bundle test cases and automation suites into a run to start executing.</p>
-            <button className="btn btn-primary" onClick={() => setShowCreate(true)}>+ New execution run</button>
+            <p>{isClient ? 'No executions have been created for this project yet.' : 'Bundle test cases and automation suites into a run to start executing.'}</p>
+            {!isClient && <button className="btn btn-primary" onClick={() => setShowCreate(true)}>+ New execution run</button>}
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '1rem' }}>

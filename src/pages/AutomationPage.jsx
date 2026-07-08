@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { apiFetch } from '../lib/api.js'
 import { useToastStore } from '../store/toastStore.jsx'
+import { useAuth } from '../store/AuthContext.jsx'
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api'
 const POLL_INTERVAL_MS = 4000
@@ -126,6 +127,8 @@ function RunRow({ run }) {
 export default function AutomationPage() {
   const { id } = useParams()
   const { addToast } = useToastStore()
+  const { user } = useAuth()
+  const isClient = user?.role === 'client'
   const [project, setProject] = useState(null)
   const [suites, setSuites] = useState([])
   const [runs, setRuns] = useState([])
@@ -248,6 +251,32 @@ export default function AutomationPage() {
       <div className="page-content fade-in">
         {loading ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}><div className="spinner" /></div>
+        ) : isClient ? (
+          suites.length === 0 ? (
+            <div className="empty-state"><h3>No automation suites yet</h3></div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              {suites.map(s => {
+                const suiteRuns = runs.filter(r => r.suite_id === s.id)
+                return (
+                  <div key={s.id} className="card">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                      <div>
+                        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, color: 'var(--white)' }}>{s.name}</div>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>{s.test_case_count} test case{s.test_case_count === 1 ? '' : 's'}</div>
+                      </div>
+                      {s.latest_status && <StatusPill status={s.latest_status} />}
+                    </div>
+                    {suiteRuns.length === 0 ? (
+                      <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>No runs yet for this suite.</div>
+                    ) : (
+                      <div>{suiteRuns.map(r => <RunRow key={r.id} run={r} />)}</div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )
         ) : (
           <>
             <div style={{ marginBottom: '2rem' }}>

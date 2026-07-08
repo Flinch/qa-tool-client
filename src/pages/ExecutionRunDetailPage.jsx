@@ -1,8 +1,9 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { Fragment, useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useSwipeable } from 'react-swipeable'
 import { apiFetch } from '../lib/api.js'
 import { useToastStore } from '../store/toastStore.jsx'
+import { useAuth } from '../store/AuthContext.jsx'
 import { LogBugModal } from './TestCasesPage.jsx'
 import { RunStatusBadge } from './ExecutionRunsPage.jsx'
 import { generateExecutionReportPdf } from '../lib/executionReport.js'
@@ -88,7 +89,7 @@ function SwipeCard({ etc, onMark, onLogBug }) {
   )
 }
 
-function ExecutionSuiteCard({ suite, onRun, running }) {
+function ExecutionSuiteCard({ suite, onRun, running, readOnly }) {
   const isRunning = running || suite.latest_status === 'pending' || suite.latest_status === 'running'
   const hasResult = suite.total != null
 
@@ -116,9 +117,11 @@ function ExecutionSuiteCard({ suite, onRun, running }) {
             <div style={{ position: 'absolute', top: 0, left: 0, height: '100%', width: '40%', background: 'var(--accent)', borderRadius: '2px', animation: 'suiteLoaderSlide 1.1s ease-in-out infinite' }} />
           </div>
         )}
-        <button className="btn btn-primary btn-sm" onClick={() => onRun(suite.suite_id)} disabled={isRunning} style={{ width: '100%' }}>
-          {isRunning ? 'Running…' : 'Run suite'}
-        </button>
+        {!readOnly && (
+          <button className="btn btn-primary btn-sm" onClick={() => onRun(suite.suite_id)} disabled={isRunning} style={{ width: '100%' }}>
+            {isRunning ? 'Running…' : 'Run suite'}
+          </button>
+        )}
       </div>
     </div>
   )
@@ -127,6 +130,8 @@ function ExecutionSuiteCard({ suite, onRun, running }) {
 export default function ExecutionRunDetailPage() {
   const { id, runId } = useParams()
   const { addToast } = useToastStore()
+  const { user } = useAuth()
+  const isClient = user?.role === 'client'
   const [project, setProject] = useState(null)
   const [run, setRun] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -134,6 +139,7 @@ export default function ExecutionRunDetailPage() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [cardIndex, setCardIndex] = useState(0)
   const [selectedIds, setSelectedIds] = useState(new Set())
+  const [expandedIds, setExpandedIds] = useState(new Set())
   const [logBugFor, setLogBugFor] = useState(null)
   const [triggeringSuiteId, setTriggeringSuiteId] = useState(null)
   const [allBugs, setAllBugs] = useState([])
@@ -281,6 +287,12 @@ export default function ExecutionRunDetailPage() {
     return next
   })
 
+  const toggleExpanded = (etcId) => setExpandedIds(s => {
+    const next = new Set(s)
+    next.has(etcId) ? next.delete(etcId) : next.add(etcId)
+    return next
+  })
+
   if (loading) return (
     <>
       <div className="topbar"><span className="topbar-title">Execution</span></div>
@@ -304,6 +316,7 @@ export default function ExecutionRunDetailPage() {
   }
   const executedCount = total - counts.not_run
   const progressPct = total > 0 ? Math.round((executedCount / total) * 100) : 0
+  const effectiveMode = isClient ? 'list' : mode
   const filteredTestCases = statusFilter === 'all' ? run.test_cases : run.test_cases.filter(tc => tc.status === statusFilter)
   const filteredTotal = filteredTestCases.length
   const currentCard = filteredTestCases[cardIndex]
@@ -331,8 +344,10 @@ export default function ExecutionRunDetailPage() {
           </div>
         </div>
         <div className="topbar-actions">
-          <button className="btn btn-ghost btn-sm" onClick={downloadReport}>⬇ Download report</button>
-          {run.status !== 'completed' && (
+          {(!isClient || run.status === 'completed') && (
+            <button className="btn btn-ghost btn-sm" onClick={downloadReport}>⬇ Download report</button>
+          )}
+          {!isClient && run.status !== 'completed' && (
             <button className="btn btn-primary btn-sm" onClick={completeRun}>Mark complete</button>
           )}
         </div>
@@ -364,7 +379,7 @@ export default function ExecutionRunDetailPage() {
 
         <div className="section-header">
           <div className="section-title">Manual test cases</div>
-          {total > 0 && (
+          {!isClient && total > 0 && (
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               <button className={`filter-btn${mode === 'swipe' ? ' active' : ''}`} onClick={() => setMode('swipe')}>Swipe</button>
               <button className={`filter-btn${mode === 'list' ? ' active' : ''}`} onClick={() => setMode('list')}>List</button>
@@ -384,7 +399,7 @@ export default function ExecutionRunDetailPage() {
 
         {total === 0 ? (
           <div className="empty-state"><h3>No manual test cases in this run</h3></div>
-        ) : mode === 'swipe' ? (
+        ) : effectiveMode === 'swipe' ? (
           <>
             <div className="swipe-arena">
               <button className="swipe-arrow left" disabled={cardIndex === 0} onClick={() => setCardIndex(i => Math.max(i - 1, 0))} title="Previous">←</button>
@@ -432,7 +447,7 @@ export default function ExecutionRunDetailPage() {
               </div>
             )}
             <div style={{ textAlign: 'center', fontSize: '0.78rem', color: 'var(--muted)', marginBottom: '1.5rem' }}>
-              Card {Math.min(cardIndex + 1, filteredTotal)} of {filteredTotal}
+              Test {Math.min(cardIndex + 1, filteredTotal)} of {filteredTotal}
             </div>
           </>
         ) : (
@@ -441,53 +456,91 @@ export default function ExecutionRunDetailPage() {
               <div className="empty-state"><h3>No test cases match this filter</h3><p>Try a different filter above.</p></div>
             ) : (
               <>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.85rem 1rem', borderBottom: '1px solid var(--border)', flexWrap: 'wrap', gap: '0.5rem' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.82rem', color: 'var(--muted)', cursor: 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.size === filteredTotal && filteredTotal > 0}
-                      onChange={() => setSelectedIds(selectedIds.size === filteredTotal ? new Set() : new Set(filteredTestCases.map(t => t.execution_test_case_id)))}
-                    />
-                    {selectedIds.size > 0 ? `${selectedIds.size} selected` : 'Select all'}
-                  </label>
-                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    {selectedIds.size > 0 && (
-                      <>
-                        <button className="btn btn-danger btn-sm" onClick={() => markBulk([...selectedIds], 'fail')}>Mark selected fail</button>
-                        <button className="btn btn-warning btn-sm" onClick={() => markBulk([...selectedIds], 'blocked')}>Mark selected blocked</button>
-                        <button className="btn btn-primary btn-sm" onClick={() => markBulk([...selectedIds], 'pass')}>Mark selected pass</button>
-                      </>
-                    )}
-                    <button className="btn btn-ghost btn-sm" onClick={() => markBulk(statusFilter === 'all' ? 'all' : filteredTestCases.map(t => t.execution_test_case_id), 'fail')}>
-                      Mark {statusFilter === 'all' ? 'all' : 'visible'} fail
-                    </button>
-                    <button className="btn btn-ghost btn-sm" onClick={() => markBulk(statusFilter === 'all' ? 'all' : filteredTestCases.map(t => t.execution_test_case_id), 'pass')}>
-                      Mark {statusFilter === 'all' ? 'all' : 'visible'} pass
-                    </button>
+                {!isClient && (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.85rem 1rem', borderBottom: '1px solid var(--border)', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.82rem', color: 'var(--muted)', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.size === filteredTotal && filteredTotal > 0}
+                        onChange={() => setSelectedIds(selectedIds.size === filteredTotal ? new Set() : new Set(filteredTestCases.map(t => t.execution_test_case_id)))}
+                      />
+                      {selectedIds.size > 0 ? `${selectedIds.size} selected` : 'Select all'}
+                    </label>
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      {selectedIds.size > 0 && (
+                        <>
+                          <button className="btn btn-danger btn-sm" onClick={() => markBulk([...selectedIds], 'fail')}>Mark selected fail</button>
+                          <button className="btn btn-warning btn-sm" onClick={() => markBulk([...selectedIds], 'blocked')}>Mark selected blocked</button>
+                          <button className="btn btn-primary btn-sm" onClick={() => markBulk([...selectedIds], 'pass')}>Mark selected pass</button>
+                        </>
+                      )}
+                      <button className="btn btn-ghost btn-sm" onClick={() => markBulk(statusFilter === 'all' ? 'all' : filteredTestCases.map(t => t.execution_test_case_id), 'fail')}>
+                        Mark {statusFilter === 'all' ? 'all' : 'visible'} fail
+                      </button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => markBulk(statusFilter === 'all' ? 'all' : filteredTestCases.map(t => t.execution_test_case_id), 'pass')}>
+                        Mark {statusFilter === 'all' ? 'all' : 'visible'} pass
+                      </button>
+                    </div>
                   </div>
-                </div>
-                {filteredTestCases.map(etc => (
-                  <div key={etc.execution_test_case_id} className="select-row">
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.has(etc.execution_test_case_id)}
-                      onChange={() => toggleSelected(etc.execution_test_case_id)}
-                    />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 500, color: 'var(--light)' }}>{etc.title}</div>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>
-                        {TYPE_LABELS[etc.type]}{etc.bug_count > 0 && ` · 🐛 ${etc.bug_count}`}
+                )}
+                {filteredTestCases.map(etc => {
+                  const expanded = expandedIds.has(etc.execution_test_case_id)
+                  return (
+                    <Fragment key={etc.execution_test_case_id}>
+                      <div className="select-row" style={expanded ? { borderBottom: 'none' } : undefined}>
+                        {!isClient && (
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.has(etc.execution_test_case_id)}
+                            onChange={() => toggleSelected(etc.execution_test_case_id)}
+                          />
+                        )}
+                        <div
+                          onClick={() => toggleExpanded(etc.execution_test_case_id)}
+                          style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}
+                        >
+                          <span style={{ color: 'var(--muted)', fontSize: '0.65rem', display: 'inline-block', transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0 }}>▶</span>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontWeight: 500, color: 'var(--light)' }}>{etc.title}</div>
+                            <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>
+                              {TYPE_LABELS[etc.type]}{etc.bug_count > 0 && ` · 🐛 ${etc.bug_count}`}
+                            </div>
+                          </div>
+                        </div>
+                        <span className={`badge badge-${etc.status === 'not_run' ? 'not-run' : etc.status}`}>{STATUS_LABELS[etc.status]}</span>
+                        {!isClient && (
+                          <div style={{ display: 'flex', gap: '0.35rem' }}>
+                            <button className="btn btn-ghost btn-sm" onClick={() => markSingle(etc.execution_test_case_id, 'fail')}>Fail</button>
+                            <button className="btn btn-ghost btn-sm" onClick={() => markSingle(etc.execution_test_case_id, 'blocked')}>Blocked</button>
+                            <button className="btn btn-ghost btn-sm" onClick={() => markSingle(etc.execution_test_case_id, 'pass')}>Pass</button>
+                            <button className="btn btn-ghost btn-sm" onClick={() => openLogBug(etc)}>🐛</button>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                    <span className={`badge badge-${etc.status === 'not_run' ? 'not-run' : etc.status}`}>{STATUS_LABELS[etc.status]}</span>
-                    <div style={{ display: 'flex', gap: '0.35rem' }}>
-                      <button className="btn btn-ghost btn-sm" onClick={() => markSingle(etc.execution_test_case_id, 'fail')}>Fail</button>
-                      <button className="btn btn-ghost btn-sm" onClick={() => markSingle(etc.execution_test_case_id, 'blocked')}>Blocked</button>
-                      <button className="btn btn-ghost btn-sm" onClick={() => markSingle(etc.execution_test_case_id, 'pass')}>Pass</button>
-                      <button className="btn btn-ghost btn-sm" onClick={() => openLogBug(etc)}>🐛</button>
-                    </div>
-                  </div>
-                ))}
+                      {expanded && (
+                        <div style={{ padding: '0 1rem 1rem 2.9rem', borderBottom: '1px solid var(--border)' }}>
+                          {etc.steps?.length > 0 && (
+                            <div style={{ marginBottom: etc.expected ? '0.85rem' : 0 }}>
+                              <div style={{ fontSize: '0.68rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '0.4rem' }}>Steps</div>
+                              <ol style={{ paddingLeft: '1.1rem', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                                {etc.steps.map((step, i) => <li key={i} style={{ fontSize: '0.84rem', color: 'var(--light)', lineHeight: 1.5 }}>{step}</li>)}
+                              </ol>
+                            </div>
+                          )}
+                          {etc.expected && (
+                            <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, padding: '0.6rem 0.85rem' }}>
+                              <div style={{ fontSize: '0.66rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '0.3rem' }}>Expected result</div>
+                              <div style={{ fontSize: '0.84rem', color: 'var(--light)', lineHeight: 1.5 }}>{etc.expected}</div>
+                            </div>
+                          )}
+                          {!etc.steps?.length && !etc.expected && (
+                            <div style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>No additional details for this test case.</div>
+                          )}
+                        </div>
+                      )}
+                    </Fragment>
+                  )
+                })}
               </>
             )}
           </div>
@@ -501,7 +554,7 @@ export default function ExecutionRunDetailPage() {
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1rem' }}>
             {run.suites.map(s => (
-              <ExecutionSuiteCard key={s.execution_suite_id} suite={s} onRun={runSuite} running={triggeringSuiteId === s.suite_id} />
+              <ExecutionSuiteCard key={s.execution_suite_id} suite={s} onRun={runSuite} running={triggeringSuiteId === s.suite_id} readOnly={isClient} />
             ))}
           </div>
         )}
