@@ -1,7 +1,7 @@
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
-const STATUS_LABELS = { pass: 'Pass', fail: 'Fail', not_run: 'Not run', skipped: 'Skipped' }
+const STATUS_LABELS = { pass: 'Pass', fail: 'Fail', not_run: 'Not run', blocked: 'Blocked' }
 const SUITE_STATUS_LABELS = { completed: 'Completed', pending: 'Pending', running: 'Running', failed: 'Failed' }
 
 function fmtDate(d) {
@@ -42,13 +42,13 @@ export function generateExecutionReportPdf({ run, project, bugs = [] }) {
   const total = run.test_cases.length
   const passed = run.test_cases.filter(t => t.status === 'pass').length
   const failed = run.test_cases.filter(t => t.status === 'fail').length
-  const skipped = run.test_cases.filter(t => t.status === 'skipped').length
+  const blocked = run.test_cases.filter(t => t.status === 'blocked').length
   const notRun = run.test_cases.filter(t => t.status === 'not_run').length
 
   autoTable(doc, {
     startY: y,
-    head: [['Total', 'Passed', 'Failed', 'Skipped', 'Not run']],
-    body: [[total, passed, failed, skipped, notRun]],
+    head: [['Total', 'Passed', 'Failed', 'Blocked', 'Not run']],
+    body: [[total, passed, failed, blocked, notRun]],
     theme: 'grid',
     headStyles: { fillColor: [224, 125, 60] },
     margin: { left: marginX, right: marginX },
@@ -77,6 +77,7 @@ export function generateExecutionReportPdf({ run, project, bugs = [] }) {
         const val = data.cell.raw
         if (val === 'Pass') data.cell.styles.textColor = [34, 197, 94]
         if (val === 'Fail') data.cell.styles.textColor = [239, 68, 68]
+        if (val === 'Blocked') data.cell.styles.textColor = [245, 158, 11]
       }
     },
   })
@@ -109,10 +110,11 @@ export function generateExecutionReportPdf({ run, project, bugs = [] }) {
 
     autoTable(doc, {
       startY: y,
-      head: [['Suite', 'Status', 'Passed', 'Failed', 'Skipped', 'Duration']],
+      head: [['Suite', 'Status', 'Total', 'Passed', 'Failed', 'Skipped', 'Duration']],
       body: run.suites.map(s => [
         s.suite_name,
         SUITE_STATUS_LABELS[s.latest_status] || 'Not run',
+        s.total ?? '—',
         s.passed ?? '—',
         s.failed ?? '—',
         s.skipped ?? '—',

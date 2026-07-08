@@ -99,8 +99,14 @@ export function LogBugModal({ projectId, testCase, executionRunId, onClose, onLo
     actual: '',
     notes: '',
   })
+  const [executionRuns, setExecutionRuns] = useState([])
+  const [linkedRunId, setLinkedRunId] = useState(executionRunId || '')
   const [loading, setLoading] = useState(false)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  useEffect(() => {
+    apiFetch(`/projects/${projectId}/execution-runs`).then(setExecutionRuns).catch(console.error)
+  }, [projectId])
 
   const submit = async () => {
     if (!form.title.trim()) return
@@ -108,7 +114,7 @@ export function LogBugModal({ projectId, testCase, executionRunId, onClose, onLo
     try {
       const bug = await apiFetch(`/projects/${projectId}/bugs`, {
         method: 'POST',
-        body: JSON.stringify({ ...form, test_case_id: testCase.id, execution_run_id: executionRunId }),
+        body: JSON.stringify({ ...form, test_case_id: testCase.id, execution_run_id: linkedRunId || null }),
       })
       addToast('Bug logged and linked to test case')
       onLogged(bug)
@@ -130,6 +136,13 @@ export function LogBugModal({ projectId, testCase, executionRunId, onClose, onLo
         <div className="form-group">
           <label className="form-label">Title *</label>
           <input className="form-input" value={form.title} onChange={e => set('title', e.target.value)} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Execution run</label>
+          <select className="form-select" value={linkedRunId} onChange={e => setLinkedRunId(e.target.value)}>
+            <option value="">None</option>
+            {executionRuns.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+          </select>
         </div>
         <div className="form-group">
           <label className="form-label">Severity</label>
@@ -382,11 +395,14 @@ function TestCaseModal({ tc, projectId, onClose, onStatusChange, onBugLogged, on
 
 export default function TestCasesPage() {
   const { id } = useParams()
+  const [project, setProject] = useState(null)
   const [testCases, setTestCases] = useState([])
   const [loading, setLoading] = useState(true)
   const [showGenerate, setShowGenerate] = useState(false)
   const [selectedTc, setSelectedTc] = useState(null)
   const [filter, setFilter] = useState('all')
+
+  useEffect(() => { apiFetch(`/projects/${id}`).then(setProject).catch(console.error) }, [id])
 
   useEffect(() => {
     apiFetch(`/projects/${id}/test-cases`)
@@ -416,12 +432,15 @@ export default function TestCasesPage() {
   return (
     <>
       <div className="topbar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
-          <Link to="/projects" style={{ color: 'var(--muted)', textDecoration: 'none' }}>Projects</Link>
-          <span style={{ color: 'var(--muted)' }}>/</span>
-          <Link to={`/projects/${id}`} style={{ color: 'var(--muted)', textDecoration: 'none' }}>Project</Link>
-          <span style={{ color: 'var(--muted)' }}>/</span>
-          <span className="topbar-title">Test cases</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <Link to={`/projects/${id}`} className="back-btn" title="Back to project" aria-label="Back to project">←</Link>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
+            <Link to="/projects" style={{ color: 'var(--muted)', textDecoration: 'none' }}>Projects</Link>
+            <span style={{ color: 'var(--muted)' }}>/</span>
+            <Link to={`/projects/${id}`} style={{ color: 'var(--muted)', textDecoration: 'none' }}>{project?.name || 'Project'}</Link>
+            <span style={{ color: 'var(--muted)' }}>/</span>
+            <span className="topbar-title">Test cases</span>
+          </div>
         </div>
         <div className="topbar-actions">
           <button className="btn btn-primary btn-sm" onClick={() => setShowGenerate(true)}>✨ Generate</button>

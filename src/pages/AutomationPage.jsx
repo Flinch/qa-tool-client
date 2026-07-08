@@ -126,12 +126,15 @@ function RunRow({ run }) {
 export default function AutomationPage() {
   const { id } = useParams()
   const { addToast } = useToastStore()
+  const [project, setProject] = useState(null)
   const [suites, setSuites] = useState([])
   const [runs, setRuns] = useState([])
   const [loading, setLoading] = useState(true)
   const [triggeringSuiteId, setTriggeringSuiteId] = useState(null)
   const pollRef = useRef(null)
   const pollStartedAt = useRef(null)
+
+  useEffect(() => { apiFetch(`/projects/${id}`).then(setProject).catch(console.error) }, [id])
 
   const load = useCallback(async () => {
     try {
@@ -231,12 +234,15 @@ export default function AutomationPage() {
   }
 `}</style>
       <div className="topbar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
-          <Link to="/projects" style={{ color: 'var(--muted)', textDecoration: 'none' }}>Projects</Link>
-          <span style={{ color: 'var(--muted)' }}>/</span>
-          <Link to={`/projects/${id}`} style={{ color: 'var(--muted)', textDecoration: 'none' }}>Project</Link>
-          <span style={{ color: 'var(--muted)' }}>/</span>
-          <span className="topbar-title">Automation</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <Link to={`/projects/${id}`} className="back-btn" title="Back to project" aria-label="Back to project">←</Link>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
+            <Link to="/projects" style={{ color: 'var(--muted)', textDecoration: 'none' }}>Projects</Link>
+            <span style={{ color: 'var(--muted)' }}>/</span>
+            <Link to={`/projects/${id}`} style={{ color: 'var(--muted)', textDecoration: 'none' }}>{project?.name || 'Project'}</Link>
+            <span style={{ color: 'var(--muted)' }}>/</span>
+            <span className="topbar-title">Automation</span>
+          </div>
         </div>
       </div>
       <div className="page-content fade-in">

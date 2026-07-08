@@ -12,7 +12,7 @@ const POLL_INTERVAL_MS = 4000
 const POLL_TIMEOUT_MS = 5 * 60 * 1000
 
 const TYPE_LABELS = { functional: 'Functional', integration: 'Integration', e2e: 'E2E' }
-const STATUS_LABELS = { pass: 'Pass', fail: 'Fail', not_run: 'Not run', skipped: 'Skipped' }
+const STATUS_LABELS = { pass: 'Pass', fail: 'Fail', not_run: 'Not run', blocked: 'Blocked' }
 
 function StatusPill({ status }) {
   const map = {
@@ -54,10 +54,17 @@ function SwipeCard({ etc, onMark, onLogBug }) {
         boxShadow: `0 12px 32px rgba(0,0,0,0.35), inset 0 0 0 999px ${tint}`,
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.6rem', flexWrap: 'wrap' }}>
-        <span className={`badge badge-${etc.type}`}>{TYPE_LABELS[etc.type]}</span>
-        <span className={`badge badge-${etc.status === 'not_run' ? 'not-run' : etc.status}`}>{STATUS_LABELS[etc.status]}</span>
-        {etc.bug_count > 0 && <span style={{ fontSize: '0.78rem', color: 'var(--danger)', fontWeight: 600 }}>🐛 {etc.bug_count}</span>}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <span className={`badge badge-${etc.type}`}>{TYPE_LABELS[etc.type]}</span>
+          {etc.bug_count > 0 && <span style={{ fontSize: '0.78rem', color: 'var(--danger)', fontWeight: 600 }}>🐛 {etc.bug_count}</span>}
+        </div>
+        <span
+          className={`badge badge-${etc.status === 'not_run' ? 'not-run' : etc.status}`}
+          style={{ fontSize: '0.82rem', fontWeight: 700, padding: '0.35rem 0.85rem', flexShrink: 0 }}
+        >
+          {STATUS_LABELS[etc.status]}
+        </span>
       </div>
       <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '1.05rem', fontWeight: 700, color: 'var(--white)', marginBottom: '1rem', lineHeight: 1.3 }}>
         {etc.title}
@@ -124,6 +131,7 @@ export default function ExecutionRunDetailPage() {
   const [run, setRun] = useState(null)
   const [loading, setLoading] = useState(true)
   const [mode, setMode] = useState('swipe')
+  const [statusFilter, setStatusFilter] = useState('all')
   const [cardIndex, setCardIndex] = useState(0)
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [logBugFor, setLogBugFor] = useState(null)
@@ -185,6 +193,8 @@ export default function ExecutionRunDetailPage() {
     }, POLL_INTERVAL_MS)
   }, [load, addToast])
   useEffect(() => () => stopPolling(), [])
+
+  useEffect(() => { setCardIndex(0) }, [statusFilter])
 
   const markSingle = async (etcId, status) => {
     try {
@@ -258,10 +268,11 @@ export default function ExecutionRunDetailPage() {
 
   const handleSwipeMark = async (status) => {
     if (!run) return
-    const current = run.test_cases[cardIndex]
+    const filtered = statusFilter === 'all' ? run.test_cases : run.test_cases.filter(tc => tc.status === statusFilter)
+    const current = filtered[cardIndex]
     if (!current) return
     await markSingle(current.execution_test_case_id, status)
-    setCardIndex(i => Math.min(i + 1, run.test_cases.length))
+    setCardIndex(i => Math.min(i + 1, filtered.length))
   }
 
   const toggleSelected = (etcId) => setSelectedIds(s => {
@@ -288,12 +299,15 @@ export default function ExecutionRunDetailPage() {
   const counts = {
     pass: run.test_cases.filter(t => t.status === 'pass').length,
     fail: run.test_cases.filter(t => t.status === 'fail').length,
-    skipped: run.test_cases.filter(t => t.status === 'skipped').length,
+    blocked: run.test_cases.filter(t => t.status === 'blocked').length,
     not_run: run.test_cases.filter(t => t.status === 'not_run').length,
   }
   const executedCount = total - counts.not_run
   const progressPct = total > 0 ? Math.round((executedCount / total) * 100) : 0
-  const currentCard = run.test_cases[cardIndex]
+  const filteredTestCases = statusFilter === 'all' ? run.test_cases : run.test_cases.filter(tc => tc.status === statusFilter)
+  const filteredTotal = filteredTestCases.length
+  const currentCard = filteredTestCases[cardIndex]
+  const STATUS_DOT_COLOR = { pass: 'var(--success)', fail: 'var(--danger)', blocked: 'var(--warning)', not_run: 'var(--border2)' }
 
   return (
     <>
@@ -304,14 +318,17 @@ export default function ExecutionRunDetailPage() {
   }
 `}</style>
       <div className="topbar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
-          <Link to="/projects" style={{ color: 'var(--muted)', textDecoration: 'none' }}>Projects</Link>
-          <span style={{ color: 'var(--muted)' }}>/</span>
-          <Link to={`/projects/${id}`} style={{ color: 'var(--muted)', textDecoration: 'none' }}>Project</Link>
-          <span style={{ color: 'var(--muted)' }}>/</span>
-          <Link to={`/projects/${id}/executions`} style={{ color: 'var(--muted)', textDecoration: 'none' }}>Executions</Link>
-          <span style={{ color: 'var(--muted)' }}>/</span>
-          <span className="topbar-title">{run.name}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <Link to={`/projects/${id}/executions`} className="back-btn" title="Back to executions" aria-label="Back to executions">←</Link>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
+            <Link to="/projects" style={{ color: 'var(--muted)', textDecoration: 'none' }}>Projects</Link>
+            <span style={{ color: 'var(--muted)' }}>/</span>
+            <Link to={`/projects/${id}`} style={{ color: 'var(--muted)', textDecoration: 'none' }}>{project?.name || 'Project'}</Link>
+            <span style={{ color: 'var(--muted)' }}>/</span>
+            <Link to={`/projects/${id}/executions`} style={{ color: 'var(--muted)', textDecoration: 'none' }}>Executions</Link>
+            <span style={{ color: 'var(--muted)' }}>/</span>
+            <span className="topbar-title">{run.name}</span>
+          </div>
         </div>
         <div className="topbar-actions">
           <button className="btn btn-ghost btn-sm" onClick={downloadReport}>⬇ Download report</button>
@@ -333,12 +350,13 @@ export default function ExecutionRunDetailPage() {
               <div className="stat-card"><div className="stat-num">{total}</div><div className="stat-label">Total</div></div>
               <div className="stat-card"><div className="stat-num" style={{ color: 'var(--success)' }}>{counts.pass}</div><div className="stat-label">Passed</div></div>
               <div className="stat-card"><div className="stat-num" style={{ color: 'var(--danger)' }}>{counts.fail}</div><div className="stat-label">Failed</div></div>
+              <div className="stat-card"><div className="stat-num" style={{ color: 'var(--warning)' }}>{counts.blocked}</div><div className="stat-label">Blocked</div></div>
               <div className="stat-card"><div className="stat-num" style={{ color: 'var(--muted)' }}>{counts.not_run}</div><div className="stat-label">Not run</div></div>
             </div>
             <div style={{ marginBottom: '2rem' }}>
-              <div style={{ fontSize: '0.78rem', color: 'var(--muted)', marginBottom: '0.4rem' }}>Progress ({executedCount}/{total} executed)</div>
+              <div style={{ fontSize: '0.78rem', color: 'var(--muted)', marginBottom: '0.4rem' }}>Overall run completion — {executedCount} of {total} test cases executed</div>
               <div className="progress-bar" style={{ height: 8 }}>
-                <div className="progress-fill green" style={{ width: `${progressPct}%` }} />
+                <div className="progress-fill" style={{ width: `${progressPct}%` }} />
               </div>
             </div>
           </>
@@ -354,12 +372,22 @@ export default function ExecutionRunDetailPage() {
           )}
         </div>
 
+        {total > 0 && (
+          <div className="filters-row">
+            {['all', 'pass', 'fail', 'blocked', 'not_run'].map(f => (
+              <button key={f} className={`filter-btn${statusFilter === f ? ' active' : ''}`} onClick={() => setStatusFilter(f)}>
+                {f === 'all' ? 'All' : STATUS_LABELS[f]}
+              </button>
+            ))}
+          </div>
+        )}
+
         {total === 0 ? (
           <div className="empty-state"><h3>No manual test cases in this run</h3></div>
         ) : mode === 'swipe' ? (
           <>
             <div className="swipe-arena">
-              <button className="swipe-arrow left" disabled={!currentCard} onClick={() => handleSwipeMark('fail')} title="Fail">✕</button>
+              <button className="swipe-arrow left" disabled={cardIndex === 0} onClick={() => setCardIndex(i => Math.max(i - 1, 0))} title="Previous">←</button>
               {currentCard ? (
                 <SwipeCard
                   key={currentCard.execution_test_case_id}
@@ -367,68 +395,101 @@ export default function ExecutionRunDetailPage() {
                   onMark={handleSwipeMark}
                   onLogBug={() => openLogBug(currentCard)}
                 />
+              ) : filteredTotal === 0 ? (
+                <div className="empty-state" style={{ maxWidth: 400 }}>
+                  <h3>No test cases match this filter</h3>
+                  <p>Try a different filter above.</p>
+                </div>
               ) : (
                 <div className="empty-state" style={{ maxWidth: 400 }}>
                   <h3>All caught up</h3>
-                  <p>You've gone through every test case in this run.</p>
+                  <p>You've gone through every test case in this view.</p>
                   <button className="btn btn-ghost btn-sm" onClick={() => setCardIndex(0)}>Review from start</button>
                 </div>
               )}
-              <button className="swipe-arrow right" disabled={!currentCard} onClick={() => handleSwipeMark('pass')} title="Pass">✓</button>
+              <button className="swipe-arrow right" disabled={cardIndex >= filteredTotal} onClick={() => setCardIndex(i => Math.min(i + 1, filteredTotal))} title="Next">→</button>
             </div>
             {currentCard && (
               <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'center', marginBottom: '0.75rem' }}>
-                <button className="btn btn-ghost btn-sm" onClick={() => setCardIndex(i => Math.max(i - 1, 0))} disabled={cardIndex === 0}>↩ Undo</button>
-                <button className="btn btn-ghost btn-sm" onClick={() => handleSwipeMark('skipped')}>Skip</button>
+                <button className="btn btn-danger btn-sm" onClick={() => handleSwipeMark('fail')}>✕ Fail</button>
+                <button className="btn btn-warning btn-sm" onClick={() => handleSwipeMark('blocked')}>⛔ Blocked</button>
+                <button className="btn btn-primary btn-sm" onClick={() => handleSwipeMark('pass')}>✓ Pass</button>
               </div>
             )}
-            <div style={{ textAlign: 'center', fontSize: '0.8rem', color: 'var(--muted)', marginBottom: '1.5rem' }}>
-              {Math.min(cardIndex + 1, total)} of {total}
+            {filteredTotal > 0 && (
+              <div style={{ display: 'flex', gap: '4px', justifyContent: 'center', flexWrap: 'wrap', maxWidth: 480, margin: '0 auto 0.5rem' }}>
+                {filteredTestCases.map((tc, i) => (
+                  <div
+                    key={tc.execution_test_case_id}
+                    style={{
+                      height: 4, width: 16, borderRadius: 2,
+                      background: STATUS_DOT_COLOR[tc.status],
+                      opacity: i === cardIndex ? 1 : 0.4,
+                      transition: 'opacity 0.15s',
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+            <div style={{ textAlign: 'center', fontSize: '0.78rem', color: 'var(--muted)', marginBottom: '1.5rem' }}>
+              Card {Math.min(cardIndex + 1, filteredTotal)} of {filteredTotal}
             </div>
           </>
         ) : (
           <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: '1.5rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.85rem 1rem', borderBottom: '1px solid var(--border)', flexWrap: 'wrap', gap: '0.5rem' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.82rem', color: 'var(--muted)', cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={selectedIds.size === total && total > 0}
-                  onChange={() => setSelectedIds(selectedIds.size === total ? new Set() : new Set(run.test_cases.map(t => t.execution_test_case_id)))}
-                />
-                {selectedIds.size > 0 ? `${selectedIds.size} selected` : 'Select all'}
-              </label>
-              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                {selectedIds.size > 0 && (
-                  <>
-                    <button className="btn btn-danger btn-sm" onClick={() => markBulk([...selectedIds], 'fail')}>Mark selected fail</button>
-                    <button className="btn btn-primary btn-sm" onClick={() => markBulk([...selectedIds], 'pass')}>Mark selected pass</button>
-                  </>
-                )}
-                <button className="btn btn-ghost btn-sm" onClick={() => markBulk('all', 'fail')}>Mark all fail</button>
-                <button className="btn btn-ghost btn-sm" onClick={() => markBulk('all', 'pass')}>Mark all pass</button>
-              </div>
-            </div>
-            {run.test_cases.map(etc => (
-              <div key={etc.execution_test_case_id} className="select-row">
-                <input
-                  type="checkbox"
-                  checked={selectedIds.has(etc.execution_test_case_id)}
-                  onChange={() => toggleSelected(etc.execution_test_case_id)}
-                />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 500, color: 'var(--light)' }}>{etc.title}</div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>
-                    {TYPE_LABELS[etc.type]}{etc.bug_count > 0 && ` · 🐛 ${etc.bug_count}`}
+            {filteredTotal === 0 ? (
+              <div className="empty-state"><h3>No test cases match this filter</h3><p>Try a different filter above.</p></div>
+            ) : (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.85rem 1rem', borderBottom: '1px solid var(--border)', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.82rem', color: 'var(--muted)', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.size === filteredTotal && filteredTotal > 0}
+                      onChange={() => setSelectedIds(selectedIds.size === filteredTotal ? new Set() : new Set(filteredTestCases.map(t => t.execution_test_case_id)))}
+                    />
+                    {selectedIds.size > 0 ? `${selectedIds.size} selected` : 'Select all'}
+                  </label>
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    {selectedIds.size > 0 && (
+                      <>
+                        <button className="btn btn-danger btn-sm" onClick={() => markBulk([...selectedIds], 'fail')}>Mark selected fail</button>
+                        <button className="btn btn-warning btn-sm" onClick={() => markBulk([...selectedIds], 'blocked')}>Mark selected blocked</button>
+                        <button className="btn btn-primary btn-sm" onClick={() => markBulk([...selectedIds], 'pass')}>Mark selected pass</button>
+                      </>
+                    )}
+                    <button className="btn btn-ghost btn-sm" onClick={() => markBulk(statusFilter === 'all' ? 'all' : filteredTestCases.map(t => t.execution_test_case_id), 'fail')}>
+                      Mark {statusFilter === 'all' ? 'all' : 'visible'} fail
+                    </button>
+                    <button className="btn btn-ghost btn-sm" onClick={() => markBulk(statusFilter === 'all' ? 'all' : filteredTestCases.map(t => t.execution_test_case_id), 'pass')}>
+                      Mark {statusFilter === 'all' ? 'all' : 'visible'} pass
+                    </button>
                   </div>
                 </div>
-                <span className={`badge badge-${etc.status === 'not_run' ? 'not-run' : etc.status}`}>{STATUS_LABELS[etc.status]}</span>
-                <div style={{ display: 'flex', gap: '0.35rem' }}>
-                  <button className="btn btn-ghost btn-sm" onClick={() => markSingle(etc.execution_test_case_id, 'fail')}>Fail</button>
-                  <button className="btn btn-ghost btn-sm" onClick={() => markSingle(etc.execution_test_case_id, 'pass')}>Pass</button>
-                  <button className="btn btn-ghost btn-sm" onClick={() => openLogBug(etc)}>🐛</button>
-                </div>
-              </div>
-            ))}
+                {filteredTestCases.map(etc => (
+                  <div key={etc.execution_test_case_id} className="select-row">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(etc.execution_test_case_id)}
+                      onChange={() => toggleSelected(etc.execution_test_case_id)}
+                    />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 500, color: 'var(--light)' }}>{etc.title}</div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>
+                        {TYPE_LABELS[etc.type]}{etc.bug_count > 0 && ` · 🐛 ${etc.bug_count}`}
+                      </div>
+                    </div>
+                    <span className={`badge badge-${etc.status === 'not_run' ? 'not-run' : etc.status}`}>{STATUS_LABELS[etc.status]}</span>
+                    <div style={{ display: 'flex', gap: '0.35rem' }}>
+                      <button className="btn btn-ghost btn-sm" onClick={() => markSingle(etc.execution_test_case_id, 'fail')}>Fail</button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => markSingle(etc.execution_test_case_id, 'blocked')}>Blocked</button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => markSingle(etc.execution_test_case_id, 'pass')}>Pass</button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => openLogBug(etc)}>🐛</button>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
           </div>
         )}
 

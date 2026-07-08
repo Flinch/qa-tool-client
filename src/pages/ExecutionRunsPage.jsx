@@ -76,8 +76,17 @@ function CreateRunModal({ projectId, onClose, onCreated }) {
         ) : (
           <>
             <div className="form-group">
-              <label className="form-label">
-                Test cases {selectedTcIds.size > 0 && `(${selectedTcIds.size} selected)`}
+              <label className="form-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span>Test cases {selectedTcIds.size > 0 && `(${selectedTcIds.size} selected)`}</span>
+                {testCases.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTcIds(selectedTcIds.size === testCases.length ? new Set() : new Set(testCases.map(tc => tc.id)))}
+                    style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: '0.76rem', fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    {selectedTcIds.size === testCases.length ? 'Clear all' : 'Select all'}
+                  </button>
+                )}
               </label>
               {testCases.length === 0 ? (
                 <div className="form-hint">No test cases in this project yet.</div>
@@ -175,6 +184,7 @@ function RunCard({ run, projectId }) {
 
 export default function ExecutionRunsPage() {
   const { id } = useParams()
+  const [project, setProject] = useState(null)
   const [runs, setRuns] = useState([])
   const [loading, setLoading] = useState(true)
   const [showCreate, setShowCreate] = useState(false)
@@ -186,17 +196,21 @@ export default function ExecutionRunsPage() {
       .finally(() => setLoading(false))
   }
 
+  useEffect(() => { apiFetch(`/projects/${id}`).then(setProject).catch(console.error) }, [id])
   useEffect(load, [id])
 
   return (
     <>
       <div className="topbar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
-          <Link to="/projects" style={{ color: 'var(--muted)', textDecoration: 'none' }}>Projects</Link>
-          <span style={{ color: 'var(--muted)' }}>/</span>
-          <Link to={`/projects/${id}`} style={{ color: 'var(--muted)', textDecoration: 'none' }}>Project</Link>
-          <span style={{ color: 'var(--muted)' }}>/</span>
-          <span className="topbar-title">Executions</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <Link to={`/projects/${id}`} className="back-btn" title="Back to project" aria-label="Back to project">←</Link>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
+            <Link to="/projects" style={{ color: 'var(--muted)', textDecoration: 'none' }}>Projects</Link>
+            <span style={{ color: 'var(--muted)' }}>/</span>
+            <Link to={`/projects/${id}`} style={{ color: 'var(--muted)', textDecoration: 'none' }}>{project?.name || 'Project'}</Link>
+            <span style={{ color: 'var(--muted)' }}>/</span>
+            <span className="topbar-title">Executions</span>
+          </div>
         </div>
         <div className="topbar-actions">
           <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>+ New execution run</button>
@@ -223,7 +237,7 @@ export default function ExecutionRunsPage() {
         <CreateRunModal
           projectId={id}
           onClose={() => setShowCreate(false)}
-          onCreated={run => setRuns(rs => [{ ...run, total_test_cases: 0, passed: 0, failed: 0, not_run: 0, skipped: 0, suite_count: 0 }, ...rs])}
+          onCreated={run => setRuns(rs => [{ ...run, total_test_cases: 0, passed: 0, failed: 0, not_run: 0, blocked: 0, suite_count: 0 }, ...rs])}
         />
       )}
     </>

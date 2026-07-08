@@ -67,10 +67,13 @@ export default function ProjectDetailPage() {
   return (
     <>
       <div className="topbar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
-          <Link to="/projects" style={{ color: 'var(--muted)', textDecoration: 'none' }}>Projects</Link>
-          <span style={{ color: 'var(--muted)' }}>/</span>
-          <span className="topbar-title">{project.name}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <Link to="/projects" className="back-btn" title="Back to projects" aria-label="Back to projects">←</Link>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
+            <Link to="/projects" style={{ color: 'var(--muted)', textDecoration: 'none' }}>Projects</Link>
+            <span style={{ color: 'var(--muted)' }}>/</span>
+            <span className="topbar-title">{project.name}</span>
+          </div>
         </div>
       </div>
       <div className="page-content fade-in">

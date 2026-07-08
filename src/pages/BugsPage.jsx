@@ -10,8 +10,14 @@ const STATUS_LABELS = { open: 'Open', in_progress: 'In progress', resolved: 'Res
 function BugModal({ projectId, onClose, onCreated }) {
   const { addToast } = useToastStore()
   const [form, setForm] = useState({ title: '', severity: 'high', steps_to_reproduce: '', expected: '', actual: '', notes: '' })
+  const [executionRuns, setExecutionRuns] = useState([])
+  const [linkedRunId, setLinkedRunId] = useState('')
   const [loading, setLoading] = useState(false)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  useEffect(() => {
+    apiFetch(`/projects/${projectId}/execution-runs`).then(setExecutionRuns).catch(console.error)
+  }, [projectId])
 
   const submit = async () => {
     if (!form.title.trim()) return
@@ -19,7 +25,7 @@ function BugModal({ projectId, onClose, onCreated }) {
     try {
       const bug = await apiFetch(`/projects/${projectId}/bugs`, {
         method: 'POST',
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, execution_run_id: linkedRunId || null }),
       })
       addToast('Bug logged')
       onCreated(bug)
@@ -38,6 +44,13 @@ function BugModal({ projectId, onClose, onCreated }) {
         <div className="form-group">
           <label className="form-label">Title *</label>
           <input className="form-input" placeholder="Short description of the bug" value={form.title} onChange={e => set('title', e.target.value)} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Execution run</label>
+          <select className="form-select" value={linkedRunId} onChange={e => setLinkedRunId(e.target.value)}>
+            <option value="">None</option>
+            {executionRuns.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+          </select>
         </div>
         <div className="form-group">
           <label className="form-label">Severity</label>
@@ -73,10 +86,13 @@ function BugModal({ projectId, onClose, onCreated }) {
 export default function BugsPage() {
   const { id } = useParams()
   const { addToast } = useToastStore()
+  const [project, setProject] = useState(null)
   const [bugs, setBugs] = useState([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [filter, setFilter] = useState('all')
+
+  useEffect(() => { apiFetch(`/projects/${id}`).then(setProject).catch(console.error) }, [id])
 
   useEffect(() => {
     apiFetch(`/projects/${id}/bugs`)
@@ -102,12 +118,15 @@ export default function BugsPage() {
   return (
     <>
       <div className="topbar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
-          <Link to="/projects" style={{ color: 'var(--muted)', textDecoration: 'none' }}>Projects</Link>
-          <span style={{ color: 'var(--muted)' }}>/</span>
-          <Link to={`/projects/${id}`} style={{ color: 'var(--muted)', textDecoration: 'none' }}>Project</Link>
-          <span style={{ color: 'var(--muted)' }}>/</span>
-          <span className="topbar-title">Bugs</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <Link to={`/projects/${id}`} className="back-btn" title="Back to project" aria-label="Back to project">←</Link>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
+            <Link to="/projects" style={{ color: 'var(--muted)', textDecoration: 'none' }}>Projects</Link>
+            <span style={{ color: 'var(--muted)' }}>/</span>
+            <Link to={`/projects/${id}`} style={{ color: 'var(--muted)', textDecoration: 'none' }}>{project?.name || 'Project'}</Link>
+            <span style={{ color: 'var(--muted)' }}>/</span>
+            <span className="topbar-title">Bugs</span>
+          </div>
         </div>
         <div className="topbar-actions">
           <button className="btn btn-primary btn-sm" onClick={() => setShowModal(true)}>+ Log bug</button>
@@ -151,6 +170,11 @@ export default function BugsPage() {
                     {bug.steps_to_reproduce && <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginBottom: '0.3rem' }}><strong style={{ color: 'var(--light)' }}>Steps: </strong>{bug.steps_to_reproduce.substring(0, 120)}{bug.steps_to_reproduce.length > 120 ? '...' : ''}</div>}
                     {bug.expected && <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}><strong style={{ color: 'var(--light)' }}>Expected:</strong> {bug.expected}</div>}
                     {bug.actual && <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}><strong style={{ color: 'var(--danger)' }}>Actual:</strong> {bug.actual}</div>}
+                    {bug.execution_run_id && (
+                      <Link to={`/projects/${id}/executions/${bug.execution_run_id}`} style={{ fontSize: '0.76rem', color: 'var(--accent)', textDecoration: 'none' }}>
+                        🔗 {bug.execution_run_name || 'Execution run'}
+                      </Link>
+                    )}
                   </div>
                   <select className="form-select" style={{ width: 'auto', padding: '0.3rem 0.6rem', fontSize: '0.78rem' }} value={bug.status} onChange={e => updateStatus(bug.id, e.target.value)}>
                     {STATUSES.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
