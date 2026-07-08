@@ -89,7 +89,7 @@ function GenerateModal({ projectId, onClose, onGenerated }) {
   )
 }
 
-function LogBugModal({ projectId, testCase, onClose, onLogged }) {
+export function LogBugModal({ projectId, testCase, executionRunId, onClose, onLogged }) {
   const { addToast } = useToastStore()
   const [form, setForm] = useState({
     title: `Bug in: ${testCase.title}`,
@@ -108,7 +108,7 @@ function LogBugModal({ projectId, testCase, onClose, onLogged }) {
     try {
       const bug = await apiFetch(`/projects/${projectId}/bugs`, {
         method: 'POST',
-        body: JSON.stringify({ ...form, test_case_id: testCase.id }),
+        body: JSON.stringify({ ...form, test_case_id: testCase.id, execution_run_id: executionRunId }),
       })
       addToast('Bug logged and linked to test case')
       onLogged(bug)
