@@ -50,7 +50,7 @@ export function generateExecutionReportPdf({ run, project, bugs = [] }) {
     head: [['Total', 'Passed', 'Failed', 'Blocked', 'Not run']],
     body: [[total, passed, failed, blocked, notRun]],
     theme: 'grid',
-    headStyles: { fillColor: [224, 125, 60] },
+    headStyles: { fillColor: [184, 70, 31] },
     margin: { left: marginX, right: marginX },
   })
   y = doc.lastAutoTable.finalY + 10
@@ -70,14 +70,14 @@ export function generateExecutionReportPdf({ run, project, bugs = [] }) {
       tc.notes || (tc.bug_count > 0 ? `${tc.bug_count} bug(s) linked` : ''),
     ]),
     theme: 'striped',
-    headStyles: { fillColor: [224, 125, 60] },
+    headStyles: { fillColor: [184, 70, 31] },
     margin: { left: marginX, right: marginX },
     didParseCell: (data) => {
       if (data.section === 'body' && data.column.index === 2) {
         const val = data.cell.raw
-        if (val === 'Pass') data.cell.styles.textColor = [34, 197, 94]
-        if (val === 'Fail') data.cell.styles.textColor = [239, 68, 68]
-        if (val === 'Blocked') data.cell.styles.textColor = [245, 158, 11]
+        if (val === 'Pass') data.cell.styles.textColor = [122, 155, 87]
+        if (val === 'Fail') data.cell.styles.textColor = [193, 68, 58]
+        if (val === 'Blocked') data.cell.styles.textColor = [201, 162, 39]
       }
     },
   })
@@ -95,7 +95,7 @@ export function generateExecutionReportPdf({ run, project, bugs = [] }) {
       head: [['Title', 'Severity', 'Status']],
       body: bugs.map(b => [b.title, b.severity, b.status.replace('_', ' ')]),
       theme: 'striped',
-      headStyles: { fillColor: [224, 125, 60] },
+      headStyles: { fillColor: [184, 70, 31] },
       margin: { left: marginX, right: marginX },
     })
     y = doc.lastAutoTable.finalY + 10
@@ -121,7 +121,7 @@ export function generateExecutionReportPdf({ run, project, bugs = [] }) {
         s.duration_ms != null ? `${(s.duration_ms / 1000).toFixed(1)}s` : '—',
       ]),
       theme: 'striped',
-      headStyles: { fillColor: [224, 125, 60] },
+      headStyles: { fillColor: [184, 70, 31] },
       margin: { left: marginX, right: marginX },
     })
   }

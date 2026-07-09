@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { apiFetch } from '../lib/api.js'
 import { useToastStore } from '../store/toastStore.jsx'
 import { useAuth } from '../store/AuthContext.jsx'
+import Icon from '../components/Icon.jsx'
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api'
 const POLL_INTERVAL_MS = 4000
@@ -19,7 +20,7 @@ function StatusPill({ status }) {
   return (
     <span style={{
       fontSize: '0.72rem', fontWeight: 600, color: s.color,
-      border: `1px solid ${s.color}`, borderRadius: 20, padding: '0.15rem 0.6rem',
+      border: `1px solid ${s.color}`, borderRadius: 0, padding: '0.15rem 0.6rem',
     }}>
       {s.label}
     </span>
@@ -53,7 +54,7 @@ function SuiteCard({ suite, onRun, running }) {
     <div className="card" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem', minHeight: '2.7rem' }}>
         <div>
-          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, color: 'var(--white)', lineHeight: 1.25 }}>{suite.name}</div>
+          <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)', lineHeight: 1.25 }}>{suite.name}</div>
           <div style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>{suite.test_case_count} test case{suite.test_case_count === 1 ? '' : 's'}</div>
         </div>
         {suite.latest_status && <StatusPill status={suite.latest_status} />}
@@ -75,11 +76,11 @@ function SuiteCard({ suite, onRun, running }) {
         {isRunning && (
           <div style={{
             height: '4px', width: '100%', background: 'var(--border)',
-            borderRadius: '2px', overflow: 'hidden', marginBottom: '0.6rem', position: 'relative',
+            borderRadius: 0, overflow: 'hidden', marginBottom: '0.6rem', position: 'relative',
           }}>
             <div style={{
               position: 'absolute', top: 0, left: 0, height: '100%', width: '40%',
-              background: 'var(--accent)', borderRadius: '2px',
+              background: 'var(--accent)', borderRadius: 0,
               animation: 'suiteLoaderSlide 1.1s ease-in-out infinite',
             }} />
           </div>
@@ -238,7 +239,7 @@ export default function AutomationPage() {
 `}</style>
       <div className="topbar">
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <Link to={`/projects/${id}`} className="back-btn" title="Back to project" aria-label="Back to project">←</Link>
+          <Link to={`/projects/${id}`} className="back-btn" title="Back to project" aria-label="Back to project"><Icon name="arrowLeft" size={14} /></Link>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
             <Link to="/projects" style={{ color: 'var(--muted)', textDecoration: 'none' }}>Projects</Link>
             <span style={{ color: 'var(--muted)' }}>/</span>
@@ -262,7 +263,7 @@ export default function AutomationPage() {
                   <div key={s.id} className="card">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                       <div>
-                        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, color: 'var(--white)' }}>{s.name}</div>
+                        <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)' }}>{s.name}</div>
                         <div style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>{s.test_case_count} test case{s.test_case_count === 1 ? '' : 's'}</div>
                       </div>
                       {s.latest_status && <StatusPill status={s.latest_status} />}
@@ -280,7 +281,7 @@ export default function AutomationPage() {
         ) : (
           <>
             <div style={{ marginBottom: '2rem' }}>
-              <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '1.1rem', color: 'var(--white)', marginBottom: '1rem' }}>Suites</h2>
+              <h2 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '1.1rem', color: 'var(--white)', marginBottom: '1rem' }}>Suites</h2>
               {suites.length === 0 ? (
                 <div className="empty-state"><h3>No automation suites yet</h3><p>Suites are created via the API for now — ask your engineer to set one up.</p></div>
               ) : (
@@ -293,7 +294,7 @@ export default function AutomationPage() {
             </div>
 
             <div style={{ marginBottom: '2rem' }}>
-              <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '1.1rem', color: 'var(--white)', marginBottom: '1rem' }}>Recent executions</h2>
+              <h2 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '1.1rem', color: 'var(--white)', marginBottom: '1rem' }}>Recent executions</h2>
               {runs.length === 0 ? (
                 <div className="empty-state"><h3>No runs yet</h3><p>Trigger a suite above to see results here.</p></div>
               ) : (
@@ -304,7 +305,7 @@ export default function AutomationPage() {
             </div>
 
             <div>
-              <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '1.1rem', color: 'var(--white)', marginBottom: '1rem' }}>Nightly builds</h2>
+              <h2 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '1.1rem', color: 'var(--white)', marginBottom: '1rem' }}>Nightly builds</h2>
               {nightlyRuns.length === 0 ? (
                 <div className="empty-state"><h3>No nightly runs yet</h3><p>These populate automatically once the scheduled workflow runs.</p></div>
               ) : (

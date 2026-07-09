@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { apiFetch } from '../lib/api.js'
 import { useToastStore } from '../store/toastStore.jsx'
 import { useAuth } from '../store/AuthContext.jsx'
+import Icon from '../components/Icon.jsx'
 
 const SEVERITIES = ['critical', 'high', 'medium', 'low']
 const STATUSES = ['open', 'in_progress', 'resolved']
@@ -132,7 +133,7 @@ export default function BugsPage() {
     <>
       <div className="topbar">
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <Link to={`/projects/${id}`} className="back-btn" title="Back to project" aria-label="Back to project">←</Link>
+          <Link to={`/projects/${id}`} className="back-btn" title="Back to project" aria-label="Back to project"><Icon name="arrowLeft" size={14} /></Link>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
             <Link to="/projects" style={{ color: 'var(--muted)', textDecoration: 'none' }}>Projects</Link>
             <span style={{ color: 'var(--muted)' }}>/</span>
@@ -191,7 +192,7 @@ export default function BugsPage() {
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
                   <div onClick={() => toggleExpanded(bug.id)} style={{ flex: 1, cursor: 'pointer' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem', flexWrap: 'wrap' }}>
-                      <span style={{ color: 'var(--muted)', fontSize: '0.65rem', display: 'inline-block', transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>▶</span>
+                      <Icon name="chevronRight" size={12} style={{ color: 'var(--muted)', transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }} />
                       <span style={{ fontWeight: 600, color: 'var(--light)', fontSize: '0.92rem' }}>{bug.title}</span>
                       <span className={`badge badge-${bug.severity}`}>{bug.severity}</span>
                       <span className={`badge badge-${bug.status.replace('_', '-')}`}>{STATUS_LABELS[bug.status]}</span>
@@ -211,9 +212,9 @@ export default function BugsPage() {
                       <Link
                         to={`/projects/${id}/executions/${bug.execution_run_id}`}
                         onClick={e => e.stopPropagation()}
-                        style={{ fontSize: '0.76rem', color: 'var(--accent)', textDecoration: 'none', display: 'inline-block', marginTop: '0.3rem' }}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.76rem', color: 'var(--accent)', textDecoration: 'none', marginTop: '0.3rem' }}
                       >
-                        🔗 {bug.execution_run_name || 'Execution run'}
+                        <Icon name="link" size={12} /> {bug.execution_run_name || 'Execution run'}
                       </Link>
                     )}
                   </div>

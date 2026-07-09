@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { apiFetch } from '../lib/api.js'
 import { useToastStore } from '../store/toastStore.jsx'
 import { useAuth } from '../store/AuthContext.jsx'
+import Icon from '../components/Icon.jsx'
 
 const TYPE_LABELS = { functional: 'Functional', integration: 'Integration', e2e: 'E2E' }
 
@@ -154,11 +155,11 @@ function RunCard({ run, projectId }) {
       className="card"
       style={{ cursor: 'pointer', transition: 'border-color 0.2s' }}
       onClick={() => navigate(`/projects/${projectId}/executions/${run.id}`)}
-      onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(224,125,60,0.3)'}
+      onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,70,31,0.3)'}
       onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
-        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, color: 'var(--white)' }}>{run.name}</div>
+        <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)' }}>{run.name}</div>
         <RunStatusBadge status={run.status} />
       </div>
       <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginBottom: '0.75rem' }}>
@@ -206,7 +207,7 @@ export default function ExecutionRunsPage() {
     <>
       <div className="topbar">
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <Link to={`/projects/${id}`} className="back-btn" title="Back to project" aria-label="Back to project">←</Link>
+          <Link to={`/projects/${id}`} className="back-btn" title="Back to project" aria-label="Back to project"><Icon name="arrowLeft" size={14} /></Link>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
             <Link to="/projects" style={{ color: 'var(--muted)', textDecoration: 'none' }}>Projects</Link>
             <span style={{ color: 'var(--muted)' }}>/</span>

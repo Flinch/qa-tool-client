@@ -32,7 +32,7 @@ export default function SignInPage() {
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
       <div style={{ width: '100%', maxWidth: 360, padding: '2rem' }}>
         <div style={{ textAlign: 'center', marginBottom: '1.75rem' }}>
-          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '1.5rem', fontWeight: 700, color: 'var(--white)', marginBottom: '0.35rem' }}>
+          <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '1.5rem', fontWeight: 700, color: 'var(--white)', marginBottom: '0.35rem' }}>
             QA<span style={{ color: 'var(--accent)' }}>Tool</span>
           </div>
           <div style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>
@@ -78,9 +78,9 @@ export default function SignInPage() {
               style={{
                 fontSize: '0.8rem',
                 color: 'var(--danger)',
-                background: 'rgba(239,68,68,0.1)',
-                border: '1px solid rgba(239,68,68,0.25)',
-                borderRadius: 6,
+                background: 'rgba(193,68,58,0.1)',
+                border: '1px solid rgba(193,68,58,0.25)',
+                borderRadius: 0,
                 padding: '0.5rem 0.65rem',
               }}
             >
@@ -97,7 +97,7 @@ export default function SignInPage() {
               background: 'var(--accent)',
               color: 'var(--white)',
               border: 'none',
-              borderRadius: 6,
+              borderRadius: 0,
               padding: '0.6rem',
               fontWeight: 600,
               fontSize: '0.88rem',
@@ -133,7 +133,7 @@ export default function SignInPage() {
 const inputStyle = {
   background: 'var(--card)',
   border: '1px solid var(--border2)',
-  borderRadius: 6,
+  borderRadius: 0,
   padding: '0.6rem 0.7rem',
   color: 'var(--light)',
   fontSize: '0.88rem',

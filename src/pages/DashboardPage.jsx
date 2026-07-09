@@ -37,7 +37,7 @@ export default function DashboardPage() {
       <div className="topbar"><span className="topbar-title">Dashboard</span></div>
       <div className="page-content fade-in">
         <div style={{ marginBottom: '2rem' }}>
-          <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '1.5rem', fontWeight: 700, color: 'var(--white)', marginBottom: '0.25rem' }}>Hey, Malik 👋</h1>
+          <h1 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '1.5rem', fontWeight: 700, color: 'var(--white)', marginBottom: '0.25rem' }}>Hey, Malik</h1>
           <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>Here's a snapshot of your QA activity.</p>
         </div>
         <div className="stats-row">

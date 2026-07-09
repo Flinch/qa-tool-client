@@ -6,6 +6,7 @@ import { useToastStore } from '../store/toastStore.jsx'
 import { useAuth } from '../store/AuthContext.jsx'
 import { LogBugModal } from './TestCasesPage.jsx'
 import { RunStatusBadge } from './ExecutionRunsPage.jsx'
+import Icon from '../components/Icon.jsx'
 import { generateExecutionReportPdf } from '../lib/executionReport.js'
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api'
@@ -24,7 +25,7 @@ function StatusPill({ status }) {
   }
   const s = map[status] || { label: status || 'Unknown', color: 'var(--muted)' }
   return (
-    <span style={{ fontSize: '0.72rem', fontWeight: 600, color: s.color, border: `1px solid ${s.color}`, borderRadius: 20, padding: '0.15rem 0.6rem' }}>
+    <span style={{ fontSize: '0.72rem', fontWeight: 600, color: s.color, border: `1px solid ${s.color}`, borderRadius: 0, padding: '0.15rem 0.6rem' }}>
       {s.label}
     </span>
   )
@@ -41,9 +42,9 @@ function SwipeCard({ etc, onMark, onLogBug }) {
   })
 
   const tint = dragX > 0
-    ? `rgba(34,197,94,${Math.min(Math.abs(dragX) / 200, 0.35)})`
+    ? `rgba(122,155,87,${Math.min(Math.abs(dragX) / 200, 0.35)})`
     : dragX < 0
-    ? `rgba(239,68,68,${Math.min(Math.abs(dragX) / 200, 0.35)})`
+    ? `rgba(193,68,58,${Math.min(Math.abs(dragX) / 200, 0.35)})`
     : 'transparent'
 
   return (
@@ -52,13 +53,13 @@ function SwipeCard({ etc, onMark, onLogBug }) {
       className="swipe-card"
       style={{
         transform: `translateX(${dragX}px) rotate(${dragX / 24}deg)`,
-        boxShadow: `0 12px 32px rgba(0,0,0,0.35), inset 0 0 0 999px ${tint}`,
+        boxShadow: `inset 0 0 0 999px ${tint}`,
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '1rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
           <span className={`badge badge-${etc.type}`}>{TYPE_LABELS[etc.type]}</span>
-          {etc.bug_count > 0 && <span style={{ fontSize: '0.78rem', color: 'var(--danger)', fontWeight: 600 }}>🐛 {etc.bug_count}</span>}
+          {etc.bug_count > 0 && <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.78rem', color: 'var(--danger)', fontWeight: 600 }}><Icon name="bug" size={13} /> {etc.bug_count}</span>}
         </div>
         <span
           className={`badge badge-${etc.status === 'not_run' ? 'not-run' : etc.status}`}
@@ -67,7 +68,7 @@ function SwipeCard({ etc, onMark, onLogBug }) {
           {STATUS_LABELS[etc.status]}
         </span>
       </div>
-      <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '1.05rem', fontWeight: 700, color: 'var(--white)', marginBottom: '1rem', lineHeight: 1.3 }}>
+      <h2 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '1.05rem', fontWeight: 700, color: 'var(--white)', marginBottom: '1rem', lineHeight: 1.3 }}>
         {etc.title}
       </h2>
       {etc.steps?.length > 0 && (
@@ -79,12 +80,12 @@ function SwipeCard({ etc, onMark, onLogBug }) {
         </div>
       )}
       {etc.expected && (
-        <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, padding: '0.7rem 0.9rem' }}>
+        <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 0, padding: '0.7rem 0.9rem' }}>
           <div style={{ fontSize: '0.7rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '0.3rem' }}>Expected result</div>
           <div style={{ fontSize: '0.86rem', color: 'var(--light)', lineHeight: 1.5 }}>{etc.expected}</div>
         </div>
       )}
-      <button className="btn btn-ghost btn-sm" style={{ marginTop: '1rem' }} onClick={onLogBug}>🐛 Log bug</button>
+      <button className="btn btn-ghost btn-sm" style={{ marginTop: '1rem' }} onClick={onLogBug}><Icon name="bug" size={13} /> Log bug</button>
     </div>
   )
 }
@@ -96,7 +97,7 @@ function ExecutionSuiteCard({ suite, onRun, running, readOnly }) {
   return (
     <div className="card" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
-        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, color: 'var(--white)' }}>{suite.suite_name}</div>
+        <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)' }}>{suite.suite_name}</div>
         {suite.latest_status && <StatusPill status={suite.latest_status} />}
       </div>
       {hasResult && (
@@ -113,8 +114,8 @@ function ExecutionSuiteCard({ suite, onRun, running, readOnly }) {
       )}
       <div style={{ marginTop: 'auto' }}>
         {isRunning && (
-          <div style={{ height: '4px', width: '100%', background: 'var(--border)', borderRadius: '2px', overflow: 'hidden', marginBottom: '0.6rem', position: 'relative' }}>
-            <div style={{ position: 'absolute', top: 0, left: 0, height: '100%', width: '40%', background: 'var(--accent)', borderRadius: '2px', animation: 'suiteLoaderSlide 1.1s ease-in-out infinite' }} />
+          <div style={{ height: '4px', width: '100%', background: 'var(--border)', borderRadius: 0, overflow: 'hidden', marginBottom: '0.6rem', position: 'relative' }}>
+            <div style={{ position: 'absolute', top: 0, left: 0, height: '100%', width: '40%', background: 'var(--accent)', borderRadius: 0, animation: 'suiteLoaderSlide 1.1s ease-in-out infinite' }} />
           </div>
         )}
         {!readOnly && (
@@ -332,7 +333,7 @@ export default function ExecutionRunDetailPage() {
 `}</style>
       <div className="topbar">
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <Link to={`/projects/${id}/executions`} className="back-btn" title="Back to executions" aria-label="Back to executions">←</Link>
+          <Link to={`/projects/${id}/executions`} className="back-btn" title="Back to executions" aria-label="Back to executions"><Icon name="arrowLeft" size={14} /></Link>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
             <Link to="/projects" style={{ color: 'var(--muted)', textDecoration: 'none' }}>Projects</Link>
             <span style={{ color: 'var(--muted)' }}>/</span>
@@ -355,7 +356,7 @@ export default function ExecutionRunDetailPage() {
 
       <div className="page-content fade-in">
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
-          <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '1.4rem', fontWeight: 700, color: 'var(--white)' }}>{run.name}</h1>
+          <h1 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '1.4rem', fontWeight: 700, color: 'var(--white)' }}>{run.name}</h1>
           <RunStatusBadge status={run.status} />
         </div>
 
@@ -402,7 +403,7 @@ export default function ExecutionRunDetailPage() {
         ) : effectiveMode === 'swipe' ? (
           <>
             <div className="swipe-arena">
-              <button className="swipe-arrow left" disabled={cardIndex === 0} onClick={() => setCardIndex(i => Math.max(i - 1, 0))} title="Previous">←</button>
+              <button className="swipe-arrow left" disabled={cardIndex === 0} onClick={() => setCardIndex(i => Math.max(i - 1, 0))} title="Previous"><Icon name="arrowLeft" size={18} /></button>
               {currentCard ? (
                 <SwipeCard
                   key={currentCard.execution_test_case_id}
@@ -422,13 +423,13 @@ export default function ExecutionRunDetailPage() {
                   <button className="btn btn-ghost btn-sm" onClick={() => setCardIndex(0)}>Review from start</button>
                 </div>
               )}
-              <button className="swipe-arrow right" disabled={cardIndex >= filteredTotal} onClick={() => setCardIndex(i => Math.min(i + 1, filteredTotal))} title="Next">→</button>
+              <button className="swipe-arrow right" disabled={cardIndex >= filteredTotal} onClick={() => setCardIndex(i => Math.min(i + 1, filteredTotal))} title="Next"><Icon name="arrowRight" size={18} /></button>
             </div>
             {currentCard && (
               <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'center', marginBottom: '0.75rem' }}>
-                <button className="btn btn-danger btn-sm" onClick={() => handleSwipeMark('fail')}>✕ Fail</button>
-                <button className="btn btn-warning btn-sm" onClick={() => handleSwipeMark('blocked')}>⛔ Blocked</button>
-                <button className="btn btn-primary btn-sm" onClick={() => handleSwipeMark('pass')}>✓ Pass</button>
+                <button className="btn btn-danger btn-sm" onClick={() => handleSwipeMark('fail')}><Icon name="x" size={13} /> Fail</button>
+                <button className="btn btn-warning btn-sm" onClick={() => handleSwipeMark('blocked')}><Icon name="blocked" size={13} /> Blocked</button>
+                <button className="btn btn-primary btn-sm" onClick={() => handleSwipeMark('pass')}><Icon name="check" size={13} /> Pass</button>
               </div>
             )}
             {filteredTotal > 0 && (
@@ -437,7 +438,7 @@ export default function ExecutionRunDetailPage() {
                   <div
                     key={tc.execution_test_case_id}
                     style={{
-                      height: 4, width: 16, borderRadius: 2,
+                      height: 4, width: 16, borderRadius: 0,
                       background: STATUS_DOT_COLOR[tc.status],
                       opacity: i === cardIndex ? 1 : 0.4,
                       transition: 'opacity 0.15s',
@@ -499,11 +500,12 @@ export default function ExecutionRunDetailPage() {
                           onClick={() => toggleExpanded(etc.execution_test_case_id)}
                           style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}
                         >
-                          <span style={{ color: 'var(--muted)', fontSize: '0.65rem', display: 'inline-block', transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0 }}>▶</span>
+                          <Icon name="chevronRight" size={12} style={{ color: 'var(--muted)', transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }} />
                           <div style={{ minWidth: 0 }}>
                             <div style={{ fontWeight: 500, color: 'var(--light)' }}>{etc.title}</div>
-                            <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>
-                              {TYPE_LABELS[etc.type]}{etc.bug_count > 0 && ` · 🐛 ${etc.bug_count}`}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.72rem', color: 'var(--muted)' }}>
+                              {TYPE_LABELS[etc.type]}
+                              {etc.bug_count > 0 && <>· <Icon name="bug" size={11} /> {etc.bug_count}</>}
                             </div>
                           </div>
                         </div>
@@ -513,7 +515,7 @@ export default function ExecutionRunDetailPage() {
                             <button className="btn btn-ghost btn-sm" onClick={() => markSingle(etc.execution_test_case_id, 'fail')}>Fail</button>
                             <button className="btn btn-ghost btn-sm" onClick={() => markSingle(etc.execution_test_case_id, 'blocked')}>Blocked</button>
                             <button className="btn btn-ghost btn-sm" onClick={() => markSingle(etc.execution_test_case_id, 'pass')}>Pass</button>
-                            <button className="btn btn-ghost btn-sm" onClick={() => openLogBug(etc)}>🐛</button>
+                            <button className="btn btn-ghost btn-sm" onClick={() => openLogBug(etc)}><Icon name="bug" size={13} /></button>
                           </div>
                         )}
                       </div>
@@ -528,7 +530,7 @@ export default function ExecutionRunDetailPage() {
                             </div>
                           )}
                           {etc.expected && (
-                            <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, padding: '0.6rem 0.85rem' }}>
+                            <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 0, padding: '0.6rem 0.85rem' }}>
                               <div style={{ fontSize: '0.66rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '0.3rem' }}>Expected result</div>
                               <div style={{ fontSize: '0.84rem', color: 'var(--light)', lineHeight: 1.5 }}>{etc.expected}</div>
                             </div>
