@@ -9,6 +9,7 @@ import { RunStatusBadge } from './ExecutionRunsPage.jsx'
 import Icon from '../components/Icon.jsx'
 import { generateExecutionReportPdf } from '../lib/executionReport.js'
 import { describeRunPhase } from '../lib/runPhase.js'
+import { formatStep } from '../lib/steps.js'
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api'
 const POLL_INTERVAL_MS = 4000
@@ -77,7 +78,7 @@ function SwipeCard({ etc, onMark, onLogBug }) {
         <div style={{ marginBottom: '1.1rem' }}>
           <div style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '0.5rem' }}>Steps</div>
           <ol style={{ paddingLeft: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-            {etc.steps.map((step, i) => <li key={i} style={{ fontSize: '0.86rem', color: 'var(--light)', lineHeight: 1.5 }}>{step}</li>)}
+            {etc.steps.map((step, i) => <li key={i} style={{ fontSize: '0.86rem', color: 'var(--light)', lineHeight: 1.5 }}>{formatStep(step)}</li>)}
           </ol>
         </div>
       )}
@@ -317,6 +318,7 @@ export default function ExecutionRunDetailPage() {
     const current = filtered[cardIndex]
     if (!current) return
     await markSingle(current.execution_test_case_id, status)
+    if (status === 'fail') openLogBug(current)
     setCardIndex(i => Math.min(i + 1, filtered.length))
   }
 
@@ -550,7 +552,7 @@ export default function ExecutionRunDetailPage() {
                         <span className={`badge badge-${etc.status === 'not_run' ? 'not-run' : etc.status}`}>{STATUS_LABELS[etc.status]}</span>
                         {!isClient && (
                           <div style={{ display: 'flex', gap: '0.35rem' }}>
-                            <button className="btn btn-ghost btn-sm" onClick={() => markSingle(etc.execution_test_case_id, 'fail')}>Fail</button>
+                            <button className="btn btn-ghost btn-sm" onClick={() => { markSingle(etc.execution_test_case_id, 'fail'); openLogBug(etc) }}>Fail</button>
                             <button className="btn btn-ghost btn-sm" onClick={() => markSingle(etc.execution_test_case_id, 'blocked')}>Blocked</button>
                             <button className="btn btn-ghost btn-sm" onClick={() => markSingle(etc.execution_test_case_id, 'pass')}>Pass</button>
                             <button className="btn btn-ghost btn-sm" onClick={() => openLogBug(etc)}><Icon name="bug" size={13} /></button>
@@ -563,7 +565,7 @@ export default function ExecutionRunDetailPage() {
                             <div style={{ marginBottom: etc.expected ? '0.85rem' : 0 }}>
                               <div style={{ fontSize: '0.68rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '0.4rem' }}>Steps</div>
                               <ol style={{ paddingLeft: '1.1rem', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                                {etc.steps.map((step, i) => <li key={i} style={{ fontSize: '0.84rem', color: 'var(--light)', lineHeight: 1.5 }}>{step}</li>)}
+                                {etc.steps.map((step, i) => <li key={i} style={{ fontSize: '0.84rem', color: 'var(--light)', lineHeight: 1.5 }}>{formatStep(step)}</li>)}
                               </ol>
                             </div>
                           )}

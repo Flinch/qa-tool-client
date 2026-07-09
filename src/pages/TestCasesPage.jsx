@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { apiFetch } from '../lib/api.js'
 import { useToastStore } from '../store/toastStore.jsx'
+import { formatStep } from '../lib/steps.js'
+import { handleImageFile } from '../lib/imageUpload.js'
 import Icon from '../components/Icon.jsx'
 
 const TYPE_LABELS = { functional: 'Functional', integration: 'Integration', e2e: 'E2E' }
@@ -109,11 +111,28 @@ export function LogBugModal({ projectId, testCase, executionRunId, onClose, onLo
   const [executionRuns, setExecutionRuns] = useState([])
   const [linkedRunId, setLinkedRunId] = useState(executionRunId || '')
   const [loading, setLoading] = useState(false)
+  const [attachedImage, setAttachedImage] = useState(null)
+  const [compressing, setCompressing] = useState(false)
+  const fileInputRef = useRef(null)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
   useEffect(() => {
     apiFetch(`/projects/${projectId}/execution-runs`).then(setExecutionRuns).catch(console.error)
   }, [projectId])
+
+  const handleFile = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setCompressing(true)
+    try {
+      setAttachedImage(await handleImageFile(file))
+    } catch (err) {
+      addToast(err.message, 'error')
+    } finally {
+      setCompressing(false)
+    }
+  }
 
   const submit = async () => {
     if (!form.title.trim()) return
@@ -123,6 +142,12 @@ export function LogBugModal({ projectId, testCase, executionRunId, onClose, onLo
         method: 'POST',
         body: JSON.stringify({ ...form, test_case_id: testCase.id, execution_run_id: linkedRunId || null }),
       })
+      if (attachedImage) {
+        await apiFetch(`/projects/${projectId}/bugs/${bug.id}/comments`, {
+          method: 'POST',
+          body: JSON.stringify({ body: null, image: attachedImage }),
+        }).catch(err => addToast(`Bug logged, but the image failed to attach: ${err.message}`, 'error'))
+      }
       addToast('Bug logged and linked to test case')
       onLogged(bug)
       onClose()
@@ -168,11 +193,33 @@ export function LogBugModal({ projectId, testCase, executionRunId, onClose, onLo
         </div>
         <div className="form-group">
           <label className="form-label">Actual result</label>
-          <input className="form-input" placeholder="What actually happens" value={form.actual} onChange={e => set('actual', e.target.value)} />
+          <textarea className="form-textarea" style={{ minHeight: 100 }} placeholder="What actually happens" value={form.actual} onChange={e => set('actual', e.target.value)} />
         </div>
         <div className="form-group">
           <label className="form-label">Notes</label>
           <textarea className="form-textarea" style={{ minHeight: 60 }} placeholder="Additional context..." value={form.notes} onChange={e => set('notes', e.target.value)} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Attachment</label>
+          {attachedImage ? (
+            <div style={{ position: 'relative', display: 'inline-block' }}>
+              <img src={attachedImage} alt="Attachment preview" style={{ maxWidth: 160, maxHeight: 110, display: 'block', border: '1px solid var(--border)' }} />
+              <button
+                onClick={() => setAttachedImage(null)}
+                style={{ position: 'absolute', top: -8, right: -8, width: 20, height: 20, borderRadius: '50%', background: 'var(--danger)', color: 'var(--white)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+                title="Remove image"
+              >
+                <Icon name="x" size={12} />
+              </button>
+            </div>
+          ) : (
+            <>
+              <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFile} style={{ display: 'none' }} />
+              <button className="btn btn-ghost btn-sm" onClick={() => fileInputRef.current?.click()} disabled={compressing}>
+                <Icon name="image" size={13} /> {compressing ? 'Processing...' : 'Attach image'}
+              </button>
+            </>
+          )}
         </div>
         <div className="modal-footer">
           <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
@@ -333,7 +380,7 @@ function TestCaseModal({ tc, projectId, onClose, onBugLogged, onTestCaseUpdated 
             <div style={{ fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '0.6rem' }}>Steps</div>
             <ol style={{ paddingLeft: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
               {tc.steps.map((step, i) => (
-                <li key={i} style={{ fontSize: '0.88rem', color: 'var(--light)', lineHeight: 1.55 }}>{step}</li>
+                <li key={i} style={{ fontSize: '0.88rem', color: 'var(--light)', lineHeight: 1.55 }}>{formatStep(step)}</li>
               ))}
             </ol>
           </div>

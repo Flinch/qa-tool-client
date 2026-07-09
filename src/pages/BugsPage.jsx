@@ -3,34 +3,12 @@ import { useParams, Link } from 'react-router-dom'
 import { apiFetch } from '../lib/api.js'
 import { useToastStore } from '../store/toastStore.jsx'
 import { useAuth } from '../store/AuthContext.jsx'
+import { handleImageFile } from '../lib/imageUpload.js'
 import Icon from '../components/Icon.jsx'
 
 const SEVERITIES = ['critical', 'high', 'medium', 'low']
 const STATUSES = ['open', 'in_progress', 'resolved']
 const STATUS_LABELS = { open: 'Open', in_progress: 'In progress', resolved: 'Resolved' }
-
-// Downscales + re-encodes an image client-side before it rides along in a
-// JSON comment payload (no object storage configured — see migrate.js).
-function compressImage(file, maxDim = 1600, quality = 0.8) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onerror = () => reject(new Error('Could not read file'))
-    reader.onload = () => {
-      const img = new window.Image()
-      img.onerror = () => reject(new Error('Could not read image'))
-      img.onload = () => {
-        const scale = Math.min(1, maxDim / Math.max(img.width, img.height))
-        const canvas = document.createElement('canvas')
-        canvas.width = Math.round(img.width * scale)
-        canvas.height = Math.round(img.height * scale)
-        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
-        resolve(canvas.toDataURL('image/jpeg', quality))
-      }
-      img.src = reader.result
-    }
-    reader.readAsDataURL(file)
-  })
-}
 
 function CommentImage({ src }) {
   const [open, setOpen] = useState(false)
@@ -57,11 +35,28 @@ function BugModal({ projectId, onClose, onCreated }) {
   const [executionRuns, setExecutionRuns] = useState([])
   const [linkedRunId, setLinkedRunId] = useState('')
   const [loading, setLoading] = useState(false)
+  const [attachedImage, setAttachedImage] = useState(null)
+  const [compressing, setCompressing] = useState(false)
+  const fileInputRef = useRef(null)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
   useEffect(() => {
     apiFetch(`/projects/${projectId}/execution-runs`).then(setExecutionRuns).catch(console.error)
   }, [projectId])
+
+  const handleFile = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setCompressing(true)
+    try {
+      setAttachedImage(await handleImageFile(file))
+    } catch (err) {
+      addToast(err.message, 'error')
+    } finally {
+      setCompressing(false)
+    }
+  }
 
   const submit = async () => {
     if (!form.title.trim()) return
@@ -71,6 +66,12 @@ function BugModal({ projectId, onClose, onCreated }) {
         method: 'POST',
         body: JSON.stringify({ ...form, execution_run_id: linkedRunId || null }),
       })
+      if (attachedImage) {
+        await apiFetch(`/projects/${projectId}/bugs/${bug.id}/comments`, {
+          method: 'POST',
+          body: JSON.stringify({ body: null, image: attachedImage }),
+        }).catch(err => addToast(`Bug logged, but the image failed to attach: ${err.message}`, 'error'))
+      }
       addToast('Bug logged')
       onCreated(bug)
       onClose()
@@ -112,11 +113,33 @@ function BugModal({ projectId, onClose, onCreated }) {
         </div>
         <div className="form-group">
           <label className="form-label">Actual result</label>
-          <input className="form-input" placeholder="What actually happens" value={form.actual} onChange={e => set('actual', e.target.value)} />
+          <textarea className="form-textarea" style={{ minHeight: 100 }} placeholder="What actually happens" value={form.actual} onChange={e => set('actual', e.target.value)} />
         </div>
         <div className="form-group">
           <label className="form-label">Notes</label>
           <textarea className="form-textarea" placeholder="Additional context..." style={{ minHeight: 60 }} value={form.notes} onChange={e => set('notes', e.target.value)} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Attachment</label>
+          {attachedImage ? (
+            <div style={{ position: 'relative', display: 'inline-block' }}>
+              <img src={attachedImage} alt="Attachment preview" style={{ maxWidth: 160, maxHeight: 110, display: 'block', border: '1px solid var(--border)' }} />
+              <button
+                onClick={() => setAttachedImage(null)}
+                style={{ position: 'absolute', top: -8, right: -8, width: 20, height: 20, borderRadius: '50%', background: 'var(--danger)', color: 'var(--white)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+                title="Remove image"
+              >
+                <Icon name="x" size={12} />
+              </button>
+            </div>
+          ) : (
+            <>
+              <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFile} style={{ display: 'none' }} />
+              <button className="btn btn-ghost btn-sm" onClick={() => fileInputRef.current?.click()} disabled={compressing}>
+                <Icon name="image" size={13} /> {compressing ? 'Processing...' : 'Attach image'}
+              </button>
+            </>
+          )}
         </div>
         <div className="modal-footer">
           <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
@@ -177,11 +200,9 @@ function BugDetailModal({ bug, projectId, isClient, onClose, onUpdated }) {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
-    if (!file.type.startsWith('image/')) return addToast('Please choose an image file', 'error')
-    if (file.size > 15 * 1024 * 1024) return addToast('Image is too large (max 15MB)', 'error')
     setCompressing(true)
     try {
-      setCommentImage(await compressImage(file))
+      setCommentImage(await handleImageFile(file))
     } catch (err) {
       addToast(err.message, 'error')
     } finally {
