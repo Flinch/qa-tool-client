@@ -5,7 +5,6 @@ import { useToastStore } from '../store/toastStore.jsx'
 import Icon from '../components/Icon.jsx'
 
 const TYPE_LABELS = { functional: 'Functional', integration: 'Integration', e2e: 'E2E' }
-const STATUS_LABELS = { pass: 'Pass', fail: 'Fail', not_run: 'Not run' }
 const SEVERITIES = ['critical', 'high', 'medium', 'low']
 
 function GenerateModal({ projectId, onClose, onGenerated }) {
@@ -186,10 +185,8 @@ export function LogBugModal({ projectId, testCase, executionRunId, onClose, onLo
   )
 }
 
-function TestCaseModal({ tc, projectId, onClose, onStatusChange, onBugLogged, onTestCaseUpdated }) {
+function TestCaseModal({ tc, projectId, onClose, onBugLogged, onTestCaseUpdated }) {
   const { addToast } = useToastStore()
-  const [status, setStatus] = useState(tc.status)
-  const [updating, setUpdating] = useState(false)
   const [linkedBugs, setLinkedBugs] = useState([])
   const [loadingBugs, setLoadingBugs] = useState(true)
   const [showLogBug, setShowLogBug] = useState(false)
@@ -200,6 +197,7 @@ function TestCaseModal({ tc, projectId, onClose, onStatusChange, onBugLogged, on
     type: tc.type,
     steps: tc.steps?.join('\n') || '',
     expected: tc.expected || '',
+    automationCandidate: !!tc.automation_candidate,
   })
   const [saving, setSaving] = useState(false)
 
@@ -209,23 +207,6 @@ function TestCaseModal({ tc, projectId, onClose, onStatusChange, onBugLogged, on
       .catch(console.error)
       .finally(() => setLoadingBugs(false))
   }, [tc.id])
-
-  const updateStatus = async (newStatus) => {
-    setUpdating(true)
-    try {
-      await apiFetch(`/test-cases/${tc.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ status: newStatus }),
-      })
-      setStatus(newStatus)
-      onStatusChange(tc.id, newStatus)
-      addToast('Status updated')
-    } catch (e) {
-      addToast(e.message, 'error')
-    } finally {
-      setUpdating(false)
-    }
-  }
 
   const saveEdit = async () => {
     if (!editForm.title.trim()) return
@@ -239,6 +220,7 @@ function TestCaseModal({ tc, projectId, onClose, onStatusChange, onBugLogged, on
           type: editForm.type,
           steps: stepsArray,
           expected: editForm.expected,
+          automationCandidate: editForm.automationCandidate,
         }),
       })
       onTestCaseUpdated(updated)
@@ -250,8 +232,6 @@ function TestCaseModal({ tc, projectId, onClose, onStatusChange, onBugLogged, on
       setSaving(false)
     }
   }
-
-  const statusColors = { pass: 'var(--success)', fail: 'var(--danger)', not_run: 'var(--muted)' }
 
   if (showLogBug) return (
     <LogBugModal
@@ -305,6 +285,17 @@ function TestCaseModal({ tc, projectId, onClose, onStatusChange, onBugLogged, on
             />
           </div>
 
+          <div className="form-group">
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--light)' }}>
+              <input
+                type="checkbox"
+                checked={editForm.automationCandidate}
+                onChange={e => setEditForm(f => ({ ...f, automationCandidate: e.target.checked }))}
+              />
+              Good candidate for automation
+            </label>
+          </div>
+
           <div className="modal-footer">
             <button className="btn btn-ghost" onClick={() => setIsEditing(false)} disabled={saving}>Cancel</button>
             <button className="btn btn-primary" onClick={saveEdit} disabled={saving || !editForm.title.trim()}>
@@ -323,7 +314,11 @@ function TestCaseModal({ tc, projectId, onClose, onStatusChange, onBugLogged, on
           <div style={{ flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem', flexWrap: 'wrap' }}>
               <span className={`badge badge-${tc.type}`}>{TYPE_LABELS[tc.type]}</span>
-              <span className={`badge badge-${status === 'not_run' ? 'not-run' : status}`}>{STATUS_LABELS[status]}</span>
+              {tc.automation_candidate && (
+                <span className="badge badge-automation" title={tc.automation_reasoning || undefined}>
+                  <Icon name="gear" size={11} /> Automatable
+                </span>
+              )}
             </div>
             <h2 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '1rem', fontWeight: 700, color: 'var(--white)', lineHeight: 1.3 }}>{tc.title}</h2>
           </div>
@@ -376,27 +371,6 @@ function TestCaseModal({ tc, projectId, onClose, onStatusChange, onBugLogged, on
             </div>
           )}
         </div>
-
-        <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1rem', display: 'flex', gap: '0.6rem', justifyContent: 'flex-end' }}>
-          <div style={{ fontSize: '0.82rem', color: 'var(--muted)', alignSelf: 'center', marginRight: 'auto' }}>Mark as:</div>
-          {['pass', 'fail', 'not_run'].map(s => (
-            <button
-              key={s}
-              onClick={() => updateStatus(s)}
-              disabled={updating || status === s}
-              style={{
-                padding: '0.4rem 0.9rem', borderRadius: 0, fontSize: '0.8rem', fontWeight: 600,
-                cursor: status === s ? 'default' : 'pointer', border: 'none', fontFamily: 'inherit',
-                background: status === s ? statusColors[s] : 'var(--bg2)',
-                color: status === s ? (s === 'not_run' ? 'var(--light)' : 'var(--bg)') : 'var(--muted)',
-                opacity: updating ? 0.6 : 1, transition: 'all 0.15s',
-                outline: status !== s ? '1px solid var(--border)' : 'none',
-              }}
-            >
-              {STATUS_LABELS[s]}
-            </button>
-          ))}
-        </div>
       </div>
     </div>
   )
@@ -420,23 +394,15 @@ export default function TestCasesPage() {
       .finally(() => setLoading(false))
   }, [id])
 
-  const handleStatusChange = (tcId, newStatus) => {
-    setTestCases(tcs => tcs.map(tc => tc.id === tcId ? { ...tc, status: newStatus } : tc))
-  }
-
   const handleBugLogged = (bug) => {
     setTestCases(tcs => tcs.map(tc => tc.id === bug.test_case_id ? { ...tc, bug_count: (tc.bug_count || 0) + 1 } : tc))
   }
 
-  const filtered = filter === 'all' ? testCases : testCases.filter(tc =>
-    ['pass', 'fail', 'not_run'].includes(filter) ? tc.status === filter : tc.type === filter
-  )
+  const filtered = filter === 'all' ? testCases : filter === 'automation'
+    ? testCases.filter(tc => tc.automation_candidate)
+    : testCases.filter(tc => tc.type === filter)
 
-  const counts = {
-    pass: testCases.filter(t => t.status === 'pass').length,
-    fail: testCases.filter(t => t.status === 'fail').length,
-    not_run: testCases.filter(t => t.status === 'not_run').length,
-  }
+  const automationCount = testCases.filter(t => t.automation_candidate).length
 
   return (
     <>
@@ -460,16 +426,15 @@ export default function TestCasesPage() {
         {testCases.length > 0 && (
           <div className="stats-row" style={{ marginBottom: '1.5rem' }}>
             <div className="stat-card"><div className="stat-num">{testCases.length}</div><div className="stat-label">Total</div></div>
-            <div className="stat-card"><div className="stat-num" style={{ color: 'var(--success)' }}>{counts.pass}</div><div className="stat-label">Passed</div></div>
-            <div className="stat-card"><div className="stat-num" style={{ color: 'var(--danger)' }}>{counts.fail}</div><div className="stat-label">Failed</div></div>
-            <div className="stat-card"><div className="stat-num" style={{ color: 'var(--muted)' }}>{counts.not_run}</div><div className="stat-label">Not run</div></div>
+            <div className="stat-card"><div className="stat-num" style={{ color: 'var(--info)' }}>{automationCount}</div><div className="stat-label">Automation candidates</div></div>
+            <div className="stat-card"><div className="stat-num" style={{ color: 'var(--muted)' }}>{testCases.length - automationCount}</div><div className="stat-label">Manual only</div></div>
           </div>
         )}
 
         <div className="filters-row">
-          {['all', 'functional', 'integration', 'e2e', 'pass', 'fail', 'not_run'].map(f => (
+          {['all', 'functional', 'integration', 'e2e', 'automation'].map(f => (
             <button key={f} className={`filter-btn${filter === f ? ' active' : ''}`} onClick={() => setFilter(f)}>
-              {f === 'all' ? 'All' : f === 'not_run' ? 'Not run' : f.charAt(0).toUpperCase() + f.slice(1)}
+              {f === 'all' ? 'All' : f === 'automation' ? 'Automation candidates' : f.charAt(0).toUpperCase() + f.slice(1)}
             </button>
           ))}
         </div>
@@ -490,7 +455,7 @@ export default function TestCasesPage() {
                   <tr>
                     <th>Test case</th>
                     <th>Type</th>
-                    <th>Status</th>
+                    <th>Automation</th>
                     <th>Bugs</th>
                     <th>Created</th>
                   </tr>
@@ -503,7 +468,11 @@ export default function TestCasesPage() {
                         {tc.steps?.length > 0 && <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>{tc.steps.length} steps</div>}
                       </td>
                       <td><span className={`badge badge-${tc.type}`}>{TYPE_LABELS[tc.type]}</span></td>
-                      <td><span className={`badge badge-${tc.status === 'not_run' ? 'not-run' : tc.status}`}>{STATUS_LABELS[tc.status]}</span></td>
+                      <td>
+                        {tc.automation_candidate
+                          ? <span className="badge badge-automation" title={tc.automation_reasoning || undefined}><Icon name="gear" size={11} /> Automatable</span>
+                          : <span style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>—</span>}
+                      </td>
                       <td>
                         {tc.bug_count > 0
                           ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.78rem', color: 'var(--danger)', fontWeight: 600 }}><Icon name="bug" size={12} /> {tc.bug_count}</span>
@@ -532,10 +501,6 @@ export default function TestCasesPage() {
           tc={selectedTc}
           projectId={id}
           onClose={() => setSelectedTc(null)}
-          onStatusChange={(tcId, newStatus) => {
-            handleStatusChange(tcId, newStatus)
-            setSelectedTc(prev => ({ ...prev, status: newStatus }))
-          }}
           onBugLogged={handleBugLogged}
           onTestCaseUpdated={(updated) => {
             setTestCases(tcs => tcs.map(t => t.id === updated.id ? { ...t, ...updated } : t))

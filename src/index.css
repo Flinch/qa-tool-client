@@ -250,6 +250,7 @@ body {
 .badge-not-started   { border-color: var(--border2); color: var(--muted); }
 .badge-completed     { border-color: var(--success); color: var(--success); }
 .badge-blocked       { border-color: var(--warning); color: var(--warning); }
+.badge-automation    { border-color: var(--info); color: var(--info); }
 
 /* FORMS */
 .form-group { margin-bottom: 1.1rem; }

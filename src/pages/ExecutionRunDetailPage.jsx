@@ -8,10 +8,12 @@ import { LogBugModal } from './TestCasesPage.jsx'
 import { RunStatusBadge } from './ExecutionRunsPage.jsx'
 import Icon from '../components/Icon.jsx'
 import { generateExecutionReportPdf } from '../lib/executionReport.js'
+import { describeRunPhase } from '../lib/runPhase.js'
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api'
 const POLL_INTERVAL_MS = 4000
 const POLL_TIMEOUT_MS = 5 * 60 * 1000
+const SSE_MAX_CONSECUTIVE_ERRORS = 3
 
 const TYPE_LABELS = { functional: 'Functional', integration: 'Integration', e2e: 'E2E' }
 const STATUS_LABELS = { pass: 'Pass', fail: 'Fail', not_run: 'Not run', blocked: 'Blocked' }
@@ -93,6 +95,7 @@ function SwipeCard({ etc, onMark, onLogBug }) {
 function ExecutionSuiteCard({ suite, onRun, running, readOnly }) {
   const isRunning = running || suite.latest_status === 'pending' || suite.latest_status === 'running'
   const hasResult = suite.total != null
+  const phase = isRunning ? describeRunPhase(suite.latest_status || 'pending', suite.latest_started_at) : null
 
   return (
     <div className="card" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -106,6 +109,11 @@ function ExecutionSuiteCard({ suite, onRun, running, readOnly }) {
           {suite.failed > 0 && <>, <span style={{ color: 'var(--danger)' }}>{suite.failed} failed</span></>}
         </div>
       )}
+      {suite.latest_status === 'failed' && suite.latest_error_message && (
+        <div style={{ fontSize: '0.76rem', color: 'var(--danger)', background: 'rgba(193,68,58,0.08)', border: '1px solid rgba(193,68,58,0.25)', padding: '0.5rem 0.65rem', marginBottom: '0.75rem', lineHeight: 1.4 }}>
+          {suite.latest_error_message}
+        </div>
+      )}
       {(suite.report_url || suite.github_run_url) && (
         <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
           {suite.report_url && <a href={suite.report_url} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm">Report</a>}
@@ -114,9 +122,12 @@ function ExecutionSuiteCard({ suite, onRun, running, readOnly }) {
       )}
       <div style={{ marginTop: 'auto' }}>
         {isRunning && (
-          <div style={{ height: '4px', width: '100%', background: 'var(--border)', borderRadius: 0, overflow: 'hidden', marginBottom: '0.6rem', position: 'relative' }}>
-            <div style={{ position: 'absolute', top: 0, left: 0, height: '100%', width: '40%', background: 'var(--accent)', borderRadius: 0, animation: 'suiteLoaderSlide 1.1s ease-in-out infinite' }} />
-          </div>
+          <>
+            <div style={{ height: '4px', width: '100%', background: 'var(--border)', borderRadius: 0, overflow: 'hidden', marginBottom: '0.4rem', position: 'relative' }}>
+              <div style={{ position: 'absolute', top: 0, left: 0, height: '100%', width: '40%', background: 'var(--accent)', borderRadius: 0, animation: 'suiteLoaderSlide 1.1s ease-in-out infinite' }} />
+            </div>
+            {phase && <div style={{ fontSize: '0.74rem', color: 'var(--muted)', marginBottom: '0.6rem' }}>{phase}</div>}
+          </>
         )}
         {!readOnly && (
           <button className="btn btn-primary btn-sm" onClick={() => onRun(suite.suite_id)} disabled={isRunning} style={{ width: '100%' }}>
@@ -146,15 +157,17 @@ export default function ExecutionRunDetailPage() {
   const [allBugs, setAllBugs] = useState([])
   const pollRef = useRef(null)
   const pollStartedAt = useRef(null)
+  const sseErrorCount = useRef(0)
+  const triggeredSuiteId = useRef(null)
 
+  // Throws on failure instead of swallowing it, so the poll loop can tell
+  // "fetch failed" apart from "nothing in flight" — those used to look
+  // identical and let a network error masquerade as a completed run.
   const load = useCallback(async () => {
     try {
       const r = await apiFetch(`/projects/${id}/execution-runs/${runId}`)
       setRun(r)
       return r
-    } catch (e) {
-      addToast(e.message, 'error')
-      return null
     } finally {
       setLoading(false)
     }
@@ -163,7 +176,7 @@ export default function ExecutionRunDetailPage() {
   useEffect(() => {
     apiFetch(`/projects/${id}`).then(setProject).catch(console.error)
     apiFetch(`/projects/${id}/bugs`).then(setAllBugs).catch(console.error)
-    load()
+    load().catch(e => addToast(e.message, 'error'))
   }, [id, runId, load])
 
   // Live updates for automation suites triggered from this run — same SSE
@@ -173,14 +186,22 @@ export default function ExecutionRunDetailPage() {
     if (!token) return
     const url = `${API_BASE}/projects/${id}/automation/runs/stream?token=${encodeURIComponent(token)}`
     const es = new EventSource(url)
+    es.addEventListener('connected', () => { sseErrorCount.current = 0 })
     es.addEventListener('run_completed', () => {
-      load()
+      sseErrorCount.current = 0
+      load().catch(e => addToast(e.message, 'error'))
       setTriggeringSuiteId(null)
       stopPolling()
     })
-    es.onerror = () => {}
+    es.onerror = () => {
+      // EventSource auto-reconnects forever by default; the polling fallback
+      // already covers transient drops, so stop retrying SSE after a few
+      // failures in a row instead of doing it indefinitely.
+      sseErrorCount.current += 1
+      if (sseErrorCount.current >= SSE_MAX_CONSECUTIVE_ERRORS) es.close()
+    }
     return () => es.close()
-  }, [id, load])
+  }, [id, load, addToast])
 
   const stopPolling = () => {
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
@@ -191,12 +212,28 @@ export default function ExecutionRunDetailPage() {
     pollRef.current = setInterval(async () => {
       if (Date.now() - pollStartedAt.current > POLL_TIMEOUT_MS) {
         stopPolling()
+        setTriggeringSuiteId(null)
         addToast('Still waiting on suite results — check GitHub Actions directly if this persists', 'error')
         return
       }
-      const latest = await load()
+      let latest
+      try {
+        latest = await load()
+      } catch (e) {
+        stopPolling()
+        setTriggeringSuiteId(null)
+        addToast(`Lost connection while watching the run: ${e.message}`, 'error')
+        return
+      }
       const stillRunning = latest?.suites.some(s => s.latest_status === 'pending' || s.latest_status === 'running')
-      if (!stillRunning) { stopPolling(); setTriggeringSuiteId(null) }
+      if (!stillRunning) {
+        stopPolling()
+        setTriggeringSuiteId(null)
+        const triggeredSuite = latest?.suites.find(s => s.suite_id === triggeredSuiteId.current)
+        if (triggeredSuite?.latest_status === 'failed' && triggeredSuite.latest_error_message) {
+          addToast(`${triggeredSuite.suite_name}: ${triggeredSuite.latest_error_message}`, 'error')
+        }
+      }
     }, POLL_INTERVAL_MS)
   }, [load, addToast])
   useEffect(() => () => stopPolling(), [])
@@ -236,10 +273,11 @@ export default function ExecutionRunDetailPage() {
 
   const runSuite = async (suiteId) => {
     setTriggeringSuiteId(suiteId)
+    triggeredSuiteId.current = suiteId
     try {
       await apiFetch(`/projects/${id}/execution-runs/${runId}/suites/${suiteId}/run`, { method: 'POST' })
       addToast('Suite run started')
-      await load()
+      await load().catch(e => addToast(e.message, 'error'))
       startPolling()
     } catch (e) {
       addToast(e.message, 'error')

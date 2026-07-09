@@ -3,11 +3,13 @@ import { useParams, Link } from 'react-router-dom'
 import { apiFetch } from '../lib/api.js'
 import { useToastStore } from '../store/toastStore.jsx'
 import { useAuth } from '../store/AuthContext.jsx'
+import { describeRunPhase } from '../lib/runPhase.js'
 import Icon from '../components/Icon.jsx'
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api'
 const POLL_INTERVAL_MS = 4000
 const POLL_TIMEOUT_MS = 5 * 60 * 1000
+const SSE_MAX_CONSECUTIVE_ERRORS = 3
 
 function StatusPill({ status }) {
   const map = {
@@ -49,6 +51,7 @@ function SuiteCard({ suite, onRun, running }) {
     : null
 
   const isRunning = running || suite.latest_status === 'pending' || suite.latest_status === 'running'
+  const phase = isRunning ? describeRunPhase(suite.latest_status || 'pending', suite.latest_started_at) : null
 
   return (
     <div className="card" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -71,19 +74,29 @@ function SuiteCard({ suite, onRun, running }) {
           {suite.latest_failed > 0 && <>, <span style={{ color: 'var(--danger)' }}>{suite.latest_failed} failed</span></>}
         </div>
       )}
+      {suite.latest_status === 'failed' && suite.latest_error_message && (
+        <div style={{ fontSize: '0.76rem', color: 'var(--danger)', background: 'rgba(193,68,58,0.08)', border: '1px solid rgba(193,68,58,0.25)', padding: '0.5rem 0.65rem', marginBottom: '0.75rem', lineHeight: 1.4 }}>
+          {suite.latest_error_message}
+        </div>
+      )}
 
       <div style={{ marginTop: 'auto' }}>
         {isRunning && (
-          <div style={{
-            height: '4px', width: '100%', background: 'var(--border)',
-            borderRadius: 0, overflow: 'hidden', marginBottom: '0.6rem', position: 'relative',
-          }}>
+          <>
             <div style={{
-              position: 'absolute', top: 0, left: 0, height: '100%', width: '40%',
-              background: 'var(--accent)', borderRadius: 0,
-              animation: 'suiteLoaderSlide 1.1s ease-in-out infinite',
-            }} />
-          </div>
+              height: '4px', width: '100%', background: 'var(--border)',
+              borderRadius: 0, overflow: 'hidden', marginBottom: '0.4rem', position: 'relative',
+            }}>
+              <div style={{
+                position: 'absolute', top: 0, left: 0, height: '100%', width: '40%',
+                background: 'var(--accent)', borderRadius: 0,
+                animation: 'suiteLoaderSlide 1.1s ease-in-out infinite',
+              }} />
+            </div>
+            {phase && (
+              <div style={{ fontSize: '0.74rem', color: 'var(--muted)', marginBottom: '0.6rem' }}>{phase}</div>
+            )}
+          </>
         )}
         <button
           className="btn btn-primary btn-sm"
@@ -99,28 +112,34 @@ function SuiteCard({ suite, onRun, running }) {
 }
 
 function RunRow({ run }) {
+  const isRunning = run.status === 'pending' || run.status === 'running'
+  const phase = isRunning ? describeRunPhase(run.status, run.started_at) : null
+
   return (
-    <div style={{
-      display: 'grid', gridTemplateColumns: '1fr auto auto auto auto', gap: '1rem', alignItems: 'center',
-      padding: '0.85rem 0', borderBottom: '1px solid var(--border)',
-    }}>
-      <div>
-        <div style={{ color: 'var(--white)', fontSize: '0.88rem', fontWeight: 600 }}>{run.suite_name}</div>
-        <div style={{ color: 'var(--muted)', fontSize: '0.76rem' }}>
-          {run.trigger_type === 'nightly' ? 'Nightly' : 'Manual'} · {new Date(run.started_at).toLocaleString()}
+    <div style={{ padding: '0.85rem 0', borderBottom: '1px solid var(--border)' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto auto', gap: '1rem', alignItems: 'center' }}>
+        <div>
+          <div style={{ color: 'var(--white)', fontSize: '0.88rem', fontWeight: 600 }}>{run.suite_name}</div>
+          <div style={{ color: 'var(--muted)', fontSize: '0.76rem' }}>
+            {run.trigger_type === 'nightly' ? 'Nightly' : 'Manual'} · {new Date(run.started_at).toLocaleString()}
+          </div>
+        </div>
+        <StatusPill status={run.status} />
+        <div style={{ fontSize: '0.82rem', color: 'var(--success)' }}>{run.passed ?? '—'} passed</div>
+        <div style={{ fontSize: '0.82rem', color: run.failed > 0 ? 'var(--danger)' : 'var(--muted)' }}>{run.failed ?? '—'} failed</div>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          {run.report_url && (
+            <a href={run.report_url} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm">Report</a>
+          )}
+          {run.github_run_url && (
+            <a href={run.github_run_url} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm">CI logs</a>
+          )}
         </div>
       </div>
-      <StatusPill status={run.status} />
-      <div style={{ fontSize: '0.82rem', color: 'var(--success)' }}>{run.passed ?? '—'} passed</div>
-      <div style={{ fontSize: '0.82rem', color: run.failed > 0 ? 'var(--danger)' : 'var(--muted)' }}>{run.failed ?? '—'} failed</div>
-      <div style={{ display: 'flex', gap: '0.5rem' }}>
-        {run.report_url && (
-          <a href={run.report_url} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm">Report</a>
-        )}
-        {run.github_run_url && (
-          <a href={run.github_run_url} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm">CI logs</a>
-        )}
-      </div>
+      {phase && <div style={{ fontSize: '0.74rem', color: 'var(--muted)', marginTop: '0.4rem' }}>{phase}</div>}
+      {run.status === 'failed' && run.error_message && (
+        <div style={{ fontSize: '0.76rem', color: 'var(--danger)', marginTop: '0.4rem' }}>{run.error_message}</div>
+      )}
     </div>
   )
 }
@@ -137,9 +156,15 @@ export default function AutomationPage() {
   const [triggeringSuiteId, setTriggeringSuiteId] = useState(null)
   const pollRef = useRef(null)
   const pollStartedAt = useRef(null)
+  const sseErrorCount = useRef(0)
+  const triggeredSuiteId = useRef(null)
 
   useEffect(() => { apiFetch(`/projects/${id}`).then(setProject).catch(console.error) }, [id])
 
+  // Throws on failure instead of swallowing it, so callers (the poll loop in
+  // particular) can tell "fetch failed" apart from "nothing in flight" —
+  // those used to look identical and let a network error masquerade as a
+  // completed run.
   const load = useCallback(async () => {
     try {
       const [suiteData, runData] = await Promise.all([
@@ -149,15 +174,12 @@ export default function AutomationPage() {
       setSuites(suiteData)
       setRuns(runData)
       return runData
-    } catch (e) {
-      console.error(e)
-      return []
     } finally {
       setLoading(false)
     }
   }, [id])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { load().catch(e => addToast(e.message, 'error')) }, [load])
 
   // Live updates via SSE — native EventSource can't send Authorization headers,
   // so the token is passed as a query param and verified server-side instead.
@@ -168,19 +190,27 @@ export default function AutomationPage() {
     const url = `${API_BASE}/projects/${id}/automation/runs/stream?token=${encodeURIComponent(token)}`
     const es = new EventSource(url)
 
+    es.addEventListener('connected', () => { sseErrorCount.current = 0 })
+
     es.addEventListener('run_completed', () => {
-      load()
+      sseErrorCount.current = 0
+      load().catch(e => addToast(e.message, 'error'))
       setTriggeringSuiteId(null)
       stopPolling()
     })
 
     es.onerror = () => {
-      // SSE dropped or never connected (e.g. token issue) — the polling
-      // fallback below still catches completion, so this is non-fatal.
+      // EventSource auto-reconnects forever by default. The polling fallback
+      // already covers transient drops, so give up on SSE specifically after
+      // a few failures in a row rather than retrying indefinitely.
+      sseErrorCount.current += 1
+      if (sseErrorCount.current >= SSE_MAX_CONSECUTIVE_ERRORS) {
+        es.close()
+      }
     }
 
     return () => es.close()
-  }, [id, load])
+  }, [id, load, addToast])
 
   const stopPolling = () => {
     if (pollRef.current) {
@@ -190,21 +220,36 @@ export default function AutomationPage() {
   }
 
   // Fallback: poll while anything is pending/running, in case SSE
-  // never connects or drops. Bounded so it can't run forever.
+  // never connects or drops. Bounded so it can't run forever, and a real
+  // fetch error stops the loop with a visible toast rather than being
+  // mistaken for the run finishing.
   const startPolling = useCallback(() => {
     stopPolling()
     pollStartedAt.current = Date.now()
     pollRef.current = setInterval(async () => {
       if (Date.now() - pollStartedAt.current > POLL_TIMEOUT_MS) {
         stopPolling()
+        setTriggeringSuiteId(null)
         addToast('Still waiting on results — check GitHub Actions directly if this persists', 'error')
         return
       }
-      const latest = await load()
+      let latest
+      try {
+        latest = await load()
+      } catch (e) {
+        stopPolling()
+        setTriggeringSuiteId(null)
+        addToast(`Lost connection while watching the run: ${e.message}`, 'error')
+        return
+      }
       const stillInFlight = latest.some(r => r.status === 'pending' || r.status === 'running')
       if (!stillInFlight) {
         stopPolling()
         setTriggeringSuiteId(null)
+        const triggeredRun = latest.find(r => r.suite_id === triggeredSuiteId.current)
+        if (triggeredRun?.status === 'failed' && triggeredRun.error_message) {
+          addToast(`${triggeredRun.suite_name}: ${triggeredRun.error_message}`, 'error')
+        }
       }
     }, POLL_INTERVAL_MS)
   }, [load, addToast])
@@ -213,13 +258,14 @@ export default function AutomationPage() {
 
   const runSuite = async (suite) => {
     setTriggeringSuiteId(suite.id)
+    triggeredSuiteId.current = suite.id
     try {
       await apiFetch(`/projects/${id}/automation/runs/trigger`, {
         method: 'POST',
         body: JSON.stringify({ suite_id: suite.id }),
       })
       addToast(`${suite.name} run started`)
-      await load()
+      await load().catch(e => addToast(e.message, 'error'))
       startPolling()
     } catch (e) {
       addToast(e.message, 'error')
