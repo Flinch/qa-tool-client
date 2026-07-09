@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { apiFetch } from '../lib/api.js'
 import { useToastStore } from '../store/toastStore.jsx'
+import { useAuth } from '../store/AuthContext.jsx'
+import Icon from '../components/Icon.jsx'
 
 const SEVERITIES = ['critical', 'high', 'medium', 'low']
 const STATUSES = ['open', 'in_progress', 'resolved']
@@ -10,8 +12,14 @@ const STATUS_LABELS = { open: 'Open', in_progress: 'In progress', resolved: 'Res
 function BugModal({ projectId, onClose, onCreated }) {
   const { addToast } = useToastStore()
   const [form, setForm] = useState({ title: '', severity: 'high', steps_to_reproduce: '', expected: '', actual: '', notes: '' })
+  const [executionRuns, setExecutionRuns] = useState([])
+  const [linkedRunId, setLinkedRunId] = useState('')
   const [loading, setLoading] = useState(false)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  useEffect(() => {
+    apiFetch(`/projects/${projectId}/execution-runs`).then(setExecutionRuns).catch(console.error)
+  }, [projectId])
 
   const submit = async () => {
     if (!form.title.trim()) return
@@ -19,7 +27,7 @@ function BugModal({ projectId, onClose, onCreated }) {
     try {
       const bug = await apiFetch(`/projects/${projectId}/bugs`, {
         method: 'POST',
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, execution_run_id: linkedRunId || null }),
       })
       addToast('Bug logged')
       onCreated(bug)
@@ -38,6 +46,13 @@ function BugModal({ projectId, onClose, onCreated }) {
         <div className="form-group">
           <label className="form-label">Title *</label>
           <input className="form-input" placeholder="Short description of the bug" value={form.title} onChange={e => set('title', e.target.value)} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Execution run</label>
+          <select className="form-select" value={linkedRunId} onChange={e => setLinkedRunId(e.target.value)}>
+            <option value="">None</option>
+            {executionRuns.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+          </select>
         </div>
         <div className="form-group">
           <label className="form-label">Severity</label>
@@ -73,10 +88,19 @@ function BugModal({ projectId, onClose, onCreated }) {
 export default function BugsPage() {
   const { id } = useParams()
   const { addToast } = useToastStore()
+  const { user } = useAuth()
+  const isClient = user?.role === 'client'
+  const [project, setProject] = useState(null)
   const [bugs, setBugs] = useState([])
+  const [executionRuns, setExecutionRuns] = useState([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [filter, setFilter] = useState('all')
+  const [executionRunFilter, setExecutionRunFilter] = useState('')
+  const [expandedIds, setExpandedIds] = useState(new Set())
+
+  useEffect(() => { apiFetch(`/projects/${id}`).then(setProject).catch(console.error) }, [id])
+  useEffect(() => { apiFetch(`/projects/${id}/execution-runs`).then(setExecutionRuns).catch(console.error) }, [id])
 
   useEffect(() => {
     apiFetch(`/projects/${id}/bugs`)
@@ -95,23 +119,34 @@ export default function BugsPage() {
     }
   }
 
-  const filtered = filter === 'all' ? bugs : bugs.filter(b =>
-    SEVERITIES.includes(filter) ? b.severity === filter : b.status === filter
-  )
+  const toggleExpanded = (bugId) => setExpandedIds(s => {
+    const next = new Set(s)
+    next.has(bugId) ? next.delete(bugId) : next.add(bugId)
+    return next
+  })
+
+  const filtered = bugs
+    .filter(b => filter === 'all' ? true : SEVERITIES.includes(filter) ? b.severity === filter : b.status === filter)
+    .filter(b => executionRunFilter ? String(b.execution_run_id) === executionRunFilter : true)
 
   return (
     <>
       <div className="topbar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
-          <Link to="/projects" style={{ color: 'var(--muted)', textDecoration: 'none' }}>Projects</Link>
-          <span style={{ color: 'var(--muted)' }}>/</span>
-          <Link to={`/projects/${id}`} style={{ color: 'var(--muted)', textDecoration: 'none' }}>Project</Link>
-          <span style={{ color: 'var(--muted)' }}>/</span>
-          <span className="topbar-title">Bugs</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <Link to={`/projects/${id}`} className="back-btn" title="Back to project" aria-label="Back to project"><Icon name="arrowLeft" size={14} /></Link>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
+            <Link to="/projects" style={{ color: 'var(--muted)', textDecoration: 'none' }}>Projects</Link>
+            <span style={{ color: 'var(--muted)' }}>/</span>
+            <Link to={`/projects/${id}`} style={{ color: 'var(--muted)', textDecoration: 'none' }}>{project?.name || 'Project'}</Link>
+            <span style={{ color: 'var(--muted)' }}>/</span>
+            <span className="topbar-title">Bugs</span>
+          </div>
         </div>
-        <div className="topbar-actions">
-          <button className="btn btn-primary btn-sm" onClick={() => setShowModal(true)}>+ Log bug</button>
-        </div>
+        {!isClient && (
+          <div className="topbar-actions">
+            <button className="btn btn-primary btn-sm" onClick={() => setShowModal(true)}>+ Log bug</button>
+          </div>
+        )}
       </div>
       <div className="page-content fade-in">
         {bugs.length > 0 && (
@@ -128,37 +163,73 @@ export default function BugsPage() {
               {f === 'all' ? 'All' : f === 'in_progress' ? 'In progress' : f.charAt(0).toUpperCase() + f.slice(1)}
             </button>
           ))}
+          {executionRuns.length > 0 && (
+            <select
+              className="form-select"
+              style={{ width: 'auto', padding: '0.35rem 0.75rem', fontSize: '0.78rem' }}
+              value={executionRunFilter}
+              onChange={e => setExecutionRunFilter(e.target.value)}
+            >
+              <option value="">All executions</option>
+              {executionRuns.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+            </select>
+          )}
         </div>
         {loading ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}><div className="spinner" /></div>
         ) : filtered.length === 0 ? (
           <div className="empty-state">
             <h3>{bugs.length === 0 ? 'No bugs logged yet' : 'No results for this filter'}</h3>
-            <p>{bugs.length === 0 ? 'Found something broken? Log it here.' : 'Try a different filter.'}</p>
-            {bugs.length === 0 && <button className="btn btn-primary" onClick={() => setShowModal(true)}>Log a bug</button>}
+            <p>{bugs.length === 0 ? (isClient ? 'No bugs have been logged for this project yet.' : 'Found something broken? Log it here.') : 'Try a different filter.'}</p>
+            {bugs.length === 0 && !isClient && <button className="btn btn-primary" onClick={() => setShowModal(true)}>Log a bug</button>}
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {filtered.map(bug => (
+            {filtered.map(bug => {
+              const expanded = expandedIds.has(bug.id)
+              return (
               <div key={bug.id} className="card-sm">
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
-                  <div style={{ flex: 1 }}>
+                  <div onClick={() => toggleExpanded(bug.id)} style={{ flex: 1, cursor: 'pointer' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem', flexWrap: 'wrap' }}>
+                      <Icon name="chevronRight" size={12} style={{ color: 'var(--muted)', transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }} />
                       <span style={{ fontWeight: 600, color: 'var(--light)', fontSize: '0.92rem' }}>{bug.title}</span>
                       <span className={`badge badge-${bug.severity}`}>{bug.severity}</span>
                       <span className={`badge badge-${bug.status.replace('_', '-')}`}>{STATUS_LABELS[bug.status]}</span>
                     </div>
-                    {bug.steps_to_reproduce && <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginBottom: '0.3rem' }}><strong style={{ color: 'var(--light)' }}>Steps: </strong>{bug.steps_to_reproduce.substring(0, 120)}{bug.steps_to_reproduce.length > 120 ? '...' : ''}</div>}
+                    {bug.steps_to_reproduce && (
+                      <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginBottom: '0.3rem' }}>
+                        <strong style={{ color: 'var(--light)' }}>Steps: </strong>
+                        {expanded ? bug.steps_to_reproduce : `${bug.steps_to_reproduce.substring(0, 120)}${bug.steps_to_reproduce.length > 120 ? '...' : ''}`}
+                      </div>
+                    )}
                     {bug.expected && <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}><strong style={{ color: 'var(--light)' }}>Expected:</strong> {bug.expected}</div>}
                     {bug.actual && <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}><strong style={{ color: 'var(--danger)' }}>Actual:</strong> {bug.actual}</div>}
+                    {expanded && bug.notes && (
+                      <div style={{ fontSize: '0.78rem', color: 'var(--muted)', marginTop: '0.3rem' }}><strong style={{ color: 'var(--light)' }}>Notes:</strong> {bug.notes}</div>
+                    )}
+                    {bug.execution_run_id && (
+                      <Link
+                        to={`/projects/${id}/executions/${bug.execution_run_id}`}
+                        onClick={e => e.stopPropagation()}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.76rem', color: 'var(--accent)', textDecoration: 'none', marginTop: '0.3rem' }}
+                      >
+                        <Icon name="link" size={12} /> {bug.execution_run_name || 'Execution run'}
+                      </Link>
+                    )}
                   </div>
-                  <select className="form-select" style={{ width: 'auto', padding: '0.3rem 0.6rem', fontSize: '0.78rem' }} value={bug.status} onChange={e => updateStatus(bug.id, e.target.value)}>
-                    {STATUSES.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
-                  </select>
+                  {isClient ? (
+                    <span className={`badge badge-${bug.status.replace('_', '-')}`}>{STATUS_LABELS[bug.status]}</span>
+                  ) : (
+                    <select className="form-select" style={{ width: 'auto', padding: '0.3rem 0.6rem', fontSize: '0.78rem' }} value={bug.status} onChange={e => updateStatus(bug.id, e.target.value)}>
+                      {STATUSES.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
+                    </select>
+                  )}
                 </div>
                 <div style={{ fontSize: '0.73rem', color: 'var(--muted)', marginTop: '0.6rem' }}>Logged {new Date(bug.created_at).toLocaleDateString()}</div>
               </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>

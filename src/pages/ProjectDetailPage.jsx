@@ -3,6 +3,15 @@ import { useParams, Link } from 'react-router-dom'
 import { apiFetch } from '../lib/api.js'
 import { useAuth } from '../store/AuthContext.jsx'
 import { useToastStore } from '../store/toastStore.jsx'
+import Icon from '../components/Icon.jsx'
+
+function NavIcon({ name }) {
+  return (
+    <div style={{ width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--accent)', background: 'var(--bg)', color: 'var(--accent)', marginBottom: '0.85rem' }}>
+      <Icon name={name} size={18} />
+    </div>
+  )
+}
 
 export default function ProjectDetailPage() {
   const { id } = useParams()
@@ -67,15 +76,18 @@ export default function ProjectDetailPage() {
   return (
     <>
       <div className="topbar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
-          <Link to="/projects" style={{ color: 'var(--muted)', textDecoration: 'none' }}>Projects</Link>
-          <span style={{ color: 'var(--muted)' }}>/</span>
-          <span className="topbar-title">{project.name}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <Link to="/projects" className="back-btn" title="Back to projects" aria-label="Back to projects"><Icon name="arrowLeft" size={14} /></Link>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
+            <Link to="/projects" style={{ color: 'var(--muted)', textDecoration: 'none' }}>Projects</Link>
+            <span style={{ color: 'var(--muted)' }}>/</span>
+            <span className="topbar-title">{project.name}</span>
+          </div>
         </div>
       </div>
       <div className="page-content fade-in">
         <div style={{ marginBottom: '2rem' }}>
-          <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '1.5rem', fontWeight: 700, color: 'var(--white)', marginBottom: '0.25rem' }}>{project.name}</h1>
+          <h1 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '1.5rem', fontWeight: 700, color: 'var(--white)', marginBottom: '0.25rem' }}>{project.name}</h1>
           {project.client_name && <div style={{ color: 'var(--accent)', fontSize: '0.88rem', marginBottom: '0.5rem' }}>{project.client_name}</div>}
           {project.description && <div style={{ color: 'var(--muted)', fontSize: '0.9rem', maxWidth: 600 }}>{project.description}</div>}
         </div>
@@ -94,43 +106,53 @@ export default function ProjectDetailPage() {
             </div>
           </div>
         )}
-        {!isClient && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginBottom: isAdmin ? '2rem' : 0 }}>
-            <Link to={`/projects/${id}/tests`} style={{ textDecoration: 'none' }}>
-              <div className="card" style={{ cursor: 'pointer', transition: 'border-color 0.2s' }}
-                onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(224,125,60,0.3)'}
-                onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
-              >
-                <div style={{ fontSize: '1.5rem', marginBottom: '0.75rem' }}>✓</div>
-                <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, color: 'var(--white)', marginBottom: '0.3rem' }}>Test cases</div>
-                <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>View, generate, and execute test cases against this project.</div>
-              </div>
-            </Link>
+        <div style={{ display: 'grid', gridTemplateColumns: isClient ? '1fr 1fr 1fr' : '1fr 1fr 1fr 1fr', gap: '1rem', marginBottom: isAdmin ? '2rem' : 0 }}>
+            {!isClient && (
+              <Link to={`/projects/${id}/tests`} style={{ textDecoration: 'none' }}>
+                <div className="card" style={{ cursor: 'pointer', transition: 'border-color 0.2s' }}
+                  onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,70,31,0.3)'}
+                  onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+                >
+                  <NavIcon name="check" />
+                  <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)', marginBottom: '0.3rem' }}>Test cases</div>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>View, generate, and execute test cases against this project.</div>
+                </div>
+              </Link>
+            )}
             <Link to={`/projects/${id}/bugs`} style={{ textDecoration: 'none' }}>
               <div className="card" style={{ cursor: 'pointer', transition: 'border-color 0.2s' }}
-                onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(224,125,60,0.3)'}
+                onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,70,31,0.3)'}
                 onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
               >
-                <div style={{ fontSize: '1.5rem', marginBottom: '0.75rem' }}>🐛</div>
-                <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, color: 'var(--white)', marginBottom: '0.3rem' }}>Bug reports</div>
+                <NavIcon name="bug" />
+                <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)', marginBottom: '0.3rem' }}>Bug reports</div>
                 <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>Log, track, and resolve bugs found during testing.</div>
               </div>
             </Link>
             <Link to={`/projects/${id}/automation`} style={{ textDecoration: 'none' }}>
               <div className="card" style={{ cursor: 'pointer', transition: 'border-color 0.2s' }}
-                onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(224,125,60,0.3)'}
+                onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,70,31,0.3)'}
                 onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
               >
-                <div style={{ fontSize: '1.5rem', marginBottom: '0.75rem' }}>⚙️</div>
-                <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, color: 'var(--white)', marginBottom: '0.3rem' }}>Automation</div>
+                <NavIcon name="gear" />
+                <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)', marginBottom: '0.3rem' }}>Automation</div>
                 <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>Run automated suites and view CI results, including nightly builds.</div>
               </div>
             </Link>
-          </div>
-        )}
+            <Link to={`/projects/${id}/executions`} style={{ textDecoration: 'none' }}>
+              <div className="card" style={{ cursor: 'pointer', transition: 'border-color 0.2s' }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,70,31,0.3)'}
+                onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+              >
+                <NavIcon name="play" />
+                <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)', marginBottom: '0.3rem' }}>Executions</div>
+                <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>Run a session of manual and automated tests and export a report.</div>
+              </div>
+            </Link>
+        </div>
         {isAdmin && (
           <div className="card" style={{ maxWidth: 420 }}>
-            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, color: 'var(--white)', marginBottom: '0.5rem' }}>Share with a client</div>
+            <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)', marginBottom: '0.5rem' }}>Share with a client</div>
             <div style={{ fontSize: '0.82rem', color: 'var(--muted)', marginBottom: '0.75rem' }}>
               They need to have already signed up. This gives them read-only access to this project's stats.
             </div>

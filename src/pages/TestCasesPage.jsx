@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { apiFetch } from '../lib/api.js'
 import { useToastStore } from '../store/toastStore.jsx'
+import Icon from '../components/Icon.jsx'
 
 const TYPE_LABELS = { functional: 'Functional', integration: 'Integration', e2e: 'E2E' }
 const STATUS_LABELS = { pass: 'Pass', fail: 'Fail', not_run: 'Not run' }
@@ -45,9 +46,9 @@ function GenerateModal({ projectId, onClose, onGenerated }) {
               key={m.value}
               onClick={() => setMode(m.value)}
               style={{
-                flex: 1, padding: '0.6rem 1rem', borderRadius: 8, cursor: 'pointer',
+                flex: 1, padding: '0.6rem 1rem', borderRadius: 0, cursor: 'pointer',
                 border: mode === m.value ? '1px solid var(--accent)' : '1px solid var(--border)',
-                background: mode === m.value ? 'rgba(224,125,60,0.1)' : 'var(--bg2)',
+                background: mode === m.value ? 'rgba(184,70,31,0.1)' : 'var(--bg2)',
                 color: mode === m.value ? 'var(--accent)' : 'var(--muted)',
                 textAlign: 'left', transition: 'all 0.15s',
               }}
@@ -58,10 +59,13 @@ function GenerateModal({ projectId, onClose, onGenerated }) {
           ))}
         </div>
 
-        <div style={{ fontSize: '0.82rem', color: 'var(--muted)', marginBottom: '1rem', lineHeight: 1.6, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, padding: '0.6rem 0.85rem' }}>
-          {mode === 'mvp'
-            ? '🎯 MVP mode: core happy paths + 1–2 edge cases. Good for quick coverage without over-engineering.'
-            : '🔬 Comprehensive mode: full coverage including edge cases, boundaries, and integration points.'}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', fontSize: '0.82rem', color: 'var(--muted)', marginBottom: '1rem', lineHeight: 1.6, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 0, padding: '0.6rem 0.85rem' }}>
+          <Icon name={mode === 'mvp' ? 'target' : 'search'} size={15} style={{ color: 'var(--accent)', marginTop: '0.15rem' }} />
+          <span>
+            {mode === 'mvp'
+              ? 'MVP mode: core happy paths + 1–2 edge cases. Good for quick coverage without over-engineering.'
+              : 'Comprehensive mode: full coverage including edge cases, boundaries, and integration points.'}
+          </span>
         </div>
 
         <div className="form-group">
@@ -81,7 +85,11 @@ function GenerateModal({ projectId, onClose, onGenerated }) {
               <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <div className="spinner" style={{ width: 14, height: 14, borderWidth: 1.5 }} /> Generating...
               </span>
-            ) : `✨ Generate ${mode === 'mvp' ? 'MVP' : 'Full'} Suite`}
+            ) : (
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <Icon name="zap" size={14} /> Generate {mode === 'mvp' ? 'MVP' : 'Full'} Suite
+              </span>
+            )}
           </button>
         </div>
       </div>
@@ -89,7 +97,7 @@ function GenerateModal({ projectId, onClose, onGenerated }) {
   )
 }
 
-function LogBugModal({ projectId, testCase, onClose, onLogged }) {
+export function LogBugModal({ projectId, testCase, executionRunId, onClose, onLogged }) {
   const { addToast } = useToastStore()
   const [form, setForm] = useState({
     title: `Bug in: ${testCase.title}`,
@@ -99,8 +107,14 @@ function LogBugModal({ projectId, testCase, onClose, onLogged }) {
     actual: '',
     notes: '',
   })
+  const [executionRuns, setExecutionRuns] = useState([])
+  const [linkedRunId, setLinkedRunId] = useState(executionRunId || '')
   const [loading, setLoading] = useState(false)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  useEffect(() => {
+    apiFetch(`/projects/${projectId}/execution-runs`).then(setExecutionRuns).catch(console.error)
+  }, [projectId])
 
   const submit = async () => {
     if (!form.title.trim()) return
@@ -108,7 +122,7 @@ function LogBugModal({ projectId, testCase, onClose, onLogged }) {
     try {
       const bug = await apiFetch(`/projects/${projectId}/bugs`, {
         method: 'POST',
-        body: JSON.stringify({ ...form, test_case_id: testCase.id }),
+        body: JSON.stringify({ ...form, test_case_id: testCase.id, execution_run_id: linkedRunId || null }),
       })
       addToast('Bug logged and linked to test case')
       onLogged(bug)
@@ -124,12 +138,20 @@ function LogBugModal({ projectId, testCase, onClose, onLogged }) {
     <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal" style={{ maxWidth: 580 }}>
         <div className="modal-title">Log a bug</div>
-        <div style={{ fontSize: '0.78rem', color: 'var(--accent)', marginBottom: '1rem', background: 'rgba(224,125,60,0.08)', border: '1px solid rgba(224,125,60,0.2)', borderRadius: 7, padding: '0.5rem 0.75rem' }}>
-          🔗 Will be linked to: <strong>{testCase.title}</strong>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.78rem', color: 'var(--accent)', marginBottom: '1rem', background: 'rgba(184,70,31,0.08)', border: '1px solid rgba(184,70,31,0.2)', borderRadius: 0, padding: '0.5rem 0.75rem' }}>
+          <Icon name="link" size={13} />
+          <span>Will be linked to: <strong>{testCase.title}</strong></span>
         </div>
         <div className="form-group">
           <label className="form-label">Title *</label>
           <input className="form-input" value={form.title} onChange={e => set('title', e.target.value)} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Execution run</label>
+          <select className="form-select" value={linkedRunId} onChange={e => setLinkedRunId(e.target.value)}>
+            <option value="">None</option>
+            {executionRuns.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+          </select>
         </div>
         <div className="form-group">
           <label className="form-label">Severity</label>
@@ -303,11 +325,11 @@ function TestCaseModal({ tc, projectId, onClose, onStatusChange, onBugLogged, on
               <span className={`badge badge-${tc.type}`}>{TYPE_LABELS[tc.type]}</span>
               <span className={`badge badge-${status === 'not_run' ? 'not-run' : status}`}>{STATUS_LABELS[status]}</span>
             </div>
-            <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '1rem', fontWeight: 700, color: 'var(--white)', lineHeight: 1.3 }}>{tc.title}</h2>
+            <h2 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '1rem', fontWeight: 700, color: 'var(--white)', lineHeight: 1.3 }}>{tc.title}</h2>
           </div>
           <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
             <button className="btn btn-ghost btn-sm" onClick={() => setIsEditing(true)}>Edit</button>
-            <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
+            <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', display: 'flex' }}><Icon name="x" size={16} /></button>
           </div>
         </div>
 
@@ -323,7 +345,7 @@ function TestCaseModal({ tc, projectId, onClose, onStatusChange, onBugLogged, on
         )}
 
         {tc.expected && (
-          <div style={{ marginBottom: '1.25rem', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, padding: '0.75rem 1rem' }}>
+          <div style={{ marginBottom: '1.25rem', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 0, padding: '0.75rem 1rem' }}>
             <div style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '0.35rem' }}>Expected result</div>
             <div style={{ fontSize: '0.88rem', color: 'var(--light)', lineHeight: 1.55 }}>{tc.expected}</div>
           </div>
@@ -339,13 +361,13 @@ function TestCaseModal({ tc, projectId, onClose, onStatusChange, onBugLogged, on
           {loadingBugs ? (
             <div style={{ display: 'flex', justifyContent: 'center', padding: '1rem' }}><div className="spinner" /></div>
           ) : linkedBugs.length === 0 ? (
-            <div style={{ fontSize: '0.82rem', color: 'var(--muted)', padding: '0.75rem', background: 'var(--bg2)', borderRadius: 8, border: '1px solid var(--border)', textAlign: 'center' }}>
+            <div style={{ fontSize: '0.82rem', color: 'var(--muted)', padding: '0.75rem', background: 'var(--bg2)', borderRadius: 0, border: '1px solid var(--border)', textAlign: 'center' }}>
               No bugs linked to this test case
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
               {linkedBugs.map(bug => (
-                <div key={bug.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.55rem 0.75rem', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 7 }}>
+                <div key={bug.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.55rem 0.75rem', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 0 }}>
                   <span className={`badge badge-${bug.severity}`}>{bug.severity}</span>
                   <span style={{ fontSize: '0.82rem', color: 'var(--light)', flex: 1 }}>{bug.title}</span>
                   <span className={`badge badge-${bug.status}`}>{bug.status}</span>
@@ -363,7 +385,7 @@ function TestCaseModal({ tc, projectId, onClose, onStatusChange, onBugLogged, on
               onClick={() => updateStatus(s)}
               disabled={updating || status === s}
               style={{
-                padding: '0.4rem 0.9rem', borderRadius: 7, fontSize: '0.8rem', fontWeight: 600,
+                padding: '0.4rem 0.9rem', borderRadius: 0, fontSize: '0.8rem', fontWeight: 600,
                 cursor: status === s ? 'default' : 'pointer', border: 'none', fontFamily: 'inherit',
                 background: status === s ? statusColors[s] : 'var(--bg2)',
                 color: status === s ? (s === 'not_run' ? 'var(--light)' : 'var(--bg)') : 'var(--muted)',
@@ -382,11 +404,14 @@ function TestCaseModal({ tc, projectId, onClose, onStatusChange, onBugLogged, on
 
 export default function TestCasesPage() {
   const { id } = useParams()
+  const [project, setProject] = useState(null)
   const [testCases, setTestCases] = useState([])
   const [loading, setLoading] = useState(true)
   const [showGenerate, setShowGenerate] = useState(false)
   const [selectedTc, setSelectedTc] = useState(null)
   const [filter, setFilter] = useState('all')
+
+  useEffect(() => { apiFetch(`/projects/${id}`).then(setProject).catch(console.error) }, [id])
 
   useEffect(() => {
     apiFetch(`/projects/${id}/test-cases`)
@@ -416,15 +441,18 @@ export default function TestCasesPage() {
   return (
     <>
       <div className="topbar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
-          <Link to="/projects" style={{ color: 'var(--muted)', textDecoration: 'none' }}>Projects</Link>
-          <span style={{ color: 'var(--muted)' }}>/</span>
-          <Link to={`/projects/${id}`} style={{ color: 'var(--muted)', textDecoration: 'none' }}>Project</Link>
-          <span style={{ color: 'var(--muted)' }}>/</span>
-          <span className="topbar-title">Test cases</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <Link to={`/projects/${id}`} className="back-btn" title="Back to project" aria-label="Back to project"><Icon name="arrowLeft" size={14} /></Link>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
+            <Link to="/projects" style={{ color: 'var(--muted)', textDecoration: 'none' }}>Projects</Link>
+            <span style={{ color: 'var(--muted)' }}>/</span>
+            <Link to={`/projects/${id}`} style={{ color: 'var(--muted)', textDecoration: 'none' }}>{project?.name || 'Project'}</Link>
+            <span style={{ color: 'var(--muted)' }}>/</span>
+            <span className="topbar-title">Test cases</span>
+          </div>
         </div>
         <div className="topbar-actions">
-          <button className="btn btn-primary btn-sm" onClick={() => setShowGenerate(true)}>✨ Generate</button>
+          <button className="btn btn-primary btn-sm" onClick={() => setShowGenerate(true)}><Icon name="zap" size={13} /> Generate</button>
         </div>
       </div>
 
@@ -452,7 +480,7 @@ export default function TestCasesPage() {
           <div className="empty-state">
             <h3>{testCases.length === 0 ? 'No test cases yet' : 'No results for this filter'}</h3>
             <p>{testCases.length === 0 ? 'Generate test cases from requirements.' : 'Try a different filter.'}</p>
-            {testCases.length === 0 && <button className="btn btn-primary" onClick={() => setShowGenerate(true)}>✨ Generate test cases</button>}
+            {testCases.length === 0 && <button className="btn btn-primary" onClick={() => setShowGenerate(true)}><Icon name="zap" size={14} /> Generate test cases</button>}
           </div>
         ) : (
           <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
@@ -478,7 +506,7 @@ export default function TestCasesPage() {
                       <td><span className={`badge badge-${tc.status === 'not_run' ? 'not-run' : tc.status}`}>{STATUS_LABELS[tc.status]}</span></td>
                       <td>
                         {tc.bug_count > 0
-                          ? <span style={{ fontSize: '0.78rem', color: 'var(--danger)', fontWeight: 600 }}>🐛 {tc.bug_count}</span>
+                          ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.78rem', color: 'var(--danger)', fontWeight: 600 }}><Icon name="bug" size={12} /> {tc.bug_count}</span>
                           : <span style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>—</span>}
                       </td>
                       <td style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>{new Date(tc.created_at).toLocaleDateString()}</td>
