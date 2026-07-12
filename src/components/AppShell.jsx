@@ -12,7 +12,7 @@ export default function AppShell() {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <div className="sidebar-logo">QA<span>Tool</span></div>
+        <div className="sidebar-logo">Blue<span>print</span></div>
         <div className="sidebar-section">
           <div className="sidebar-label">Navigation</div>
           {user?.role !== 'client' && (

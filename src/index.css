@@ -67,7 +67,6 @@ body {
   margin-bottom: 1rem;
 }
 .sidebar-logo span { color: var(--accent); }
-
 .sidebar-section {
   padding: 0 0.75rem;
   margin-bottom: 1.5rem;
@@ -386,6 +385,90 @@ tr:hover td { background: rgba(237,231,220,0.02); }
   transition: width 0.4s ease;
 }
 .progress-fill.green { background: var(--success); }
+
+/* TABS */
+.tab-bar {
+  display: flex;
+  gap: 1.75rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 2rem;
+}
+.tab {
+  background: none;
+  border: none;
+  padding: 0.85rem 0.05rem;
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  position: relative;
+  transition: color 0.15s;
+}
+.tab:hover { color: var(--light); }
+.tab.active { color: var(--white); }
+.tab.active::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: -1px;
+  height: 2px;
+  background: var(--accent);
+}
+
+/* QUALITY HEALTH */
+.health-hero {
+  text-align: center;
+  padding: 2.5rem 1rem 3rem;
+}
+.health-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.3rem 0.85rem;
+  border: 1px solid;
+  border-radius: 999px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 1.5rem;
+}
+.health-status-dot { width: 6px; height: 6px; border-radius: 50%; }
+.health-hero-number {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: 4rem;
+  font-weight: 700;
+  color: var(--white);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 0.6rem;
+}
+.health-hero-sub { color: var(--muted); font-size: 0.92rem; }
+
+.health-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.health-tile-title {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 0.9rem;
+}
+.health-tile-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  color: var(--light);
+  padding: 0.3rem 0;
+}
+.health-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 
 /* TOAST */
 .toast-wrap {

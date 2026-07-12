@@ -33,7 +33,7 @@ export default function SignInPage() {
       <div style={{ width: '100%', maxWidth: 360, padding: '2rem' }}>
         <div style={{ textAlign: 'center', marginBottom: '1.75rem' }}>
           <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '1.5rem', fontWeight: 700, color: 'var(--white)', marginBottom: '0.35rem' }}>
-            QA<span style={{ color: 'var(--accent)' }}>Tool</span>
+            Blue<span style={{ color: 'var(--accent)' }}>print</span>
           </div>
           <div style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>
             {mode === 'login' ? 'Welcome back' : 'Create a client account'}
