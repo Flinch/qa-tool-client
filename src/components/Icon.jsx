@@ -15,6 +15,7 @@ const PATHS = {
   chevronRight: 'M9 18l6-6-6-6',
   gear: 'M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z',
   image: 'M3 5a2 2 0 012-2h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5zM3 16l5-5 4 4 4-4 5 5',
+  alertTriangle: 'M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z',
 }
 
 // A few icons need more than one primitive (circles alongside a path), so they're
@@ -27,6 +28,7 @@ const CUSTOM = {
   blocked: <><circle cx="12" cy="12" r="9" /><path d={PATHS.blocked} /></>,
   bug: <><circle cx="12" cy="13" r="6" /><path d={PATHS.bug} /></>,
   gear: <><circle cx="12" cy="12" r="3" /><path d={PATHS.gear} /></>,
+  alertTriangle: <><path d={PATHS.alertTriangle} /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></>,
 }
 
 export default function Icon({ name, size = 16, style, ...rest }) {
