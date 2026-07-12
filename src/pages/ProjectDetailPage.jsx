@@ -118,14 +118,16 @@ export default function ProjectDetailPage() {
           {project.description && <div style={{ color: 'var(--muted)', fontSize: '0.9rem', maxWidth: 600 }}>{project.description}</div>}
         </div>
 
-        <div className="tab-bar">
-          <button className={`tab ${tab === 'overview' ? 'active' : ''}`} onClick={() => setTab('overview')}>Overview</button>
-          <button className={`tab ${tab === 'reports' ? 'active' : ''}`} onClick={() => setTab('reports')}>Reports</button>
-        </div>
+        {isClient && (
+          <div className="tab-bar">
+            <button className={`tab ${tab === 'overview' ? 'active' : ''}`} onClick={() => setTab('overview')}>Overview</button>
+            <button className={`tab ${tab === 'reports' ? 'active' : ''}`} onClick={() => setTab('reports')}>Reports</button>
+          </div>
+        )}
 
-        {tab === 'overview' && <QualityHealth projectId={id} />}
+        {isClient && tab === 'overview' && <QualityHealth projectId={id} />}
 
-        {tab === 'reports' && (
+        {(!isClient || tab === 'reports') && (
           <>
             <div className="stats-row" style={{ marginBottom: '2rem' }}>
               <div className="stat-card"><div className="stat-num">{stats?.testCases ?? 0}</div><div className="stat-label">Test cases</div></div>
