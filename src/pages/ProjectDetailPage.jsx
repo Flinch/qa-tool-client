@@ -19,23 +19,17 @@ export default function ProjectDetailPage() {
   const { user } = useAuth()
   const { addToast } = useToastStore()
   const [project, setProject] = useState(null)
-  const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
   const [clientEmail, setClientEmail] = useState('')
   const [adding, setAdding] = useState(false)
-  const [tab, setTab] = useState('overview')
   const [members, setMembers] = useState([])
   const [removingId, setRemovingId] = useState(null)
 
   useEffect(() => {
     async function load() {
       try {
-        const [p, s] = await Promise.all([
-          apiFetch(`/projects/${id}`),
-          apiFetch(`/projects/${id}/stats`),
-        ])
+        const p = await apiFetch(`/projects/${id}`)
         setProject(p)
-        setStats(s)
       } catch (e) {
         console.error(e)
       } finally {
@@ -95,21 +89,24 @@ export default function ProjectDetailPage() {
     </>
   )
 
-  const passRate = stats?.testCases > 0 ? Math.round((stats.passed / stats.testCases) * 100) : 0
   const isClient = user?.role === 'client'
   const isAdmin = user?.role === 'admin'
 
   return (
     <>
       <div className="topbar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <Link to="/projects" className="back-btn" title="Back to projects" aria-label="Back to projects"><Icon name="arrowLeft" size={14} /></Link>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
-            <Link to="/projects" style={{ color: 'var(--muted)', textDecoration: 'none' }}>Projects</Link>
-            <span style={{ color: 'var(--muted)' }}>/</span>
-            <span className="topbar-title">{project.name}</span>
+        {isClient ? (
+          <span className="topbar-title">{project.name}</span>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <Link to="/projects" className="back-btn" title="Back to projects" aria-label="Back to projects"><Icon name="arrowLeft" size={14} /></Link>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
+              <Link to="/projects" style={{ color: 'var(--muted)', textDecoration: 'none' }}>Projects</Link>
+              <span style={{ color: 'var(--muted)' }}>/</span>
+              <span className="topbar-title">{project.name}</span>
+            </div>
           </div>
-        </div>
+        )}
       </div>
       <div className="page-content fade-in">
         <div style={{ marginBottom: '2rem' }}>
@@ -118,45 +115,21 @@ export default function ProjectDetailPage() {
           {project.description && <div style={{ color: 'var(--muted)', fontSize: '0.9rem', maxWidth: 600 }}>{project.description}</div>}
         </div>
 
-        {isClient && (
-          <div className="tab-bar">
-            <button className={`tab ${tab === 'overview' ? 'active' : ''}`} onClick={() => setTab('overview')}>Overview</button>
-            <button className={`tab ${tab === 'reports' ? 'active' : ''}`} onClick={() => setTab('reports')}>Reports</button>
-          </div>
-        )}
-
-        {isClient && tab === 'overview' && <QualityHealth projectId={id} />}
-
-        {(!isClient || tab === 'reports') && (
+        {isClient ? (
+          <QualityHealth projectId={id} />
+        ) : (
           <>
-            <div className="stats-row" style={{ marginBottom: '2rem' }}>
-              <div className="stat-card"><div className="stat-num">{stats?.testCases ?? 0}</div><div className="stat-label">Test cases</div></div>
-              <div className="stat-card"><div className="stat-num" style={{ color: 'var(--success)' }}>{stats?.passed ?? 0}</div><div className="stat-label">Passed</div></div>
-              <div className="stat-card"><div className="stat-num" style={{ color: 'var(--danger)' }}>{stats?.failed ?? 0}</div><div className="stat-label">Failed</div></div>
-              <div className="stat-card"><div className="stat-num" style={{ color: 'var(--warning)' }}>{stats?.openBugs ?? 0}</div><div className="stat-label">Open bugs</div></div>
-              <div className="stat-card"><div className="stat-num">{passRate}%</div><div className="stat-label">Pass rate</div></div>
-            </div>
-            {stats?.testCases > 0 && (
-              <div style={{ marginBottom: '2rem' }}>
-                <div style={{ fontSize: '0.78rem', color: 'var(--muted)', marginBottom: '0.4rem' }}>Pass rate</div>
-                <div className="progress-bar" style={{ height: 8 }}>
-                  <div className="progress-fill green" style={{ width: `${passRate}%` }} />
-                </div>
-              </div>
-            )}
-            <div style={{ display: 'grid', gridTemplateColumns: isClient ? '1fr 1fr 1fr' : '1fr 1fr 1fr 1fr', gap: '1rem', marginBottom: isAdmin ? '2rem' : 0 }}>
-                {!isClient && (
-                  <Link to={`/projects/${id}/tests`} style={{ textDecoration: 'none' }}>
-                    <div className="card" style={{ cursor: 'pointer', transition: 'border-color 0.2s' }}
-                      onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,70,31,0.3)'}
-                      onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
-                    >
-                      <NavIcon name="check" />
-                      <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)', marginBottom: '0.3rem' }}>Test cases</div>
-                      <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>View, generate, and execute test cases against this project.</div>
-                    </div>
-                  </Link>
-                )}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '1rem', marginBottom: isAdmin ? '2rem' : 0 }}>
+                <Link to={`/projects/${id}/tests`} style={{ textDecoration: 'none' }}>
+                  <div className="card" style={{ cursor: 'pointer', transition: 'border-color 0.2s' }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,70,31,0.3)'}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+                  >
+                    <NavIcon name="check" />
+                    <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)', marginBottom: '0.3rem' }}>Test cases</div>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>View, generate, and execute test cases against this project.</div>
+                  </div>
+                </Link>
                 <Link to={`/projects/${id}/bugs`} style={{ textDecoration: 'none' }}>
                   <div className="card" style={{ cursor: 'pointer', transition: 'border-color 0.2s' }}
                     onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,70,31,0.3)'}

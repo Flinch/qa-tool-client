@@ -375,8 +375,12 @@ export default function ExecutionRunDetailPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <Link to={`/projects/${id}/executions`} className="back-btn" title="Back to executions" aria-label="Back to executions"><Icon name="arrowLeft" size={14} /></Link>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
-            <Link to="/projects" style={{ color: 'var(--muted)', textDecoration: 'none' }}>Projects</Link>
-            <span style={{ color: 'var(--muted)' }}>/</span>
+            {!isClient && (
+              <>
+                <Link to="/projects" style={{ color: 'var(--muted)', textDecoration: 'none' }}>Projects</Link>
+                <span style={{ color: 'var(--muted)' }}>/</span>
+              </>
+            )}
             <Link to={`/projects/${id}`} style={{ color: 'var(--muted)', textDecoration: 'none' }}>{project?.name || 'Project'}</Link>
             <span style={{ color: 'var(--muted)' }}>/</span>
             <Link to={`/projects/${id}/executions`} style={{ color: 'var(--muted)', textDecoration: 'none' }}>Executions</Link>
