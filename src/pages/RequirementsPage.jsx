@@ -1,8 +1,121 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { apiFetch } from '../lib/api.js'
 import { useToastStore } from '../store/toastStore.jsx'
+import { readDocumentFile } from '../lib/documentUpload.js'
 import Icon from '../components/Icon.jsx'
+
+function UploadRequirementsModal({ projectId, onClose, onUploaded }) {
+  const { addToast } = useToastStore()
+  const [mode, setMode] = useState('file')
+  const [file, setFile] = useState(null)
+  const [text, setText] = useState('')
+  const [loading, setLoading] = useState(false)
+  const fileInputRef = useRef(null)
+
+  const handleFile = (e) => {
+    const f = e.target.files?.[0]
+    e.target.value = ''
+    if (!f) return
+    setFile(f)
+  }
+
+  const submit = async () => {
+    if (mode === 'file' && !file) return
+    if (mode === 'text' && !text.trim()) return
+    setLoading(true)
+    try {
+      const body = mode === 'file' ? await readDocumentFile(file) : { text }
+      const result = await apiFetch(`/projects/${projectId}/requirements/upload`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      })
+      addToast(`${result.requirements.length} requirement${result.requirements.length === 1 ? '' : 's'} parsed from ${file?.name || 'pasted text'}`)
+      onUploaded(result.requirements)
+      onClose()
+    } catch (e) {
+      addToast(e.message, 'error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal" style={{ maxWidth: 620 }}>
+        <div className="modal-title">Upload requirements document</div>
+
+        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem' }}>
+          {[
+            { value: 'file', label: 'Upload file', desc: '.txt, .md, .pdf, .docx' },
+            { value: 'text', label: 'Paste text', desc: 'Paste requirements directly' },
+          ].map(m => (
+            <button
+              key={m.value}
+              onClick={() => setMode(m.value)}
+              style={{
+                flex: 1, padding: '0.6rem 1rem', borderRadius: 0, cursor: 'pointer',
+                border: mode === m.value ? '1px solid var(--accent)' : '1px solid var(--border)',
+                background: mode === m.value ? 'rgba(184,70,31,0.1)' : 'var(--bg2)',
+                color: mode === m.value ? 'var(--accent)' : 'var(--muted)',
+                textAlign: 'left', transition: 'all 0.15s',
+              }}
+            >
+              <div style={{ fontWeight: 600, fontSize: '0.85rem', marginBottom: '0.15rem' }}>{m.label}</div>
+              <div style={{ fontSize: '0.72rem' }}>{m.desc}</div>
+            </button>
+          ))}
+        </div>
+
+        {mode === 'file' ? (
+          <div className="form-group">
+            <label className="form-label">Document</label>
+            <input ref={fileInputRef} type="file" accept=".txt,.md,.pdf,.docx" onChange={handleFile} style={{ display: 'none' }} />
+            {file ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.6rem 0.85rem', background: 'var(--bg2)', border: '1px solid var(--border)' }}>
+                <Icon name="image" size={15} style={{ color: 'var(--accent)' }} />
+                <span style={{ fontSize: '0.85rem', color: 'var(--light)', flex: 1 }}>{file.name}</span>
+                <button className="btn btn-ghost btn-sm" onClick={() => setFile(null)}>Remove</button>
+              </div>
+            ) : (
+              <button className="btn btn-ghost btn-sm" onClick={() => fileInputRef.current?.click()}>Choose file</button>
+            )}
+          </div>
+        ) : (
+          <div className="form-group">
+            <label className="form-label">Requirements text</label>
+            <textarea
+              className="form-textarea"
+              style={{ minHeight: 200 }}
+              placeholder="Paste the requirements document text here..."
+              value={text}
+              onChange={e => setText(e.target.value)}
+            />
+          </div>
+        )}
+
+        <div style={{ fontSize: '0.78rem', color: 'var(--muted)', marginBottom: '0.5rem' }}>
+          This is the first upload for this project — every requirement found gets added as new. Re-uploading later to update requirements against what's already here isn't supported yet.
+        </div>
+
+        <div className="modal-footer">
+          <button className="btn btn-ghost" onClick={onClose} disabled={loading}>Cancel</button>
+          <button
+            className="btn btn-primary"
+            onClick={submit}
+            disabled={loading || (mode === 'file' ? !file : !text.trim())}
+          >
+            {loading ? (
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <div className="spinner" style={{ width: 14, height: 14, borderWidth: 1.5 }} /> Parsing...
+              </span>
+            ) : 'Upload & parse'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function CreateRequirementModal({ projectId, onClose, onCreated }) {
   const { addToast } = useToastStore()
@@ -272,6 +385,7 @@ export default function RequirementsPage() {
   const [requirements, setRequirements] = useState([])
   const [loading, setLoading] = useState(true)
   const [showCreate, setShowCreate] = useState(false)
+  const [showUpload, setShowUpload] = useState(false)
   const [selected, setSelected] = useState(null)
 
   useEffect(() => { apiFetch(`/projects/${id}`).then(setProject).catch(console.error) }, [id])
@@ -299,6 +413,7 @@ export default function RequirementsPage() {
           </div>
         </div>
         <div className="topbar-actions">
+          <button className="btn btn-ghost btn-sm" onClick={() => setShowUpload(true)}>Upload document</button>
           <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>+ New requirement</button>
         </div>
       </div>
@@ -316,8 +431,11 @@ export default function RequirementsPage() {
         ) : requirements.length === 0 ? (
           <div className="empty-state">
             <h3>No requirements yet</h3>
-            <p>Add requirements to track which test cases actually cover them.</p>
-            <button className="btn btn-primary" onClick={() => setShowCreate(true)}>+ New requirement</button>
+            <p>Upload a requirements document or add one manually to track which test cases actually cover them.</p>
+            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+              <button className="btn btn-ghost" onClick={() => setShowUpload(true)}>Upload document</button>
+              <button className="btn btn-primary" onClick={() => setShowCreate(true)}>+ New requirement</button>
+            </div>
           </div>
         ) : (
           <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
@@ -357,6 +475,14 @@ export default function RequirementsPage() {
           projectId={id}
           onClose={() => setShowCreate(false)}
           onCreated={r => setRequirements(rs => [r, ...rs])}
+        />
+      )}
+
+      {showUpload && (
+        <UploadRequirementsModal
+          projectId={id}
+          onClose={() => setShowUpload(false)}
+          onUploaded={newReqs => setRequirements(rs => [...newReqs, ...rs])}
         />
       )}
 
