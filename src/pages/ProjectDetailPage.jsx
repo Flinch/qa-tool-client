@@ -119,7 +119,17 @@ export default function ProjectDetailPage() {
           <QualityHealth projectId={id} />
         ) : (
           <>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '1rem', marginBottom: isAdmin ? '2rem' : 0 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: isAdmin ? '2rem' : 0 }}>
+                <Link to={`/projects/${id}/requirements`} style={{ textDecoration: 'none' }}>
+                  <div className="card" style={{ cursor: 'pointer', transition: 'border-color 0.2s' }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,70,31,0.3)'}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+                  >
+                    <NavIcon name="target" />
+                    <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)', marginBottom: '0.3rem' }}>Requirements</div>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>Track requirements and which test cases actually cover them.</div>
+                  </div>
+                </Link>
                 <Link to={`/projects/${id}/tests`} style={{ textDecoration: 'none' }}>
                   <div className="card" style={{ cursor: 'pointer', transition: 'border-color 0.2s' }}
                     onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,70,31,0.3)'}

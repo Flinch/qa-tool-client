@@ -251,6 +251,35 @@ body {
 .badge-blocked       { border-color: var(--warning); color: var(--warning); }
 .badge-automation    { border-color: var(--info); color: var(--info); }
 
+/* STATUS MENU — expandable status picker on a swipe-mode test case card */
+.status-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  background: var(--card2);
+  border: 1px solid var(--border2);
+  min-width: 140px;
+  z-index: 20;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+}
+.status-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  padding: 0.55rem 0.8rem;
+  background: none;
+  border: none;
+  color: var(--light);
+  font-size: 0.82rem;
+  font-family: 'Manrope', sans-serif;
+  cursor: pointer;
+  text-align: left;
+}
+.status-menu-item:hover { background: rgba(237,231,220,0.05); }
+.status-menu-item.active { color: var(--white); font-weight: 700; }
+.status-menu-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
 /* FORMS */
 .form-group { margin-bottom: 1.1rem; }
 .form-label {

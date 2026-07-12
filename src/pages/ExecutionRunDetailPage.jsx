@@ -18,6 +18,53 @@ const SSE_MAX_CONSECUTIVE_ERRORS = 3
 
 const TYPE_LABELS = { functional: 'Functional', integration: 'Integration', e2e: 'E2E' }
 const STATUS_LABELS = { pass: 'Pass', fail: 'Fail', not_run: 'Not run', blocked: 'Blocked' }
+const STATUS_ORDER = ['pass', 'blocked', 'fail', 'not_run']
+const STATUS_DOT_COLOR = { pass: 'var(--success)', fail: 'var(--danger)', blocked: 'var(--warning)', not_run: 'var(--border2)' }
+const STATUS_TINT_RGB = { pass: '122,155,87', fail: '193,68,58', blocked: '201,162,39', not_run: '156,146,128' }
+
+function StatusMenu({ status, onSelect }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div style={{ position: 'relative', flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+      <button
+        type="button"
+        className={`badge badge-${status === 'not_run' ? 'not-run' : status}`}
+        style={{
+          fontSize: '0.82rem',
+          fontWeight: 700,
+          padding: '0.35rem 0.85rem',
+          cursor: 'pointer',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '0.3rem',
+          background: `rgba(${STATUS_TINT_RGB[status]},0.18)`,
+        }}
+        onClick={() => setOpen(o => !o)}
+      >
+        {STATUS_LABELS[status]}
+        <Icon name="chevronRight" size={10} style={{ transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }} />
+      </button>
+      {open && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 15 }} onClick={() => setOpen(false)} />
+          <div className="status-menu">
+            {STATUS_ORDER.map(s => (
+              <button
+                key={s}
+                type="button"
+                className={`status-menu-item${s === status ? ' active' : ''}`}
+                onClick={() => { setOpen(false); onSelect(s) }}
+              >
+                <span className="status-menu-dot" style={{ background: STATUS_DOT_COLOR[s] }} />
+                {STATUS_LABELS[s]}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
 
 function StatusPill({ status }) {
   const map = {
@@ -34,7 +81,7 @@ function StatusPill({ status }) {
   )
 }
 
-function SwipeCard({ etc, onMark, onLogBug }) {
+function SwipeCard({ etc, onMark, onSetStatus, onLogBug }) {
   const [dragX, setDragX] = useState(0)
   const handlers = useSwipeable({
     onSwiping: (e) => setDragX(e.deltaX),
@@ -64,12 +111,7 @@ function SwipeCard({ etc, onMark, onLogBug }) {
           <span className={`badge badge-${etc.type}`}>{TYPE_LABELS[etc.type]}</span>
           {etc.bug_count > 0 && <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.78rem', color: 'var(--danger)', fontWeight: 600 }}><Icon name="bug" size={13} /> {etc.bug_count}</span>}
         </div>
-        <span
-          className={`badge badge-${etc.status === 'not_run' ? 'not-run' : etc.status}`}
-          style={{ fontSize: '0.82rem', fontWeight: 700, padding: '0.35rem 0.85rem', flexShrink: 0 }}
-        >
-          {STATUS_LABELS[etc.status]}
-        </span>
+        <StatusMenu status={etc.status} onSelect={onSetStatus} />
       </div>
       <h2 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '1.05rem', fontWeight: 700, color: 'var(--white)', marginBottom: '1rem', lineHeight: 1.3 }}>
         {etc.title}
@@ -104,11 +146,13 @@ function ExecutionSuiteCard({ suite, onRun, running, readOnly }) {
         <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)' }}>{suite.suite_name}</div>
         {suite.latest_status && <StatusPill status={suite.latest_status} />}
       </div>
-      {hasResult && (
+      {hasResult ? (
         <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginBottom: '0.75rem' }}>
           <span style={{ color: 'var(--success)' }}>{suite.passed} passed</span>
           {suite.failed > 0 && <>, <span style={{ color: 'var(--danger)' }}>{suite.failed} failed</span></>}
         </div>
+      ) : !isRunning && (
+        <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginBottom: '0.75rem' }}>Not yet run</div>
       )}
       {suite.latest_status === 'failed' && suite.latest_error_message && (
         <div style={{ fontSize: '0.76rem', color: 'var(--danger)', background: 'rgba(193,68,58,0.08)', border: '1px solid rgba(193,68,58,0.25)', padding: '0.5rem 0.65rem', marginBottom: '0.75rem', lineHeight: 1.4 }}>
@@ -322,6 +366,14 @@ export default function ExecutionRunDetailPage() {
     setCardIndex(i => Math.min(i + 1, filtered.length))
   }
 
+  // Picking a status directly from the card's badge menu just sets it —
+  // unlike a swipe, it shouldn't jump the user to the next card.
+  const handleCardStatusChange = async (status) => {
+    if (!currentCard) return
+    await markSingle(currentCard.execution_test_case_id, status)
+    if (status === 'fail') openLogBug(currentCard)
+  }
+
   const toggleSelected = (etcId) => setSelectedIds(s => {
     const next = new Set(s)
     next.has(etcId) ? next.delete(etcId) : next.add(etcId)
@@ -361,7 +413,6 @@ export default function ExecutionRunDetailPage() {
   const filteredTestCases = statusFilter === 'all' ? run.test_cases : run.test_cases.filter(tc => tc.status === statusFilter)
   const filteredTotal = filteredTestCases.length
   const currentCard = filteredTestCases[cardIndex]
-  const STATUS_DOT_COLOR = { pass: 'var(--success)', fail: 'var(--danger)', blocked: 'var(--warning)', not_run: 'var(--border2)' }
 
   return (
     <>
@@ -453,6 +504,7 @@ export default function ExecutionRunDetailPage() {
                   key={currentCard.execution_test_case_id}
                   etc={currentCard}
                   onMark={handleSwipeMark}
+                  onSetStatus={handleCardStatusChange}
                   onLogBug={() => openLogBug(currentCard)}
                 />
               ) : filteredTotal === 0 ? (
@@ -469,20 +521,13 @@ export default function ExecutionRunDetailPage() {
               )}
               <button className="swipe-arrow right" disabled={cardIndex >= filteredTotal} onClick={() => setCardIndex(i => Math.min(i + 1, filteredTotal))} title="Next"><Icon name="arrowRight" size={18} /></button>
             </div>
-            {currentCard && (
-              <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'center', marginBottom: '0.75rem' }}>
-                <button className="btn btn-danger btn-sm" onClick={() => handleSwipeMark('fail')}><Icon name="x" size={13} /> Fail</button>
-                <button className="btn btn-warning btn-sm" onClick={() => handleSwipeMark('blocked')}><Icon name="blocked" size={13} /> Blocked</button>
-                <button className="btn btn-primary btn-sm" onClick={() => handleSwipeMark('pass')}><Icon name="check" size={13} /> Pass</button>
-              </div>
-            )}
             {filteredTotal > 0 && (
-              <div style={{ display: 'flex', gap: '4px', justifyContent: 'center', flexWrap: 'wrap', maxWidth: 480, margin: '0 auto 0.5rem' }}>
+              <div style={{ display: 'flex', gap: '3px', maxWidth: 480, margin: '0 auto 0.5rem' }}>
                 {filteredTestCases.map((tc, i) => (
                   <div
                     key={tc.execution_test_case_id}
                     style={{
-                      height: 4, width: 16, borderRadius: 0,
+                      height: 4, flex: 1, borderRadius: 0,
                       background: STATUS_DOT_COLOR[tc.status],
                       opacity: i === cardIndex ? 1 : 0.4,
                       transition: 'opacity 0.15s',

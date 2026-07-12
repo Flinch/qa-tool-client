@@ -8,6 +8,7 @@ import ProjectsPage from './pages/ProjectsPage.jsx'
 import ProjectDetailPage from './pages/ProjectDetailPage.jsx'
 import ProjectReportsPage from './pages/ProjectReportsPage.jsx'
 import TestCasesPage from './pages/TestCasesPage.jsx'
+import RequirementsPage from './pages/RequirementsPage.jsx'
 import BugsPage from './pages/BugsPage.jsx'
 import SignInPage from './pages/SignInPage.jsx'
 import AutomationPage from './pages/AutomationPage.jsx'
@@ -78,6 +79,7 @@ function Gate() {
         <Route path="projects/:id" element={<ProjectDetailPage />} />
         <Route path="projects/:id/reports" element={<ProjectReportsPage />} />
         <Route path="projects/:id/tests" element={<StaffOnly><TestCasesPage /></StaffOnly>} />
+        <Route path="projects/:id/requirements" element={<StaffOnly><RequirementsPage /></StaffOnly>} />
         <Route path="projects/:id/bugs" element={<BugsPage />} />
         <Route path="projects/:id/automation" element={<AutomationPage />} />
         <Route path="projects/:id/executions" element={<ExecutionRunsPage />} />
