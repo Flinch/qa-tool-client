@@ -47,7 +47,27 @@ export default function ProjectReportsPage() {
         </div>
       </div>
       <div className="page-content fade-in">
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+          <Link to={`/projects/${id}/requirements`} style={{ textDecoration: 'none' }}>
+            <div className="card" style={{ cursor: 'pointer', transition: 'border-color 0.2s' }}
+              onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,70,31,0.3)'}
+              onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+            >
+              <NavIcon name="target" />
+              <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)', marginBottom: '0.3rem' }}>Requirements</div>
+              <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>See tracked requirements and which test cases cover them.</div>
+            </div>
+          </Link>
+          <Link to={`/projects/${id}/tests`} style={{ textDecoration: 'none' }}>
+            <div className="card" style={{ cursor: 'pointer', transition: 'border-color 0.2s' }}
+              onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,70,31,0.3)'}
+              onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+            >
+              <NavIcon name="check" />
+              <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)', marginBottom: '0.3rem' }}>Test cases</div>
+              <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>View test cases for this project.</div>
+            </div>
+          </Link>
           <Link to={`/projects/${id}/bugs`} style={{ textDecoration: 'none' }}>
             <div className="card" style={{ cursor: 'pointer', transition: 'border-color 0.2s' }}
               onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,70,31,0.3)'}

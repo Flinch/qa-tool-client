@@ -15,12 +15,6 @@ import AutomationPage from './pages/AutomationPage.jsx'
 import ExecutionRunsPage from './pages/ExecutionRunsPage.jsx'
 import ExecutionRunDetailPage from './pages/ExecutionRunDetailPage.jsx'
 
-function StaffOnly({ children }) {
-  const { user } = useAuth()
-  if (user.role === 'client') return <Navigate to="/" replace />
-  return children
-}
-
 // Clients only ever have one project (a QA agency's single client account, one
 // engagement) — there's no real list to browse, so skip straight to it instead
 // of making them click through an intermediate "Projects" page with one card.
@@ -78,8 +72,8 @@ function Gate() {
         <Route path="projects" element={user.role === 'client' ? <ClientHome /> : <ProjectsPage />} />
         <Route path="projects/:id" element={<ProjectDetailPage />} />
         <Route path="projects/:id/reports" element={<ProjectReportsPage />} />
-        <Route path="projects/:id/tests" element={<StaffOnly><TestCasesPage /></StaffOnly>} />
-        <Route path="projects/:id/requirements" element={<StaffOnly><RequirementsPage /></StaffOnly>} />
+        <Route path="projects/:id/tests" element={<TestCasesPage />} />
+        <Route path="projects/:id/requirements" element={<RequirementsPage />} />
         <Route path="projects/:id/bugs" element={<BugsPage />} />
         <Route path="projects/:id/automation" element={<AutomationPage />} />
         <Route path="projects/:id/executions" element={<ExecutionRunsPage />} />

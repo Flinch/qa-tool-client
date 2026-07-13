@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { apiFetch } from '../lib/api.js'
 
 const STATUS_META = {
@@ -67,77 +68,88 @@ export default function QualityHealth({ projectId }) {
       </div>
 
       <div className="health-tiles">
-        <div className="card-sm">
-          <div className="health-tile-title">Test results</div>
-          <div className="health-tile-row"><span style={{ color: 'var(--muted)' }}>Passed</span><strong style={{ color: 'var(--success)' }}>{tc.passed}</strong></div>
-          <div className="health-tile-row"><span style={{ color: 'var(--muted)' }}>Failed</span><strong style={{ color: 'var(--danger)' }}>{tc.failed}</strong></div>
-          <div className="health-tile-row"><span style={{ color: 'var(--muted)' }}>Not run</span><strong style={{ color: 'var(--muted)' }}>{tc.notRun}</strong></div>
-        </div>
+        <Link to={`/projects/${projectId}/executions`} style={{ textDecoration: 'none' }}>
+          <div className="card-sm">
+            <div className="health-tile-title">Test results</div>
+            <div className="health-tile-row"><span style={{ color: 'var(--muted)' }}>Passed</span><strong style={{ color: 'var(--success)' }}>{tc.passed}</strong></div>
+            <div className="health-tile-row"><span style={{ color: 'var(--muted)' }}>Failed</span><strong style={{ color: 'var(--danger)' }}>{tc.failed}</strong></div>
+            <div className="health-tile-row"><span style={{ color: 'var(--muted)' }}>Blocked</span><strong style={{ color: 'var(--warning)' }}>{tc.blocked}</strong></div>
+            <div className="health-tile-row"><span style={{ color: 'var(--muted)' }}>Not run</span><strong style={{ color: 'var(--muted)' }}>{tc.notRun}</strong></div>
+          </div>
+        </Link>
 
-        <div className="card-sm">
-          <div className="health-tile-title">Open issues</div>
-          {SEVERITY_ORDER.map(sev => (
-            <div className="health-tile-row" key={sev}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--muted)' }}>
-                <span className="health-dot" style={{ background: `var(--severity-${sev})` }} />
-                {SEVERITY_LABEL[sev]}
-              </span>
-              <strong style={{ color: data.bugsBySeverity[sev] > 0 ? `var(--severity-${sev})` : 'var(--muted)' }}>
-                {data.bugsBySeverity[sev]}
-              </strong>
+        <Link to={`/projects/${projectId}/bugs`} style={{ textDecoration: 'none' }}>
+          <div className="card-sm">
+            <div className="health-tile-title">Open issues</div>
+            {SEVERITY_ORDER.map(sev => (
+              <div className="health-tile-row" key={sev}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--muted)' }}>
+                  <span className="health-dot" style={{ background: `var(--severity-${sev})` }} />
+                  {SEVERITY_LABEL[sev]}
+                </span>
+                <strong style={{ color: data.bugsBySeverity[sev] > 0 ? `var(--severity-${sev})` : 'var(--muted)' }}>
+                  {data.bugsBySeverity[sev]}
+                </strong>
+              </div>
+            ))}
+          </div>
+        </Link>
+
+        <Link to={`/projects/${projectId}/automation`} style={{ textDecoration: 'none' }}>
+          <div className="card-sm">
+            <div className="health-tile-title">Automation coverage</div>
+            <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '1.6rem', fontWeight: 700, color: 'var(--white)', marginBottom: '0.4rem' }}>
+              {data.automationCoverage !== null ? `${data.automationCoverage}%` : '—'}
             </div>
-          ))}
-        </div>
+            <div style={{ fontSize: '0.82rem', color: 'var(--muted)', marginBottom: '0.75rem' }}>
+              {data.automatedTestCases} of {data.totalTestCases} test case{data.totalTestCases === 1 ? '' : 's'} automated
+            </div>
+            {data.totalTestCases > 0 && (
+              <div className="progress-bar">
+                <div className="progress-fill" style={{ width: `${data.automationCoverage}%` }} />
+              </div>
+            )}
+          </div>
+        </Link>
 
+        <Link to={`/projects/${projectId}/requirements`} style={{ textDecoration: 'none' }}>
+          <div className="card-sm">
+            <div className="health-tile-title">Requirement coverage</div>
+            <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '1.6rem', fontWeight: 700, color: 'var(--white)', marginBottom: '0.4rem' }}>
+              {data.requirementCoverage !== null ? `${data.requirementCoverage}%` : '—'}
+            </div>
+            <div style={{ fontSize: '0.82rem', color: 'var(--muted)', marginBottom: '0.75rem' }}>
+              {data.totalRequirements > 0
+                ? `${data.coveredRequirements} of ${data.totalRequirements} requirement${data.totalRequirements === 1 ? '' : 's'} covered`
+                : 'No requirements tracked yet'}
+            </div>
+            {data.totalRequirements > 0 && (
+              <div className="progress-bar">
+                <div className="progress-fill" style={{ width: `${data.requirementCoverage}%` }} />
+              </div>
+            )}
+          </div>
+        </Link>
+      </div>
+
+      <Link to={`/projects/${projectId}/executions`} style={{ textDecoration: 'none' }}>
         <div className="card-sm">
-          <div className="health-tile-title">Automation coverage</div>
-          <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '1.6rem', fontWeight: 700, color: 'var(--white)', marginBottom: '0.4rem' }}>
-            {data.automationCoverage !== null ? `${data.automationCoverage}%` : '—'}
-          </div>
-          <div style={{ fontSize: '0.82rem', color: 'var(--muted)', marginBottom: '0.75rem' }}>
-            {data.automatedTestCases} of {data.totalTestCases} test case{data.totalTestCases === 1 ? '' : 's'} automated
-          </div>
-          {data.totalTestCases > 0 && (
-            <div className="progress-bar">
-              <div className="progress-fill" style={{ width: `${data.automationCoverage}%` }} />
+          <div className="health-tile-title">Pass rate trend</div>
+          {data.passRateTrend.length >= 2 ? (
+            <>
+              <Sparkline points={data.passRateTrend} />
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.76rem', color: 'var(--faint)', marginTop: '0.4rem' }}>
+                <span>{new Date(data.passRateTrend[0].date).toLocaleDateString()}</span>
+                <span>{new Date(data.passRateTrend[data.passRateTrend.length - 1].date).toLocaleDateString()}</span>
+              </div>
+            </>
+          ) : (
+            <div style={{ fontSize: '0.85rem', color: 'var(--muted)', padding: '0.75rem 0' }}>
+              Run your first execution to start tracking trends over time.
             </div>
           )}
         </div>
-
-        <div className="card-sm">
-          <div className="health-tile-title">Requirement coverage</div>
-          <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '1.6rem', fontWeight: 700, color: 'var(--white)', marginBottom: '0.4rem' }}>
-            {data.requirementCoverage !== null ? `${data.requirementCoverage}%` : '—'}
-          </div>
-          <div style={{ fontSize: '0.82rem', color: 'var(--muted)', marginBottom: '0.75rem' }}>
-            {data.totalRequirements > 0
-              ? `${data.coveredRequirements} of ${data.totalRequirements} requirement${data.totalRequirements === 1 ? '' : 's'} covered`
-              : 'No requirements tracked yet'}
-          </div>
-          {data.totalRequirements > 0 && (
-            <div className="progress-bar">
-              <div className="progress-fill" style={{ width: `${data.requirementCoverage}%` }} />
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="card-sm">
-        <div className="health-tile-title">Pass rate trend</div>
-        {data.passRateTrend.length >= 2 ? (
-          <>
-            <Sparkline points={data.passRateTrend} />
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.76rem', color: 'var(--faint)', marginTop: '0.4rem' }}>
-              <span>{new Date(data.passRateTrend[0].date).toLocaleDateString()}</span>
-              <span>{new Date(data.passRateTrend[data.passRateTrend.length - 1].date).toLocaleDateString()}</span>
-            </div>
-          </>
-        ) : (
-          <div style={{ fontSize: '0.85rem', color: 'var(--muted)', padding: '0.75rem 0' }}>
-            Run your first execution to start tracking trends over time.
-          </div>
-        )}
-      </div>
+      </Link>
     </div>
   )
 }

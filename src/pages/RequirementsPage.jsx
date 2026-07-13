@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { apiFetch } from '../lib/api.js'
+import { useAuth } from '../store/AuthContext.jsx'
 import { useToastStore } from '../store/toastStore.jsx'
 import { readDocumentFile } from '../lib/documentUpload.js'
 import Icon from '../components/Icon.jsx'
@@ -364,7 +365,7 @@ function LinkTestCasesModal({ projectId, requirement, linkedIds, onClose, onLink
   )
 }
 
-function RequirementModal({ requirement, projectId, onClose, onUpdated, onDeleted }) {
+function RequirementModal({ requirement, projectId, isClient, onClose, onUpdated, onDeleted }) {
   const { addToast } = useToastStore()
   const [linkedTestCases, setLinkedTestCases] = useState([])
   const [loadingLinked, setLoadingLinked] = useState(true)
@@ -486,8 +487,8 @@ function RequirementModal({ requirement, projectId, onClose, onUpdated, onDelete
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem', marginBottom: '1.25rem' }}>
           <h2 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '1rem', fontWeight: 700, color: 'var(--white)', lineHeight: 1.3 }}>{requirement.title}</h2>
           <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
-            <button className="btn btn-ghost btn-sm" onClick={() => setIsEditing(true)}>Edit</button>
-            <button className="btn btn-danger btn-sm" onClick={deleteRequirement}>Delete</button>
+            {!isClient && <button className="btn btn-ghost btn-sm" onClick={() => setIsEditing(true)}>Edit</button>}
+            {!isClient && <button className="btn btn-danger btn-sm" onClick={deleteRequirement}>Delete</button>}
             <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', display: 'flex' }}><Icon name="x" size={16} /></button>
           </div>
         </div>
@@ -503,14 +504,16 @@ function RequirementModal({ requirement, projectId, onClose, onUpdated, onDelete
             <div style={{ fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)' }}>
               Linked test cases {linkedTestCases.length > 0 && `(${linkedTestCases.length})`}
             </div>
-            <div style={{ display: 'flex', gap: '0.4rem' }}>
-              {requirement.linked_test_case_count === 0 && (
-                <button className="btn btn-primary btn-sm" onClick={generateTestCase} disabled={generating}>
-                  {generating ? 'Generating...' : 'Generate test case'}
-                </button>
-              )}
-              <button className="btn btn-ghost btn-sm" onClick={() => setShowLinkModal(true)}>+ Link test cases</button>
-            </div>
+            {!isClient && (
+              <div style={{ display: 'flex', gap: '0.4rem' }}>
+                {requirement.linked_test_case_count === 0 && (
+                  <button className="btn btn-primary btn-sm" onClick={generateTestCase} disabled={generating}>
+                    {generating ? 'Generating...' : 'Generate test case'}
+                  </button>
+                )}
+                <button className="btn btn-ghost btn-sm" onClick={() => setShowLinkModal(true)}>+ Link test cases</button>
+              </div>
+            )}
           </div>
           {loadingLinked ? (
             <div style={{ display: 'flex', justifyContent: 'center', padding: '1rem' }}><div className="spinner" /></div>
@@ -523,7 +526,7 @@ function RequirementModal({ requirement, projectId, onClose, onUpdated, onDelete
               {linkedTestCases.map(tc => (
                 <div key={tc.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.55rem 0.75rem', background: 'var(--bg2)', border: '1px solid var(--border)' }}>
                   <span style={{ fontSize: '0.82rem', color: 'var(--light)', flex: 1 }}>{tc.title}</span>
-                  <button className="btn btn-ghost btn-sm" onClick={() => unlink(tc.id)}>Unlink</button>
+                  {!isClient && <button className="btn btn-ghost btn-sm" onClick={() => unlink(tc.id)}>Unlink</button>}
                 </div>
               ))}
             </div>
@@ -536,6 +539,8 @@ function RequirementModal({ requirement, projectId, onClose, onUpdated, onDelete
 
 export default function RequirementsPage() {
   const { id } = useParams()
+  const { user } = useAuth()
+  const isClient = user?.role === 'client'
   const { addToast } = useToastStore()
   const [project, setProject] = useState(null)
   const [requirements, setRequirements] = useState([])
@@ -590,22 +595,28 @@ export default function RequirementsPage() {
     <>
       <div className="topbar">
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <Link to={`/projects/${id}`} className="back-btn" title="Back to project" aria-label="Back to project"><Icon name="arrowLeft" size={14} /></Link>
+          <Link to={isClient ? `/projects/${id}/reports` : `/projects/${id}`} className="back-btn" title="Back" aria-label="Back"><Icon name="arrowLeft" size={14} /></Link>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
-            <Link to="/projects" style={{ color: 'var(--muted)', textDecoration: 'none' }}>Projects</Link>
-            <span style={{ color: 'var(--muted)' }}>/</span>
+            {!isClient && (
+              <>
+                <Link to="/projects" style={{ color: 'var(--muted)', textDecoration: 'none' }}>Projects</Link>
+                <span style={{ color: 'var(--muted)' }}>/</span>
+              </>
+            )}
             <Link to={`/projects/${id}`} style={{ color: 'var(--muted)', textDecoration: 'none' }}>{project?.name || 'Project'}</Link>
             <span style={{ color: 'var(--muted)' }}>/</span>
             <span className="topbar-title">Requirements</span>
           </div>
         </div>
-        <div className="topbar-actions">
-          <button className="btn btn-ghost btn-sm" onClick={() => setShowUpload(true)}>Upload document</button>
-          <button className="btn btn-primary btn-sm" onClick={generateAll} disabled={bulkGenerating || uncoveredCount === 0}>
-            {bulkGenerating ? 'Generating...' : `Generate all test cases${uncoveredCount > 0 ? ` (${uncoveredCount})` : ''}`}
-          </button>
-          <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>+ New requirement</button>
-        </div>
+        {!isClient && (
+          <div className="topbar-actions">
+            <button className="btn btn-ghost btn-sm" onClick={() => setShowUpload(true)}>Upload document</button>
+            <button className="btn btn-primary btn-sm" onClick={generateAll} disabled={bulkGenerating || uncoveredCount === 0}>
+              {bulkGenerating ? 'Generating...' : `Generate all test cases${uncoveredCount > 0 ? ` (${uncoveredCount})` : ''}`}
+            </button>
+            <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>+ New requirement</button>
+          </div>
+        )}
       </div>
 
       <div className="page-content fade-in">
@@ -621,11 +632,13 @@ export default function RequirementsPage() {
         ) : requirements.length === 0 ? (
           <div className="empty-state">
             <h3>No requirements yet</h3>
-            <p>Upload a requirements document or add one manually to track which test cases actually cover them.</p>
-            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
-              <button className="btn btn-ghost" onClick={() => setShowUpload(true)}>Upload document</button>
-              <button className="btn btn-primary" onClick={() => setShowCreate(true)}>+ New requirement</button>
-            </div>
+            <p>{isClient ? 'No requirements have been added for this project yet.' : 'Upload a requirements document or add one manually to track which test cases actually cover them.'}</p>
+            {!isClient && (
+              <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                <button className="btn btn-ghost" onClick={() => setShowUpload(true)}>Upload document</button>
+                <button className="btn btn-primary" onClick={() => setShowCreate(true)}>+ New requirement</button>
+              </div>
+            )}
           </div>
         ) : (
           <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
@@ -648,6 +661,8 @@ export default function RequirementsPage() {
                       <td>
                         {r.linked_test_case_count > 0 ? (
                           <span style={{ fontSize: '0.82rem', color: 'var(--light)' }}>{r.linked_test_case_count}</span>
+                        ) : isClient ? (
+                          <span style={{ fontSize: '0.78rem', color: 'var(--danger)' }}>No coverage</span>
                         ) : (
                           <button
                             className="btn btn-ghost btn-sm"
@@ -708,6 +723,7 @@ export default function RequirementsPage() {
         <RequirementModal
           requirement={selected}
           projectId={id}
+          isClient={isClient}
           onClose={() => setSelected(null)}
           onUpdated={(updated) => {
             setRequirements(rs => rs.map(r => r.id === updated.id ? { ...r, ...updated } : r))

@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { apiFetch } from '../lib/api.js'
+import { useAuth } from '../store/AuthContext.jsx'
 import { useToastStore } from '../store/toastStore.jsx'
 import { formatStep } from '../lib/steps.js'
 import { handleImageFile } from '../lib/imageUpload.js'
@@ -219,7 +220,7 @@ export function LogBugModal({ projectId, testCase, executionRunId, onClose, onLo
   )
 }
 
-function TestCaseModal({ tc, projectId, onClose, onBugLogged, onTestCaseUpdated, onDeleted }) {
+function TestCaseModal({ tc, projectId, isClient, onClose, onBugLogged, onTestCaseUpdated, onDeleted }) {
   const { addToast } = useToastStore()
   const [linkedBugs, setLinkedBugs] = useState([])
   const [loadingBugs, setLoadingBugs] = useState(true)
@@ -396,8 +397,8 @@ function TestCaseModal({ tc, projectId, onClose, onBugLogged, onTestCaseUpdated,
             <h2 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '1rem', fontWeight: 700, color: 'var(--white)', lineHeight: 1.3 }}>{tc.title}</h2>
           </div>
           <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
-            <button className="btn btn-ghost btn-sm" onClick={() => setIsEditing(true)}>Edit</button>
-            <button className="btn btn-danger btn-sm" onClick={() => setConfirmingDelete(true)}>Delete</button>
+            {!isClient && <button className="btn btn-ghost btn-sm" onClick={() => setIsEditing(true)}>Edit</button>}
+            {!isClient && <button className="btn btn-danger btn-sm" onClick={() => setConfirmingDelete(true)}>Delete</button>}
             <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', display: 'flex' }}><Icon name="x" size={16} /></button>
           </div>
         </div>
@@ -425,7 +426,7 @@ function TestCaseModal({ tc, projectId, onClose, onBugLogged, onTestCaseUpdated,
             <div style={{ fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)' }}>
               Linked bugs {linkedBugs.length > 0 && `(${linkedBugs.length})`}
             </div>
-            <button className="btn btn-ghost btn-sm" onClick={() => setShowLogBug(true)}>+ Log bug</button>
+            {!isClient && <button className="btn btn-ghost btn-sm" onClick={() => setShowLogBug(true)}>+ Log bug</button>}
           </div>
           {loadingBugs ? (
             <div style={{ display: 'flex', justifyContent: 'center', padding: '1rem' }}><div className="spinner" /></div>
@@ -452,6 +453,8 @@ function TestCaseModal({ tc, projectId, onClose, onBugLogged, onTestCaseUpdated,
 
 export default function TestCasesPage() {
   const { id } = useParams()
+  const { user } = useAuth()
+  const isClient = user?.role === 'client'
   const [project, setProject] = useState(null)
   const [testCases, setTestCases] = useState([])
   const [loading, setLoading] = useState(true)
@@ -482,17 +485,21 @@ export default function TestCasesPage() {
     <>
       <div className="topbar">
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <Link to={`/projects/${id}`} className="back-btn" title="Back to project" aria-label="Back to project"><Icon name="arrowLeft" size={14} /></Link>
+          <Link to={isClient ? `/projects/${id}/reports` : `/projects/${id}`} className="back-btn" title="Back" aria-label="Back"><Icon name="arrowLeft" size={14} /></Link>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
-            <Link to="/projects" style={{ color: 'var(--muted)', textDecoration: 'none' }}>Projects</Link>
-            <span style={{ color: 'var(--muted)' }}>/</span>
+            {!isClient && (
+              <>
+                <Link to="/projects" style={{ color: 'var(--muted)', textDecoration: 'none' }}>Projects</Link>
+                <span style={{ color: 'var(--muted)' }}>/</span>
+              </>
+            )}
             <Link to={`/projects/${id}`} style={{ color: 'var(--muted)', textDecoration: 'none' }}>{project?.name || 'Project'}</Link>
             <span style={{ color: 'var(--muted)' }}>/</span>
             <span className="topbar-title">Test cases</span>
           </div>
         </div>
         <div className="topbar-actions">
-          <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>+ New test case</button>
+          {!isClient && <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>+ New test case</button>}
         </div>
       </div>
 
@@ -520,10 +527,12 @@ export default function TestCasesPage() {
             <h3>{testCases.length === 0 ? 'No test cases yet' : 'No results for this filter'}</h3>
             <p>
               {testCases.length === 0
-                ? <>Generate test cases from the <Link to={`/projects/${id}/requirements`} style={{ color: 'var(--accent)' }}>Requirements</Link> page, or add one manually here.</>
+                ? isClient
+                  ? 'No test cases have been added for this project yet.'
+                  : <>Generate test cases from the <Link to={`/projects/${id}/requirements`} style={{ color: 'var(--accent)' }}>Requirements</Link> page, or add one manually here.</>
                 : 'Try a different filter.'}
             </p>
-            {testCases.length === 0 && <button className="btn btn-primary" onClick={() => setShowCreate(true)}>+ New test case</button>}
+            {testCases.length === 0 && !isClient && <button className="btn btn-primary" onClick={() => setShowCreate(true)}>+ New test case</button>}
           </div>
         ) : (
           <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
@@ -578,6 +587,7 @@ export default function TestCasesPage() {
         <TestCaseModal
           tc={selectedTc}
           projectId={id}
+          isClient={isClient}
           onClose={() => setSelectedTc(null)}
           onBugLogged={handleBugLogged}
           onTestCaseUpdated={(updated) => {
