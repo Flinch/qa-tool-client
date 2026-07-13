@@ -364,7 +364,7 @@ function LinkTestCasesModal({ projectId, requirement, linkedIds, onClose, onLink
   )
 }
 
-function RequirementModal({ requirement, projectId, onClose, onUpdated }) {
+function RequirementModal({ requirement, projectId, onClose, onUpdated, onDeleted }) {
   const { addToast } = useToastStore()
   const [linkedTestCases, setLinkedTestCases] = useState([])
   const [loadingLinked, setLoadingLinked] = useState(true)
@@ -372,6 +372,7 @@ function RequirementModal({ requirement, projectId, onClose, onUpdated }) {
   const [isEditing, setIsEditing] = useState(false)
   const [editForm, setEditForm] = useState({ title: requirement.title, description: requirement.description || '' })
   const [saving, setSaving] = useState(false)
+  const [generating, setGenerating] = useState(false)
 
   const loadLinked = () => {
     setLoadingLinked(true)
@@ -388,6 +389,32 @@ function RequirementModal({ requirement, projectId, onClose, onUpdated }) {
       await apiFetch(`/projects/${projectId}/requirements/${requirement.id}/test-cases/${tcId}`, { method: 'DELETE' })
       setLinkedTestCases(tcs => tcs.filter(t => t.id !== tcId))
       onUpdated({ ...requirement, linked_test_case_count: linkedTestCases.length - 1 })
+    } catch (e) {
+      addToast(e.message, 'error')
+    }
+  }
+
+  const generateTestCase = async () => {
+    setGenerating(true)
+    try {
+      const result = await apiFetch(`/projects/${projectId}/requirements/${requirement.id}/generate-test-case`, { method: 'POST' })
+      addToast(`Generated ${result.testCases.length} test case${result.testCases.length === 1 ? '' : 's'}`)
+      loadLinked()
+      onUpdated({ ...requirement, linked_test_case_count: result.linked_test_case_count })
+    } catch (e) {
+      addToast(e.message, 'error')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  const deleteRequirement = async () => {
+    if (!window.confirm(`Delete "${requirement.title}"? This can be undone by re-adding it, but it will disappear from the active list.`)) return
+    try {
+      await apiFetch(`/requirements/${requirement.id}`, { method: 'PATCH', body: JSON.stringify({ status: 'removed' }) })
+      addToast('Requirement deleted')
+      onDeleted(requirement.id)
+      onClose()
     } catch (e) {
       addToast(e.message, 'error')
     }
@@ -460,6 +487,7 @@ function RequirementModal({ requirement, projectId, onClose, onUpdated }) {
           <h2 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '1rem', fontWeight: 700, color: 'var(--white)', lineHeight: 1.3 }}>{requirement.title}</h2>
           <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
             <button className="btn btn-ghost btn-sm" onClick={() => setIsEditing(true)}>Edit</button>
+            <button className="btn btn-danger btn-sm" onClick={deleteRequirement}>Delete</button>
             <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', display: 'flex' }}><Icon name="x" size={16} /></button>
           </div>
         </div>
@@ -475,7 +503,14 @@ function RequirementModal({ requirement, projectId, onClose, onUpdated }) {
             <div style={{ fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)' }}>
               Linked test cases {linkedTestCases.length > 0 && `(${linkedTestCases.length})`}
             </div>
-            <button className="btn btn-ghost btn-sm" onClick={() => setShowLinkModal(true)}>+ Link test cases</button>
+            <div style={{ display: 'flex', gap: '0.4rem' }}>
+              {requirement.linked_test_case_count === 0 && (
+                <button className="btn btn-primary btn-sm" onClick={generateTestCase} disabled={generating}>
+                  {generating ? 'Generating...' : 'Generate test case'}
+                </button>
+              )}
+              <button className="btn btn-ghost btn-sm" onClick={() => setShowLinkModal(true)}>+ Link test cases</button>
+            </div>
           </div>
           {loadingLinked ? (
             <div style={{ display: 'flex', justifyContent: 'center', padding: '1rem' }}><div className="spinner" /></div>
@@ -501,6 +536,7 @@ function RequirementModal({ requirement, projectId, onClose, onUpdated }) {
 
 export default function RequirementsPage() {
   const { id } = useParams()
+  const { addToast } = useToastStore()
   const [project, setProject] = useState(null)
   const [requirements, setRequirements] = useState([])
   const [loading, setLoading] = useState(true)
@@ -508,6 +544,8 @@ export default function RequirementsPage() {
   const [showUpload, setShowUpload] = useState(false)
   const [pendingDiff, setPendingDiff] = useState(null)
   const [selected, setSelected] = useState(null)
+  const [generatingIds, setGeneratingIds] = useState(new Set())
+  const [bulkGenerating, setBulkGenerating] = useState(false)
 
   useEffect(() => { apiFetch(`/projects/${id}`).then(setProject).catch(console.error) }, [id])
 
@@ -519,6 +557,34 @@ export default function RequirementsPage() {
   }, [id])
 
   const uncoveredCount = requirements.filter(r => r.linked_test_case_count === 0).length
+
+  const generateOne = async (reqId, e) => {
+    e?.stopPropagation()
+    setGeneratingIds(s => new Set(s).add(reqId))
+    try {
+      const result = await apiFetch(`/projects/${id}/requirements/${reqId}/generate-test-case`, { method: 'POST' })
+      addToast(`Generated ${result.testCases.length} test case${result.testCases.length === 1 ? '' : 's'}`)
+      setRequirements(rs => rs.map(r => r.id === reqId ? { ...r, linked_test_case_count: result.linked_test_case_count } : r))
+    } catch (err) {
+      addToast(err.message, 'error')
+    } finally {
+      setGeneratingIds(s => { const next = new Set(s); next.delete(reqId); return next })
+    }
+  }
+
+  const generateAll = async () => {
+    setBulkGenerating(true)
+    try {
+      const result = await apiFetch(`/projects/${id}/requirements/generate-test-cases`, { method: 'POST' })
+      addToast(`Generated ${result.totalTestCases} test case${result.totalTestCases === 1 ? '' : 's'} across ${result.generated.length} requirement${result.generated.length === 1 ? '' : 's'}`)
+      const counts = Object.fromEntries(result.generated.map(g => [g.requirementId, g.testCases.length]))
+      setRequirements(rs => rs.map(r => counts[r.id] ? { ...r, linked_test_case_count: counts[r.id] } : r))
+    } catch (err) {
+      addToast(err.message, 'error')
+    } finally {
+      setBulkGenerating(false)
+    }
+  }
 
   return (
     <>
@@ -535,6 +601,9 @@ export default function RequirementsPage() {
         </div>
         <div className="topbar-actions">
           <button className="btn btn-ghost btn-sm" onClick={() => setShowUpload(true)}>Upload document</button>
+          <button className="btn btn-primary btn-sm" onClick={generateAll} disabled={bulkGenerating || uncoveredCount === 0}>
+            {bulkGenerating ? 'Generating...' : `Generate all test cases${uncoveredCount > 0 ? ` (${uncoveredCount})` : ''}`}
+          </button>
           <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>+ New requirement</button>
         </div>
       </div>
@@ -577,9 +646,17 @@ export default function RequirementsPage() {
                         {r.description && <div style={{ fontSize: '0.72rem', color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.description}</div>}
                       </td>
                       <td>
-                        {r.linked_test_case_count > 0
-                          ? <span style={{ fontSize: '0.82rem', color: 'var(--light)' }}>{r.linked_test_case_count}</span>
-                          : <span style={{ fontSize: '0.78rem', color: 'var(--danger)' }}>No coverage</span>}
+                        {r.linked_test_case_count > 0 ? (
+                          <span style={{ fontSize: '0.82rem', color: 'var(--light)' }}>{r.linked_test_case_count}</span>
+                        ) : (
+                          <button
+                            className="btn btn-ghost btn-sm"
+                            onClick={e => generateOne(r.id, e)}
+                            disabled={generatingIds.has(r.id)}
+                          >
+                            {generatingIds.has(r.id) ? 'Generating...' : 'Generate'}
+                          </button>
+                        )}
                       </td>
                       <td style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>{new Date(r.created_at).toLocaleDateString()}</td>
                     </tr>
@@ -636,6 +713,7 @@ export default function RequirementsPage() {
             setRequirements(rs => rs.map(r => r.id === updated.id ? { ...r, ...updated } : r))
             setSelected(prev => ({ ...prev, ...updated }))
           }}
+          onDeleted={(reqId) => setRequirements(rs => rs.filter(r => r.id !== reqId))}
         />
       )}
     </>

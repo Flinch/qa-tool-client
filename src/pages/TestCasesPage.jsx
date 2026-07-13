@@ -9,157 +9,6 @@ import Icon from '../components/Icon.jsx'
 const TYPE_LABELS = { functional: 'Functional', integration: 'Integration', e2e: 'E2E' }
 const SEVERITIES = ['critical', 'high', 'medium', 'low']
 
-function GenerateModal({ projectId, existingCount, onClose, onGenerated }) {
-  const { addToast } = useToastStore()
-  const [requirements, setRequirements] = useState('')
-  const [mode, setMode] = useState('mvp')
-  const [replace, setReplace] = useState(false)
-  const [confirmingReplace, setConfirmingReplace] = useState(false)
-  const [loading, setLoading] = useState(false)
-
-  const generate = async () => {
-    if (!requirements.trim()) return
-    if (replace && !confirmingReplace) {
-      setConfirmingReplace(true)
-      return
-    }
-    setLoading(true)
-    try {
-      const cases = await apiFetch(`/projects/${projectId}/test-cases/generate`, {
-        method: 'POST',
-        body: JSON.stringify({ requirements, mode, replace }),
-      })
-      addToast(replace ? `Replaced with ${cases.length} test cases` : `${cases.length} test cases generated`)
-      onGenerated(cases, replace)
-      onClose()
-    } catch (e) {
-      addToast(e.message, 'error')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  if (confirmingReplace) {
-    return (
-      <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
-        <div className="modal" style={{ maxWidth: 480 }}>
-          <div className="modal-title">Replace all test cases?</div>
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', fontSize: '0.85rem', color: 'var(--light)', marginBottom: '1.25rem', lineHeight: 1.6, background: 'rgba(193,68,58,0.08)', border: '1px solid rgba(193,68,58,0.25)', borderRadius: 0, padding: '0.75rem 0.9rem' }}>
-            <Icon name="alertTriangle" size={16} style={{ color: 'var(--danger)', marginTop: '0.1rem', flexShrink: 0 }} />
-            <span>
-              This permanently deletes all <strong>{existingCount}</strong> existing test case{existingCount === 1 ? '' : 's'} for this project
-              and replaces them with the newly generated set — including their execution history (pass/fail records
-              from past test runs are tied to the test case and are deleted with it, not just orphaned). This cannot be undone.
-            </span>
-          </div>
-          <div className="modal-footer">
-            <button className="btn btn-ghost" onClick={() => setConfirmingReplace(false)} disabled={loading}>Back</button>
-            <button className="btn btn-danger" onClick={generate} disabled={loading}>
-              {loading ? (
-                <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <div className="spinner" style={{ width: 14, height: 14, borderWidth: 1.5 }} /> Replacing...
-                </span>
-              ) : 'Replace All & Generate'}
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal" style={{ maxWidth: 640 }}>
-        <div className="modal-title">Generate test cases with AI</div>
-
-        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem' }}>
-          {[
-            { value: 'mvp', label: 'MVP', desc: '4–8 focused tests' },
-            { value: 'comprehensive', label: 'Comprehensive', desc: '12–20 full suite' },
-          ].map(m => (
-            <button
-              key={m.value}
-              onClick={() => setMode(m.value)}
-              style={{
-                flex: 1, padding: '0.6rem 1rem', borderRadius: 0, cursor: 'pointer',
-                border: mode === m.value ? '1px solid var(--accent)' : '1px solid var(--border)',
-                background: mode === m.value ? 'rgba(184,70,31,0.1)' : 'var(--bg2)',
-                color: mode === m.value ? 'var(--accent)' : 'var(--muted)',
-                textAlign: 'left', transition: 'all 0.15s',
-              }}
-            >
-              <div style={{ fontWeight: 600, fontSize: '0.85rem', marginBottom: '0.15rem' }}>{m.label}</div>
-              <div style={{ fontSize: '0.72rem' }}>{m.desc}</div>
-            </button>
-          ))}
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', fontSize: '0.82rem', color: 'var(--muted)', marginBottom: '1rem', lineHeight: 1.6, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 0, padding: '0.6rem 0.85rem' }}>
-          <Icon name={mode === 'mvp' ? 'target' : 'search'} size={15} style={{ color: 'var(--accent)', marginTop: '0.15rem' }} />
-          <span>
-            {mode === 'mvp'
-              ? 'MVP mode: core happy paths + 1–2 edge cases. Good for quick coverage without over-engineering.'
-              : 'Comprehensive mode: full coverage including edge cases, boundaries, and integration points.'}
-          </span>
-        </div>
-
-        <div className="form-group">
-          <label className="form-label">Requirements</label>
-          <textarea
-            className="form-textarea"
-            style={{ minHeight: 160 }}
-            placeholder="e.g. Users should be able to create an account with email and password. The email must be unique. Password must be at least 8 characters..."
-            value={requirements}
-            onChange={e => setRequirements(e.target.value)}
-          />
-        </div>
-
-        {existingCount > 0 && (
-          <div className="form-group">
-            <label className="form-label">If test cases already exist</label>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              {[
-                { value: false, label: 'Add to existing', desc: `Keep all ${existingCount} current test cases` },
-                { value: true, label: 'Replace all existing', desc: `Delete all ${existingCount}, use only the new set` },
-              ].map(opt => (
-                <button
-                  key={String(opt.value)}
-                  onClick={() => setReplace(opt.value)}
-                  style={{
-                    flex: 1, padding: '0.6rem 1rem', borderRadius: 0, cursor: 'pointer',
-                    border: replace === opt.value ? '1px solid var(--accent)' : '1px solid var(--border)',
-                    background: replace === opt.value ? 'rgba(184,70,31,0.1)' : 'var(--bg2)',
-                    color: replace === opt.value ? 'var(--accent)' : 'var(--muted)',
-                    textAlign: 'left', transition: 'all 0.15s',
-                  }}
-                >
-                  <div style={{ fontWeight: 600, fontSize: '0.85rem', marginBottom: '0.15rem' }}>{opt.label}</div>
-                  <div style={{ fontSize: '0.72rem' }}>{opt.desc}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div className="modal-footer">
-          <button className="btn btn-ghost" onClick={onClose} disabled={loading}>Cancel</button>
-          <button className={replace ? 'btn btn-danger' : 'btn btn-primary'} onClick={generate} disabled={loading || !requirements.trim()}>
-            {loading ? (
-              <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <div className="spinner" style={{ width: 14, height: 14, borderWidth: 1.5 }} /> Generating...
-              </span>
-            ) : (
-              <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <Icon name="zap" size={14} /> {replace ? 'Replace All & Generate' : `Generate ${mode === 'mvp' ? 'MVP' : 'Full'} Suite`}
-              </span>
-            )}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 function CreateTestCaseModal({ projectId, onClose, onCreated }) {
   const { addToast } = useToastStore()
   const [form, setForm] = useState({ title: '', type: 'functional', steps: '', expected: '' })
@@ -370,7 +219,7 @@ export function LogBugModal({ projectId, testCase, executionRunId, onClose, onLo
   )
 }
 
-function TestCaseModal({ tc, projectId, onClose, onBugLogged, onTestCaseUpdated }) {
+function TestCaseModal({ tc, projectId, onClose, onBugLogged, onTestCaseUpdated, onDeleted }) {
   const { addToast } = useToastStore()
   const [linkedBugs, setLinkedBugs] = useState([])
   const [loadingBugs, setLoadingBugs] = useState(true)
@@ -385,6 +234,21 @@ function TestCaseModal({ tc, projectId, onClose, onBugLogged, onTestCaseUpdated 
     automationCandidate: !!tc.automation_candidate,
   })
   const [saving, setSaving] = useState(false)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  const deleteTC = async () => {
+    setDeleting(true)
+    try {
+      await apiFetch(`/test-cases/${tc.id}`, { method: 'DELETE' })
+      addToast('Test case deleted')
+      onDeleted(tc.id)
+      onClose()
+    } catch (e) {
+      addToast(e.message, 'error')
+      setDeleting(false)
+    }
+  }
 
   useEffect(() => {
     apiFetch(`/projects/${projectId}/test-cases/${tc.id}/bugs`)
@@ -416,6 +280,30 @@ function TestCaseModal({ tc, projectId, onClose, onBugLogged, onTestCaseUpdated 
     } finally {
       setSaving(false)
     }
+  }
+
+  if (confirmingDelete) {
+    return (
+      <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
+        <div className="modal" style={{ maxWidth: 480 }}>
+          <div className="modal-title">Delete this test case?</div>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', fontSize: '0.85rem', color: 'var(--light)', marginBottom: '1.25rem', lineHeight: 1.6, background: 'rgba(193,68,58,0.08)', border: '1px solid rgba(193,68,58,0.25)', borderRadius: 0, padding: '0.75rem 0.9rem' }}>
+            <Icon name="alertTriangle" size={16} style={{ color: 'var(--danger)', marginTop: '0.1rem', flexShrink: 0 }} />
+            <span>
+              This permanently deletes <strong>{tc.title}</strong>, including its execution history (pass/fail
+              records from past test runs are tied to the test case and are deleted with it, not just orphaned).
+              This cannot be undone.
+            </span>
+          </div>
+          <div className="modal-footer">
+            <button className="btn btn-ghost" onClick={() => setConfirmingDelete(false)} disabled={deleting}>Back</button>
+            <button className="btn btn-danger" onClick={deleteTC} disabled={deleting}>
+              {deleting ? 'Deleting...' : 'Delete test case'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   if (showLogBug) return (
@@ -509,6 +397,7 @@ function TestCaseModal({ tc, projectId, onClose, onBugLogged, onTestCaseUpdated 
           </div>
           <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
             <button className="btn btn-ghost btn-sm" onClick={() => setIsEditing(true)}>Edit</button>
+            <button className="btn btn-danger btn-sm" onClick={() => setConfirmingDelete(true)}>Delete</button>
             <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', display: 'flex' }}><Icon name="x" size={16} /></button>
           </div>
         </div>
@@ -566,7 +455,6 @@ export default function TestCasesPage() {
   const [project, setProject] = useState(null)
   const [testCases, setTestCases] = useState([])
   const [loading, setLoading] = useState(true)
-  const [showGenerate, setShowGenerate] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
   const [selectedTc, setSelectedTc] = useState(null)
   const [filter, setFilter] = useState('all')
@@ -604,8 +492,7 @@ export default function TestCasesPage() {
           </div>
         </div>
         <div className="topbar-actions">
-          <button className="btn btn-ghost btn-sm" onClick={() => setShowCreate(true)}>+ New test case</button>
-          <button className="btn btn-primary btn-sm" onClick={() => setShowGenerate(true)}><Icon name="zap" size={13} /> Generate</button>
+          <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>+ New test case</button>
         </div>
       </div>
 
@@ -631,8 +518,12 @@ export default function TestCasesPage() {
         ) : filtered.length === 0 ? (
           <div className="empty-state">
             <h3>{testCases.length === 0 ? 'No test cases yet' : 'No results for this filter'}</h3>
-            <p>{testCases.length === 0 ? 'Generate test cases from requirements.' : 'Try a different filter.'}</p>
-            {testCases.length === 0 && <button className="btn btn-primary" onClick={() => setShowGenerate(true)}><Icon name="zap" size={14} /> Generate test cases</button>}
+            <p>
+              {testCases.length === 0
+                ? <>Generate test cases from the <Link to={`/projects/${id}/requirements`} style={{ color: 'var(--accent)' }}>Requirements</Link> page, or add one manually here.</>
+                : 'Try a different filter.'}
+            </p>
+            {testCases.length === 0 && <button className="btn btn-primary" onClick={() => setShowCreate(true)}>+ New test case</button>}
           </div>
         ) : (
           <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
@@ -675,15 +566,6 @@ export default function TestCasesPage() {
         )}
       </div>
 
-      {showGenerate && (
-        <GenerateModal
-          projectId={id}
-          existingCount={testCases.length}
-          onClose={() => setShowGenerate(false)}
-          onGenerated={(cases, replace) => setTestCases(tcs => replace ? cases : [...cases, ...tcs])}
-        />
-      )}
-
       {showCreate && (
         <CreateTestCaseModal
           projectId={id}
@@ -702,6 +584,7 @@ export default function TestCasesPage() {
             setTestCases(tcs => tcs.map(t => t.id === updated.id ? { ...t, ...updated } : t))
             setSelectedTc(prev => ({ ...prev, ...updated }))
           }}
+          onDeleted={(tcId) => setTestCases(tcs => tcs.filter(t => t.id !== tcId))}
         />
       )}
     </>
