@@ -5,7 +5,7 @@ import { useToastStore } from '../store/toastStore.jsx'
 import { readDocumentFile } from '../lib/documentUpload.js'
 import Icon from '../components/Icon.jsx'
 
-function UploadRequirementsModal({ projectId, onClose, onUploaded }) {
+function UploadRequirementsModal({ projectId, onClose, onUploaded, onDiff }) {
   const { addToast } = useToastStore()
   const [mode, setMode] = useState('file')
   const [file, setFile] = useState(null)
@@ -30,8 +30,12 @@ function UploadRequirementsModal({ projectId, onClose, onUploaded }) {
         method: 'POST',
         body: JSON.stringify(body),
       })
-      addToast(`${result.requirements.length} requirement${result.requirements.length === 1 ? '' : 's'} parsed from ${file?.name || 'pasted text'}`)
-      onUploaded(result.requirements)
+      if (result.mode === 'diff') {
+        onDiff(result.document, result.diff)
+      } else {
+        addToast(`${result.requirements.length} requirement${result.requirements.length === 1 ? '' : 's'} parsed from ${file?.name || 'pasted text'}`)
+        onUploaded(result.requirements)
+      }
       onClose()
     } catch (e) {
       addToast(e.message, 'error')
@@ -95,7 +99,7 @@ function UploadRequirementsModal({ projectId, onClose, onUploaded }) {
         )}
 
         <div style={{ fontSize: '0.78rem', color: 'var(--muted)', marginBottom: '0.5rem' }}>
-          This is the first upload for this project — every requirement found gets added as new. Re-uploading later to update requirements against what's already here isn't supported yet.
+          If this project already has requirements, you'll get a chance to review what changed before anything is updated.
         </div>
 
         <div className="modal-footer">
@@ -110,6 +114,122 @@ function UploadRequirementsModal({ projectId, onClose, onUploaded }) {
                 <div className="spinner" style={{ width: 14, height: 14, borderWidth: 1.5 }} /> Parsing...
               </span>
             ) : 'Upload & parse'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function DiffReviewModal({ projectId, documentId, diff, onClose, onApplied }) {
+  const { addToast } = useToastStore()
+  const [approvedModified, setApprovedModified] = useState(() => new Set(diff.modified.map(m => m.id)))
+  const [approvedRemoved, setApprovedRemoved] = useState(() => new Set(diff.removed.map(r => r.id)))
+  const [approvedNew, setApprovedNew] = useState(() => new Set(diff.new.map((_, i) => i)))
+  const [saving, setSaving] = useState(false)
+
+  const toggle = (setFn, key) => setFn(s => {
+    const next = new Set(s)
+    next.has(key) ? next.delete(key) : next.add(key)
+    return next
+  })
+
+  const totalSelected = approvedModified.size + approvedRemoved.size + approvedNew.size
+
+  const apply = async () => {
+    setSaving(true)
+    try {
+      const result = await apiFetch(`/projects/${projectId}/requirements/apply-diff`, {
+        method: 'POST',
+        body: JSON.stringify({
+          documentId,
+          modified: diff.modified.filter(m => approvedModified.has(m.id)).map(m => ({ id: m.id, title: m.title, description: m.description })),
+          removed: diff.removed.filter(r => approvedRemoved.has(r.id)).map(r => r.id),
+          added: diff.new.filter((_, i) => approvedNew.has(i)),
+        }),
+      })
+      addToast(`Applied: ${result.updated.length} updated, ${result.removedIds.length} removed, ${result.inserted.length} added`)
+      onApplied(result)
+      onClose()
+    } catch (e) {
+      addToast(e.message, 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal" style={{ maxWidth: 640 }}>
+        <div className="modal-title">Review requirement changes</div>
+        <div style={{ fontSize: '0.82rem', color: 'var(--muted)', marginBottom: '1.25rem' }}>
+          {diff.unchangedCount} unchanged · {diff.modified.length} modified · {diff.removed.length} removed · {diff.new.length} new.
+          Uncheck anything you don't want applied.
+        </div>
+
+        <div style={{ maxHeight: 420, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          {diff.modified.length > 0 && (
+            <div>
+              <div style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--warning)', marginBottom: '0.6rem' }}>Modified</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                {diff.modified.map(m => (
+                  <label key={m.id} style={{ display: 'flex', gap: '0.6rem', padding: '0.65rem 0.85rem', background: 'var(--bg2)', border: '1px solid var(--border)', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={approvedModified.has(m.id)} onChange={() => toggle(setApprovedModified, m.id)} style={{ marginTop: '0.2rem' }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '0.82rem', color: 'var(--muted)', textDecoration: 'line-through', marginBottom: '0.2rem' }}>{m.old.title}</div>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--light)', fontWeight: 600, marginBottom: '0.3rem' }}>{m.title}</div>
+                      <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>{m.description}</div>
+                      {m.old.linked_test_case_count > 0 && (
+                        <div style={{ fontSize: '0.72rem', color: 'var(--info)', marginTop: '0.3rem' }}>{m.old.linked_test_case_count} linked test case{m.old.linked_test_case_count === 1 ? '' : 's'} — kept as-is</div>
+                      )}
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {diff.removed.length > 0 && (
+            <div>
+              <div style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--danger)', marginBottom: '0.6rem' }}>Removed</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                {diff.removed.map(r => (
+                  <label key={r.id} style={{ display: 'flex', gap: '0.6rem', padding: '0.65rem 0.85rem', background: 'var(--bg2)', border: '1px solid var(--border)', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={approvedRemoved.has(r.id)} onChange={() => toggle(setApprovedRemoved, r.id)} style={{ marginTop: '0.2rem' }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--light)', fontWeight: 600, marginBottom: '0.2rem' }}>{r.title}</div>
+                      {r.linked_test_case_count > 0 && (
+                        <div style={{ fontSize: '0.72rem', color: 'var(--danger)' }}>{r.linked_test_case_count} linked test case{r.linked_test_case_count === 1 ? '' : 's'} will lose this requirement link</div>
+                      )}
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {diff.new.length > 0 && (
+            <div>
+              <div style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--success)', marginBottom: '0.6rem' }}>New</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                {diff.new.map((n, i) => (
+                  <label key={i} style={{ display: 'flex', gap: '0.6rem', padding: '0.65rem 0.85rem', background: 'var(--bg2)', border: '1px solid var(--border)', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={approvedNew.has(i)} onChange={() => toggle(setApprovedNew, i)} style={{ marginTop: '0.2rem' }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--light)', fontWeight: 600, marginBottom: '0.2rem' }}>{n.title}</div>
+                      <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>{n.description}</div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="modal-footer">
+          <button className="btn btn-ghost" onClick={onClose} disabled={saving}>Cancel</button>
+          <button className="btn btn-primary" onClick={apply} disabled={saving || totalSelected === 0}>
+            {saving ? 'Applying...' : `Apply ${totalSelected} change${totalSelected === 1 ? '' : 's'}`}
           </button>
         </div>
       </div>
@@ -386,6 +506,7 @@ export default function RequirementsPage() {
   const [loading, setLoading] = useState(true)
   const [showCreate, setShowCreate] = useState(false)
   const [showUpload, setShowUpload] = useState(false)
+  const [pendingDiff, setPendingDiff] = useState(null)
   const [selected, setSelected] = useState(null)
 
   useEffect(() => { apiFetch(`/projects/${id}`).then(setProject).catch(console.error) }, [id])
@@ -483,6 +604,26 @@ export default function RequirementsPage() {
           projectId={id}
           onClose={() => setShowUpload(false)}
           onUploaded={newReqs => setRequirements(rs => [...newReqs, ...rs])}
+          onDiff={(document, diff) => setPendingDiff({ documentId: document.id, diff })}
+        />
+      )}
+
+      {pendingDiff && (
+        <DiffReviewModal
+          projectId={id}
+          documentId={pendingDiff.documentId}
+          diff={pendingDiff.diff}
+          onClose={() => setPendingDiff(null)}
+          onApplied={({ updated, removedIds, inserted }) => {
+            setRequirements(rs => rs
+              .map(r => {
+                const match = updated.find(u => u.id === r.id)
+                return match ? { ...r, ...match } : r
+              })
+              .filter(r => !removedIds.includes(r.id))
+            )
+            if (inserted.length > 0) setRequirements(rs => [...inserted, ...rs])
+          }}
         />
       )}
 
