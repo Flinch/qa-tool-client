@@ -116,7 +116,7 @@ export default function ProjectDetailPage() {
         </div>
 
         {isClient ? (
-          <QualityHealth projectId={id} />
+          <QualityHealth projectId={id} projectName={project.name} />
         ) : (
           <>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: isAdmin ? '2rem' : 0 }}>
