@@ -103,6 +103,23 @@ export default function QualityHealth({ projectId }) {
             </div>
           )}
         </div>
+
+        <div className="card-sm">
+          <div className="health-tile-title">Requirement coverage</div>
+          <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '1.6rem', fontWeight: 700, color: 'var(--white)', marginBottom: '0.4rem' }}>
+            {data.requirementCoverage !== null ? `${data.requirementCoverage}%` : '—'}
+          </div>
+          <div style={{ fontSize: '0.82rem', color: 'var(--muted)', marginBottom: '0.75rem' }}>
+            {data.totalRequirements > 0
+              ? `${data.coveredRequirements} of ${data.totalRequirements} requirement${data.totalRequirements === 1 ? '' : 's'} covered`
+              : 'No requirements tracked yet'}
+          </div>
+          {data.totalRequirements > 0 && (
+            <div className="progress-bar">
+              <div className="progress-fill" style={{ width: `${data.requirementCoverage}%` }} />
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="card-sm">
