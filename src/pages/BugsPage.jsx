@@ -40,9 +40,39 @@ function BugModal({ projectId, onClose, onCreated }) {
   const fileInputRef = useRef(null)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
+  const [postToJira, setPostToJira] = useState(false)
+  const [jiraProjects, setJiraProjects] = useState([])
+  const [jiraProjectsLoading, setJiraProjectsLoading] = useState(false)
+  const [jiraProjectsError, setJiraProjectsError] = useState('')
+  const [jiraProjectKey, setJiraProjectKey] = useState('')
+  const [jiraOrganization, setJiraOrganization] = useState('')
+
   useEffect(() => {
     apiFetch(`/projects/${projectId}/execution-runs`).then(setExecutionRuns).catch(console.error)
   }, [projectId])
+
+  const toggleJira = async () => {
+    if (postToJira) { setPostToJira(false); return }
+    setPostToJira(true)
+    setJiraProjectsError('')
+    if (jiraProjects.length > 0) return
+    setJiraProjectsLoading(true)
+    try {
+      const projects = await apiFetch(`/projects/${projectId}/bugs/jira/projects`)
+      if (!projects.length) {
+        setJiraProjectsError('No JIRA projects found for this account.')
+        setPostToJira(false)
+      } else {
+        setJiraProjects(projects)
+        setJiraProjectKey(projects[0].key)
+      }
+    } catch (e) {
+      setJiraProjectsError(e.message || "JIRA isn't connected yet.")
+      setPostToJira(false)
+    } finally {
+      setJiraProjectsLoading(false)
+    }
+  }
 
   const handleFile = async (e) => {
     const file = e.target.files?.[0]
@@ -64,7 +94,14 @@ function BugModal({ projectId, onClose, onCreated }) {
     try {
       const bug = await apiFetch(`/projects/${projectId}/bugs`, {
         method: 'POST',
-        body: JSON.stringify({ ...form, execution_run_id: linkedRunId || null }),
+        body: JSON.stringify({
+          ...form,
+          execution_run_id: linkedRunId || null,
+          post_to_jira: postToJira && !!jiraProjectKey,
+          jira: postToJira && jiraProjectKey
+            ? { projectKey: jiraProjectKey, organization: jiraOrganization.trim() || null, image: attachedImage || null }
+            : undefined,
+        }),
       })
       if (attachedImage) {
         await apiFetch(`/projects/${projectId}/bugs/${bug.id}/comments`, {
@@ -72,7 +109,14 @@ function BugModal({ projectId, onClose, onCreated }) {
           body: JSON.stringify({ body: null, image: attachedImage }),
         }).catch(err => addToast(`Bug logged, but the image failed to attach: ${err.message}`, 'error'))
       }
-      addToast('Bug logged')
+      if (bug.jira_issue_key) {
+        addToast(`Bug logged and posted to JIRA (${bug.jira_issue_key})`)
+      } else {
+        addToast('Bug logged')
+      }
+      if (bug.jira_error) {
+        addToast(`JIRA: ${bug.jira_error}`, 'error')
+      }
       onCreated(bug)
       onClose()
     } catch (e) {
@@ -141,6 +185,42 @@ function BugModal({ projectId, onClose, onCreated }) {
             </>
           )}
         </div>
+
+        <div className="divider" />
+
+        <div className="form-group">
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--light)' }}>
+            <input type="checkbox" checked={postToJira} onChange={toggleJira} style={{ width: 16, height: 16, accentColor: 'var(--accent)', cursor: 'pointer' }} />
+            Also post this to JIRA
+          </label>
+        </div>
+
+        {postToJira && (
+          <div className="fade-in">
+            {jiraProjectsLoading ? (
+              <div style={{ fontSize: '0.82rem', color: 'var(--muted)', marginBottom: '1rem' }}>Loading JIRA projects...</div>
+            ) : (
+              <>
+                <div className="form-group">
+                  <label className="form-label">JIRA project</label>
+                  <select className="form-select" value={jiraProjectKey} onChange={e => setJiraProjectKey(e.target.value)}>
+                    {jiraProjects.map(p => <option key={p.key} value={p.key}>{p.name} ({p.key})</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Organization</label>
+                  <input className="form-input" placeholder="Optional" value={jiraOrganization} onChange={e => setJiraOrganization(e.target.value)} />
+                  <div className="form-hint">Stored for reference — not automatically linked to your JIRA org yet.</div>
+                </div>
+                <div className="form-hint" style={{ marginBottom: '1.1rem' }}>Summary and description are filled in from the bug details above.</div>
+              </>
+            )}
+          </div>
+        )}
+        {jiraProjectsError && !postToJira && (
+          <div className="form-hint" style={{ color: 'var(--danger)', marginBottom: '1.1rem' }}>{jiraProjectsError}</div>
+        )}
+
         <div className="modal-footer">
           <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
           <button className="btn btn-primary" onClick={submit} disabled={loading || !form.title.trim()}>{loading ? 'Logging...' : 'Log bug'}</button>
@@ -276,6 +356,11 @@ function BugDetailModal({ bug, projectId, isClient, onClose, onUpdated }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem', flexWrap: 'wrap' }}>
               <span className={`badge badge-${bug.severity}`}>{bug.severity}</span>
               <span className={`badge badge-${bug.status.replace('_', '-')}`}>{STATUS_LABELS[bug.status]}</span>
+              {bug.jira_issue_key && (
+                <a href={bug.jira_issue_url} target="_blank" rel="noreferrer" className="badge badge-automation" style={{ textDecoration: 'none' }}>
+                  {bug.jira_issue_key} ↗
+                </a>
+              )}
             </div>
             <h2 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '1rem', fontWeight: 700, color: 'var(--white)', lineHeight: 1.3 }}>{bug.title}</h2>
           </div>
@@ -492,6 +577,15 @@ export default function BugsPage() {
                       <span style={{ fontWeight: 600, color: 'var(--light)', fontSize: '0.92rem' }}>{bug.title}</span>
                       <span className={`badge badge-${bug.severity}`}>{bug.severity}</span>
                       <span className={`badge badge-${bug.status.replace('_', '-')}`}>{STATUS_LABELS[bug.status]}</span>
+                      {bug.jira_issue_key && (
+                        <a
+                          href={bug.jira_issue_url} target="_blank" rel="noreferrer"
+                          onClick={e => e.stopPropagation()}
+                          className="badge badge-automation" style={{ textDecoration: 'none' }}
+                        >
+                          {bug.jira_issue_key} ↗
+                        </a>
+                      )}
                     </div>
                     {bug.steps_to_reproduce && (
                       <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginBottom: '0.3rem' }}>
