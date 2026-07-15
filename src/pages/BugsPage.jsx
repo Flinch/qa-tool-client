@@ -10,6 +10,11 @@ const SEVERITIES = ['critical', 'high', 'medium', 'low']
 const STATUSES = ['open', 'in_progress', 'resolved']
 const STATUS_LABELS = { open: 'Open', in_progress: 'In progress', resolved: 'Resolved' }
 
+// Pre-selects this JIRA project in the "post to JIRA" picker when it's
+// present in the fetched list, since it's the one Malik files into most —
+// still just a default, the dropdown stays fully overridable per bug.
+const DEFAULT_JIRA_PROJECT_MATCH = 'medibank'
+
 function CommentImage({ src }) {
   const [open, setOpen] = useState(false)
   return (
@@ -64,7 +69,8 @@ function BugModal({ projectId, onClose, onCreated }) {
         setPostToJira(false)
       } else {
         setJiraProjects(projects)
-        setJiraProjectKey(projects[0].key)
+        const preferred = projects.find(p => p.name.toLowerCase().includes(DEFAULT_JIRA_PROJECT_MATCH))
+        setJiraProjectKey((preferred || projects[0]).key)
       }
     } catch (e) {
       setJiraProjectsError(e.message || "JIRA isn't connected yet.")
