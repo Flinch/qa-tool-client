@@ -617,7 +617,10 @@ export default function AutomationPage() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                       <div>
                         <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)' }}>{s.name}</div>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>{s.test_case_count} test case{s.test_case_count === 1 ? '' : 's'}</div>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>
+                          {s.test_case_count} test case{s.test_case_count === 1 ? '' : 's'}
+                          {s.latest_completed_at && <> · Last run {formatWhen(s.latest_completed_at)}</>}
+                        </div>
                       </div>
                       {s.latest_status && <StatusPill status={s.latest_status} />}
                     </div>

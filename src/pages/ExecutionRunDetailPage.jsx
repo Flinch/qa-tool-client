@@ -5,6 +5,7 @@ import { apiFetch } from '../lib/api.js'
 import { useToastStore } from '../store/toastStore.jsx'
 import { useAuth } from '../store/AuthContext.jsx'
 import { LogBugModal } from './TestCasesPage.jsx'
+import { BugDetailModal } from './BugsPage.jsx'
 import { RunStatusBadge } from './ExecutionRunsPage.jsx'
 import Icon from '../components/Icon.jsx'
 import { generateExecutionReportPdf } from '../lib/executionReport.js'
@@ -198,6 +199,7 @@ export default function ExecutionRunDetailPage() {
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [expandedIds, setExpandedIds] = useState(new Set())
   const [logBugFor, setLogBugFor] = useState(null)
+  const [selectedBug, setSelectedBug] = useState(null)
   const [triggeringSuiteId, setTriggeringSuiteId] = useState(null)
   const [allBugs, setAllBugs] = useState([])
   const pollRef = useRef(null)
@@ -341,6 +343,15 @@ export default function ExecutionRunDetailPage() {
     } catch (e) {
       addToast(e.message, 'error')
     }
+  }
+
+  // A test case can have more than one bug logged against it within this
+  // run; opens the most relevant one (allBugs is already sorted by severity
+  // then most-recent, per GET /bugs) rather than building a picker for what's
+  // normally a single-bug case.
+  const openBugDetail = (etc) => {
+    const bug = allBugs.find(b => b.test_case_id === etc.test_case_id && b.execution_run_id === Number(runId))
+    if (bug) setSelectedBug(bug)
   }
 
   const openLogBug = (etc) => setLogBugFor({
@@ -592,9 +603,24 @@ export default function ExecutionRunDetailPage() {
                           <Icon name="chevronRight" size={12} style={{ color: 'var(--muted)', transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }} />
                           <div style={{ minWidth: 0 }}>
                             <div style={{ fontWeight: 500, color: 'var(--light)' }}>{etc.title}</div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.72rem', color: 'var(--muted)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.72rem', color: 'var(--muted)' }}>
                               {TYPE_LABELS[etc.type]}
-                              {etc.bug_count > 0 && <>· <Icon name="bug" size={11} /> {etc.bug_count}</>}
+                              {etc.bug_count > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={e => { e.stopPropagation(); openBugDetail(etc) }}
+                                  style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
+                                    fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer',
+                                    color: etc.status === 'fail' ? 'var(--danger)' : 'var(--muted)',
+                                    background: etc.status === 'fail' ? 'rgba(193,68,58,0.14)' : 'transparent',
+                                    border: `1px solid ${etc.status === 'fail' ? 'rgba(193,68,58,0.4)' : 'var(--border2)'}`,
+                                    borderRadius: 0, padding: '0.1rem 0.5rem',
+                                  }}
+                                >
+                                  <Icon name="bug" size={11} /> {etc.bug_count} bug{etc.bug_count === 1 ? '' : 's'}
+                                </button>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -667,6 +693,19 @@ export default function ExecutionRunDetailPage() {
                   : tc
               ),
             }))
+          }}
+        />
+      )}
+
+      {selectedBug && (
+        <BugDetailModal
+          bug={selectedBug}
+          projectId={id}
+          isClient={isClient}
+          onClose={() => setSelectedBug(null)}
+          onUpdated={(updated) => {
+            setAllBugs(bs => bs.map(b => b.id === updated.id ? { ...b, ...updated } : b))
+            setSelectedBug(prev => ({ ...prev, ...updated }))
           }}
         />
       )}

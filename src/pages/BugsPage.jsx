@@ -236,7 +236,7 @@ function BugModal({ projectId, onClose, onCreated }) {
   )
 }
 
-function BugDetailModal({ bug, projectId, isClient, onClose, onUpdated }) {
+export function BugDetailModal({ bug, projectId, isClient, onClose, onUpdated }) {
   const { addToast } = useToastStore()
   const [isEditing, setIsEditing] = useState(false)
   const [editForm, setEditForm] = useState({
