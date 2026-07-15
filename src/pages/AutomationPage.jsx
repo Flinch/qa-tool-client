@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { apiFetch } from '../lib/api.js'
 import { useToastStore } from '../store/toastStore.jsx'
 import { useAuth } from '../store/AuthContext.jsx'
@@ -51,7 +51,7 @@ function formatWhen(dateStr) {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
-function SuiteCard({ suite, onRun, running }) {
+function SuiteCard({ suite, onRun, running, readOnly }) {
   const passRate = suite.latest_passed != null && (suite.latest_passed + suite.latest_failed) > 0
     ? Math.round((suite.latest_passed / (suite.latest_passed + suite.latest_failed)) * 100)
     : null
@@ -104,14 +104,16 @@ function SuiteCard({ suite, onRun, running }) {
             )}
           </>
         )}
-        <button
-          className="btn btn-primary btn-sm"
-          onClick={() => onRun(suite)}
-          disabled={isRunning}
-          style={{ width: '100%' }}
-        >
-          {isRunning ? 'Running…' : 'Run suite'}
-        </button>
+        {!readOnly && (
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={() => onRun(suite)}
+            disabled={isRunning}
+            style={{ width: '100%' }}
+          >
+            {isRunning ? 'Running…' : 'Run suite'}
+          </button>
+        )}
       </div>
     </div>
   )
@@ -345,6 +347,7 @@ function GenerateTestsModal({ projectId, suites, onClose, onDispatched }) {
 
 export default function AutomationPage() {
   const { id } = useParams()
+  const navigate = useNavigate()
   const { addToast } = useToastStore()
   const { user } = useAuth()
   const isClient = user?.role === 'client'
@@ -564,7 +567,7 @@ export default function AutomationPage() {
 `}</style>
       <div className="topbar">
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <Link to={isClient ? `/projects/${id}/reports` : `/projects/${id}`} className="back-btn" title="Back" aria-label="Back"><Icon name="arrowLeft" size={14} /></Link>
+          <button className="back-btn" onClick={() => navigate(-1)} title="Back" aria-label="Back"><Icon name="arrowLeft" size={14} /></button>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
             {!isClient && (
               <>
@@ -605,45 +608,16 @@ export default function AutomationPage() {
       <div className="page-content fade-in">
         {loading ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}><div className="spinner" /></div>
-        ) : isClient ? (
-          suites.length === 0 ? (
-            <div className="empty-state"><h3>No automation suites yet</h3></div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-              {suites.map(s => {
-                const suiteRuns = runs.filter(r => r.suite_id === s.id)
-                return (
-                  <div key={s.id} className="card">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                      <div>
-                        <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)' }}>{s.name}</div>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>
-                          {s.test_case_count} test case{s.test_case_count === 1 ? '' : 's'}
-                          {s.latest_completed_at && <> · Last run {formatWhen(s.latest_completed_at)}</>}
-                        </div>
-                      </div>
-                      {s.latest_status && <StatusPill status={s.latest_status} />}
-                    </div>
-                    {suiteRuns.length === 0 ? (
-                      <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>No runs yet for this suite.</div>
-                    ) : (
-                      <div>{suiteRuns.map(r => <RunRow key={r.id} run={r} />)}</div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          )
         ) : (
           <>
             <div style={{ marginBottom: '2rem' }}>
               <h2 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '1.1rem', color: 'var(--white)', marginBottom: '1rem' }}>Suites</h2>
               {suites.length === 0 ? (
-                <div className="empty-state"><h3>No automation suites yet</h3><p>Suites are created via the API for now — ask your engineer to set one up.</p></div>
+                <div className="empty-state"><h3>No automation suites yet</h3>{!isClient && <p>Suites are created via the API for now — ask your engineer to set one up.</p>}</div>
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1rem', alignItems: 'stretch' }}>
                   {suites.map(s => (
-                    <SuiteCard key={s.id} suite={s} onRun={runSuite} running={triggeringSuiteId === s.id} />
+                    <SuiteCard key={s.id} suite={s} onRun={runSuite} running={triggeringSuiteId === s.id} readOnly={isClient} />
                   ))}
                 </div>
               )}
@@ -652,7 +626,7 @@ export default function AutomationPage() {
             <div style={{ marginBottom: '2rem' }}>
               <h2 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '1.1rem', color: 'var(--white)', marginBottom: '1rem' }}>Recent executions</h2>
               {runs.length === 0 ? (
-                <div className="empty-state"><h3>No runs yet</h3><p>Trigger a suite above to see results here.</p></div>
+                <div className="empty-state"><h3>No runs yet</h3><p>{isClient ? 'No suite runs have happened yet.' : 'Trigger a suite above to see results here.'}</p></div>
               ) : (
                 <div className="card" style={{ padding: '0 1rem' }}>
                   {runs.map(r => <RunRow key={r.id} run={r} />)}

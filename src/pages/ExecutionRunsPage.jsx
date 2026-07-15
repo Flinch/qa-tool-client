@@ -186,6 +186,7 @@ function RunCard({ run, projectId }) {
 
 export default function ExecutionRunsPage() {
   const { id } = useParams()
+  const navigate = useNavigate()
   const { user } = useAuth()
   const isClient = user?.role === 'client'
   const [project, setProject] = useState(null)
@@ -207,7 +208,7 @@ export default function ExecutionRunsPage() {
     <>
       <div className="topbar">
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <Link to={isClient ? `/projects/${id}/reports` : `/projects/${id}`} className="back-btn" title="Back" aria-label="Back"><Icon name="arrowLeft" size={14} /></Link>
+          <button className="back-btn" onClick={() => navigate(-1)} title="Back" aria-label="Back"><Icon name="arrowLeft" size={14} /></button>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
             {!isClient && (
               <>

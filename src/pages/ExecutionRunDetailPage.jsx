@@ -411,12 +411,28 @@ export default function ExecutionRunDetailPage() {
     </>
   )
 
-  const total = run.test_cases.length
+  // Automation suites count toward the run's totals too, not just manual
+  // test cases — test_case_count is current suite membership (works even
+  // for a suite that hasn't executed yet), passed/failed come from each
+  // suite's latest run. The gap between test_case_count and passed+failed
+  // (e.g. tests added to a suite since its last run) is real "not run",
+  // computed as a residual so the buckets keep summing to the total instead
+  // of silently dropping that drift.
+  const autoTotal = run.suites.reduce((sum, s) => sum + (s.test_case_count || 0), 0)
+  const autoPassed = run.suites.reduce((sum, s) => sum + (s.passed || 0), 0)
+  const autoFailed = run.suites.reduce((sum, s) => sum + (s.failed || 0), 0)
+  const autoNotRun = Math.max(autoTotal - autoPassed - autoFailed, 0)
+
+  // Kept distinct from the combined `total` below — the "Manual test cases"
+  // section's own empty-state/filters must react to manual test cases only,
+  // not be masked or falsely populated by automation suite counts.
+  const manualTotal = run.test_cases.length
+  const total = manualTotal + autoTotal
   const counts = {
-    pass: run.test_cases.filter(t => t.status === 'pass').length,
-    fail: run.test_cases.filter(t => t.status === 'fail').length,
+    pass: run.test_cases.filter(t => t.status === 'pass').length + autoPassed,
+    fail: run.test_cases.filter(t => t.status === 'fail').length + autoFailed,
     blocked: run.test_cases.filter(t => t.status === 'blocked').length,
-    not_run: run.test_cases.filter(t => t.status === 'not_run').length,
+    not_run: run.test_cases.filter(t => t.status === 'not_run').length + autoNotRun,
   }
   const executedCount = total - counts.not_run
   const progressPct = total > 0 ? Math.round((executedCount / total) * 100) : 0
@@ -484,9 +500,15 @@ export default function ExecutionRunDetailPage() {
           </>
         )}
 
+        {/* Automation suites go above manual test cases for clients (their
+            usual entry point is a suite's status, not per-step manual
+            results) — a flex + CSS order swap rather than physically
+            reordering the JSX, so neither section's markup has to move. */}
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+        <div style={{ order: isClient ? 2 : 1 }}>
         <div className="section-header">
           <div className="section-title">Manual test cases</div>
-          {!isClient && total > 0 && (
+          {!isClient && manualTotal > 0 && (
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               <button className={`filter-btn${mode === 'swipe' ? ' active' : ''}`} onClick={() => setMode('swipe')}>Swipe</button>
               <button className={`filter-btn${mode === 'list' ? ' active' : ''}`} onClick={() => setMode('list')}>List</button>
@@ -494,7 +516,7 @@ export default function ExecutionRunDetailPage() {
           )}
         </div>
 
-        {total > 0 && (
+        {manualTotal > 0 && (
           <div className="filters-row">
             {['all', 'pass', 'fail', 'blocked', 'not_run'].map(f => (
               <button key={f} className={`filter-btn${statusFilter === f ? ' active' : ''}`} onClick={() => setStatusFilter(f)}>
@@ -504,7 +526,7 @@ export default function ExecutionRunDetailPage() {
           </div>
         )}
 
-        {total === 0 ? (
+        {manualTotal === 0 ? (
           <div className="empty-state"><h3>No manual test cases in this run</h3></div>
         ) : effectiveMode === 'swipe' ? (
           <>
@@ -662,7 +684,9 @@ export default function ExecutionRunDetailPage() {
             )}
           </div>
         )}
+        </div>
 
+        <div style={{ order: isClient ? 1 : 2 }}>
         <div className="section-header" style={{ marginTop: '1rem' }}>
           <div className="section-title">Automation suites</div>
         </div>
@@ -675,6 +699,8 @@ export default function ExecutionRunDetailPage() {
             ))}
           </div>
         )}
+        </div>
+        </div>
       </div>
 
       {logBugFor && (

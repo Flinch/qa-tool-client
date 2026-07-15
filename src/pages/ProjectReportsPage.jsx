@@ -48,8 +48,8 @@ export default function ProjectReportsPage() {
       </div>
       <div className="page-content fade-in">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
-          <Link to={`/projects/${id}/requirements`} style={{ textDecoration: 'none' }}>
-            <div className="card" style={{ cursor: 'pointer', transition: 'border-color 0.2s' }}
+          <Link to={`/projects/${id}/requirements`} style={{ textDecoration: 'none', display: 'block', height: '100%' }}>
+            <div className="card" style={{ cursor: 'pointer', transition: 'border-color 0.2s', height: '100%', display: 'flex', flexDirection: 'column' }}
               onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,70,31,0.3)'}
               onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
             >
@@ -58,8 +58,8 @@ export default function ProjectReportsPage() {
               <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>See tracked requirements and which test cases cover them.</div>
             </div>
           </Link>
-          <Link to={`/projects/${id}/tests`} style={{ textDecoration: 'none' }}>
-            <div className="card" style={{ cursor: 'pointer', transition: 'border-color 0.2s' }}
+          <Link to={`/projects/${id}/tests`} style={{ textDecoration: 'none', display: 'block', height: '100%' }}>
+            <div className="card" style={{ cursor: 'pointer', transition: 'border-color 0.2s', height: '100%', display: 'flex', flexDirection: 'column' }}
               onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,70,31,0.3)'}
               onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
             >
@@ -68,8 +68,8 @@ export default function ProjectReportsPage() {
               <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>View test cases for this project.</div>
             </div>
           </Link>
-          <Link to={`/projects/${id}/bugs`} style={{ textDecoration: 'none' }}>
-            <div className="card" style={{ cursor: 'pointer', transition: 'border-color 0.2s' }}
+          <Link to={`/projects/${id}/bugs`} style={{ textDecoration: 'none', display: 'block', height: '100%' }}>
+            <div className="card" style={{ cursor: 'pointer', transition: 'border-color 0.2s', height: '100%', display: 'flex', flexDirection: 'column' }}
               onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,70,31,0.3)'}
               onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
             >
@@ -78,8 +78,8 @@ export default function ProjectReportsPage() {
               <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>Log, track, and resolve bugs found during testing.</div>
             </div>
           </Link>
-          <Link to={`/projects/${id}/automation`} style={{ textDecoration: 'none' }}>
-            <div className="card" style={{ cursor: 'pointer', transition: 'border-color 0.2s' }}
+          <Link to={`/projects/${id}/automation`} style={{ textDecoration: 'none', display: 'block', height: '100%' }}>
+            <div className="card" style={{ cursor: 'pointer', transition: 'border-color 0.2s', height: '100%', display: 'flex', flexDirection: 'column' }}
               onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,70,31,0.3)'}
               onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
             >
@@ -88,8 +88,8 @@ export default function ProjectReportsPage() {
               <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>Run automated suites and view CI results, including nightly builds.</div>
             </div>
           </Link>
-          <Link to={`/projects/${id}/executions`} style={{ textDecoration: 'none' }}>
-            <div className="card" style={{ cursor: 'pointer', transition: 'border-color 0.2s' }}
+          <Link to={`/projects/${id}/executions`} style={{ textDecoration: 'none', display: 'block', height: '100%' }}>
+            <div className="card" style={{ cursor: 'pointer', transition: 'border-color 0.2s', height: '100%', display: 'flex', flexDirection: 'column' }}
               onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,70,31,0.3)'}
               onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
             >
