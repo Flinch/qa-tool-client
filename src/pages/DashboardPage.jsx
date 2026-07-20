@@ -65,6 +65,36 @@ export default function DashboardPage() {
           <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>Here's what's happening across your projects.</p>
         </div>
 
+        <div className="section-header" style={{ marginTop: '1.5rem' }}>
+          <div>
+            <div className="section-title">Most active projects</div>
+            <div className="section-sub">Ranked by most recent activity</div>
+          </div>
+          <Link to="/projects" className="btn btn-ghost btn-sm">View all</Link>
+        </div>
+        {recentProjects.length === 0 ? (
+          <div className="empty-state">
+            <h3>No projects yet</h3>
+            <p>Create your first project to get started.</p>
+            <Link to="/projects" className="btn btn-primary">Create project</Link>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '1rem', marginBottom: '0.5rem' }}>
+            {recentProjects.map(p => (
+              <Link to={`/projects/${p.id}`} key={p.id} style={{ textDecoration: 'none', display: 'block', height: '100%' }}>
+                <div className="card-sm" style={{ cursor: 'pointer', height: '100%', display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ fontWeight: 600, color: 'var(--white)', marginBottom: '0.25rem', fontSize: '0.92rem' }}>{p.name}</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginBottom: '0.85rem' }}>{p.client_name}</div>
+                  <div style={{ display: 'flex', gap: '1rem', fontSize: '0.78rem', color: 'var(--muted)' }}>
+                    <span><strong style={{ color: 'var(--light)' }}>{p.test_case_count ?? 0}</strong> tests</span>
+                    <span><strong style={{ color: 'var(--danger)' }}>{p.open_bug_count ?? 0}</strong> open bugs</span>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+
         <div className="dash-kpi-band">
           <div className="dash-kpi accent">
             <div className="dash-kpi-label">Projects</div>
@@ -202,36 +232,6 @@ export default function DashboardPage() {
             <DashboardNotes />
           </div>
         </div>
-
-        <div className="section-header" style={{ marginTop: '0.5rem' }}>
-          <div>
-            <div className="section-title">Your projects</div>
-            <div className="section-sub">Your most recently updated projects</div>
-          </div>
-          <Link to="/projects" className="btn btn-ghost btn-sm">View all</Link>
-        </div>
-        {recentProjects.length === 0 ? (
-          <div className="empty-state">
-            <h3>No projects yet</h3>
-            <p>Create your first project to get started.</p>
-            <Link to="/projects" className="btn btn-primary">Create project</Link>
-          </div>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '1rem' }}>
-            {recentProjects.map(p => (
-              <Link to={`/projects/${p.id}`} key={p.id} style={{ textDecoration: 'none' }}>
-                <div className="card-sm" style={{ cursor: 'pointer' }}>
-                  <div style={{ fontWeight: 600, color: 'var(--white)', marginBottom: '0.25rem', fontSize: '0.92rem' }}>{p.name}</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginBottom: '0.85rem' }}>{p.client_name}</div>
-                  <div style={{ display: 'flex', gap: '1rem', fontSize: '0.78rem', color: 'var(--muted)' }}>
-                    <span><strong style={{ color: 'var(--light)' }}>{p.test_case_count ?? 0}</strong> tests</span>
-                    <span><strong style={{ color: 'var(--danger)' }}>{p.open_bug_count ?? 0}</strong> open bugs</span>
-                  </div>
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
       </div>
     </>
   )
