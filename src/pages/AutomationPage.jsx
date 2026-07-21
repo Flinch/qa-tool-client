@@ -104,17 +104,7 @@ function SuiteCard({ suite, onRun, running, readOnly }) {
             )}
           </>
         )}
-        {!readOnly && suite.platform && suite.platform !== 'web' && (
-          <button
-            className="btn btn-primary btn-sm"
-            disabled
-            title={`Running "${suite.platform}" suites isn't wired up yet`}
-            style={{ width: '100%' }}
-          >
-            Run suite
-          </button>
-        )}
-        {!readOnly && (!suite.platform || suite.platform === 'web') && (
+        {!readOnly && (
           <button
             className="btn btn-primary btn-sm"
             onClick={() => onRun(suite)}

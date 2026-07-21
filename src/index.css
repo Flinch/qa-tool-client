@@ -252,6 +252,7 @@ body {
 .badge-completed     { border-color: var(--success); color: var(--success); }
 .badge-blocked       { border-color: var(--warning); color: var(--warning); }
 .badge-automation    { border-color: var(--info); color: var(--info); }
+.badge-automated     { border-color: var(--accent); color: var(--accent); }
 
 /* STATUS MENU — expandable status picker on a swipe-mode test case card */
 .status-menu {

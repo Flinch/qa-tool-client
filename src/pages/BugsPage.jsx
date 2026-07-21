@@ -362,6 +362,13 @@ export function BugDetailModal({ bug, projectId, isClient, onClose, onUpdated })
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem', flexWrap: 'wrap' }}>
               <span className={`badge badge-${bug.severity}`}>{bug.severity}</span>
               <span className={`badge badge-${bug.status.replace('_', '-')}`}>{STATUS_LABELS[bug.status]}</span>
+              {bug.origin === 'automated' ? (
+                <span className="badge badge-automated" title="Automatically filed from a failed automation run">
+                  <Icon name="zap" size={11} /> Automated
+                </span>
+              ) : (
+                <span className="badge" title="Logged by hand">Manual</span>
+              )}
               {bug.jira_issue_key && (
                 <a href={bug.jira_issue_url} target="_blank" rel="noreferrer" className="badge badge-automation" style={{ textDecoration: 'none' }}>
                   {bug.jira_issue_key} ↗
@@ -376,6 +383,12 @@ export function BugDetailModal({ bug, projectId, isClient, onClose, onUpdated })
           </div>
         </div>
 
+        {bug.screenshot_data && (
+          <div style={{ marginBottom: '1rem' }}>
+            <div style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '0.35rem' }}>Screenshot at failure</div>
+            <CommentImage src={bug.screenshot_data} />
+          </div>
+        )}
         {bug.steps_to_reproduce && (
           <div style={{ marginBottom: '1rem' }}>
             <div style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '0.35rem' }}>Steps to reproduce</div>
@@ -400,14 +413,24 @@ export function BugDetailModal({ bug, projectId, isClient, onClose, onUpdated })
             <span style={{ fontSize: '0.82rem', color: 'var(--light)' }}>{bug.notes}</span>
           </div>
         )}
-        {bug.execution_run_id && (
-          <Link
-            to={`/projects/${projectId}/executions/${bug.execution_run_id}`}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.76rem', color: 'var(--accent)', textDecoration: 'none', marginBottom: '1rem' }}
-          >
-            <Icon name="link" size={12} /> {bug.execution_run_name || 'Execution run'}
-          </Link>
-        )}
+        <div style={{ display: 'flex', gap: '1.25rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+          {bug.execution_run_id && (
+            <Link
+              to={`/projects/${projectId}/executions/${bug.execution_run_id}`}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.76rem', color: 'var(--accent)', textDecoration: 'none' }}
+            >
+              <Icon name="link" size={12} /> {bug.execution_run_name || 'Execution run'}
+            </Link>
+          )}
+          {bug.suite_id && (
+            <Link
+              to={`/projects/${projectId}/automation`}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.76rem', color: 'var(--accent)', textDecoration: 'none' }}
+            >
+              <Icon name="target" size={12} /> {bug.suite_name || 'Automation suite'}
+            </Link>
+          )}
+        </div>
 
         <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1rem', marginTop: '0.5rem' }}>
           <div style={{ fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '0.6rem' }}>
@@ -485,14 +508,18 @@ export default function BugsPage() {
   const [project, setProject] = useState(null)
   const [bugs, setBugs] = useState([])
   const [executionRuns, setExecutionRuns] = useState([])
+  const [suites, setSuites] = useState([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [filter, setFilter] = useState('all')
   const [executionRunFilter, setExecutionRunFilter] = useState('')
+  const [suiteFilter, setSuiteFilter] = useState('')
+  const [sourceFilter, setSourceFilter] = useState('all')
   const [selectedBug, setSelectedBug] = useState(null)
 
   useEffect(() => { apiFetch(`/projects/${id}`).then(setProject).catch(console.error) }, [id])
   useEffect(() => { apiFetch(`/projects/${id}/execution-runs`).then(setExecutionRuns).catch(console.error) }, [id])
+  useEffect(() => { apiFetch(`/projects/${id}/automation/suites`).then(setSuites).catch(console.error) }, [id])
 
   useEffect(() => {
     apiFetch(`/projects/${id}/bugs`)
@@ -514,6 +541,8 @@ export default function BugsPage() {
   const filtered = bugs
     .filter(b => filter === 'all' ? true : SEVERITIES.includes(filter) ? b.severity === filter : b.status === filter)
     .filter(b => executionRunFilter ? String(b.execution_run_id) === executionRunFilter : true)
+    .filter(b => suiteFilter ? String(b.suite_id) === suiteFilter : true)
+    .filter(b => sourceFilter === 'all' ? true : b.origin === sourceFilter)
 
   return (
     <>
@@ -545,12 +574,18 @@ export default function BugsPage() {
             <div className="stat-card"><div className="stat-num" style={{ color: 'var(--danger)' }}>{bugs.filter(b => b.status === 'open').length}</div><div className="stat-label">Open</div></div>
             <div className="stat-card"><div className="stat-num" style={{ color: 'var(--danger)' }}>{bugs.filter(b => b.severity === 'critical').length}</div><div className="stat-label">Critical</div></div>
             <div className="stat-card"><div className="stat-num" style={{ color: 'var(--success)' }}>{bugs.filter(b => b.status === 'resolved').length}</div><div className="stat-label">Resolved</div></div>
+            <div className="stat-card"><div className="stat-num" style={{ color: 'var(--accent)' }}>{bugs.filter(b => b.origin === 'automated').length}</div><div className="stat-label">Caught by automation</div></div>
           </div>
         )}
         <div className="filters-row">
           {['all', 'open', 'in_progress', 'resolved', 'critical', 'high', 'medium', 'low'].map(f => (
             <button key={f} className={`filter-btn${filter === f ? ' active' : ''}`} onClick={() => setFilter(f)}>
               {f === 'all' ? 'All' : f === 'in_progress' ? 'In progress' : f.charAt(0).toUpperCase() + f.slice(1)}
+            </button>
+          ))}
+          {['all', 'automated', 'manual'].map(f => (
+            <button key={f} className={`filter-btn${sourceFilter === f ? ' active' : ''}`} onClick={() => setSourceFilter(f)}>
+              {f === 'all' ? 'Any source' : f.charAt(0).toUpperCase() + f.slice(1)}
             </button>
           ))}
           {executionRuns.length > 0 && (
@@ -562,6 +597,17 @@ export default function BugsPage() {
             >
               <option value="">All executions</option>
               {executionRuns.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+            </select>
+          )}
+          {suites.length > 0 && (
+            <select
+              className="form-select"
+              style={{ width: 'auto', padding: '0.35rem 0.75rem', fontSize: '0.78rem' }}
+              value={suiteFilter}
+              onChange={e => setSuiteFilter(e.target.value)}
+            >
+              <option value="">All suites</option>
+              {suites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           )}
         </div>
@@ -584,6 +630,13 @@ export default function BugsPage() {
                       <span style={{ fontWeight: 600, color: 'var(--light)', fontSize: '0.92rem' }}>{bug.title}</span>
                       <span className={`badge badge-${bug.severity}`}>{bug.severity}</span>
                       <span className={`badge badge-${bug.status.replace('_', '-')}`}>{STATUS_LABELS[bug.status]}</span>
+                      {bug.origin === 'automated' ? (
+                        <span className="badge badge-automated" title="Automatically filed from a failed automation run">
+                          <Icon name="zap" size={11} /> Automated
+                        </span>
+                      ) : (
+                        <span className="badge" title="Logged by hand">Manual</span>
+                      )}
                       {bug.jira_issue_key && (
                         <a
                           href={bug.jira_issue_url} target="_blank" rel="noreferrer"
@@ -602,15 +655,26 @@ export default function BugsPage() {
                     )}
                     {bug.expected && <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}><strong style={{ color: 'var(--light)' }}>Expected:</strong> {bug.expected}</div>}
                     {bug.actual && <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}><strong style={{ color: 'var(--danger)' }}>Actual:</strong> {bug.actual}</div>}
-                    {bug.execution_run_id && (
-                      <Link
-                        to={`/projects/${id}/executions/${bug.execution_run_id}`}
-                        onClick={e => e.stopPropagation()}
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.76rem', color: 'var(--accent)', textDecoration: 'none', marginTop: '0.3rem' }}
-                      >
-                        <Icon name="link" size={12} /> {bug.execution_run_name || 'Execution run'}
-                      </Link>
-                    )}
+                    <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                      {bug.execution_run_id && (
+                        <Link
+                          to={`/projects/${id}/executions/${bug.execution_run_id}`}
+                          onClick={e => e.stopPropagation()}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.76rem', color: 'var(--accent)', textDecoration: 'none', marginTop: '0.3rem' }}
+                        >
+                          <Icon name="link" size={12} /> {bug.execution_run_name || 'Execution run'}
+                        </Link>
+                      )}
+                      {bug.suite_id && (
+                        <Link
+                          to={`/projects/${id}/automation`}
+                          onClick={e => e.stopPropagation()}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.76rem', color: 'var(--accent)', textDecoration: 'none', marginTop: '0.3rem' }}
+                        >
+                          <Icon name="target" size={12} /> {bug.suite_name || 'Automation suite'}
+                        </Link>
+                      )}
+                    </div>
                   </div>
                   {isClient ? (
                     <span className={`badge badge-${bug.status.replace('_', '-')}`}>{STATUS_LABELS[bug.status]}</span>
