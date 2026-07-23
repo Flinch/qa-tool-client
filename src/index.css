@@ -11,6 +11,8 @@
   --accent2:  #D1572B;
   --accent-glow: rgba(184,70,31,0.16);
   --accent-glow-soft: rgba(184,70,31,0.07);
+  --accent-tint: rgba(184,70,31,0.12);
+  --accent-border: rgba(184,70,31,0.4);
   --white:    #F3EEE3;
   --light:    #EDE7DC;
   --muted:    #9C9280;
@@ -28,6 +30,45 @@
   --status-pass: #7A9B57;
   --status-fail: #C1443A;
   --status-not-run: #9C9280;
+
+  --topbar-bg: rgba(18,16,13,0.85);
+}
+
+/* Client-role accounts get a cooler, more neutral "Slate Indigo" theme —
+   QA engineer/admin accounts keep the warm orange above. Toggled via
+   data-theme on <html> in App.jsx based on user.role. */
+:root[data-theme="client"] {
+  --bg:       #0E0F14;
+  --bg2:      #15161D;
+  --card:     #15161D;
+  --card2:    #1B1D26;
+  --border:   #262835;
+  --border2:  #333648;
+  --accent:   #6366F1;
+  --accent2:  #818CF8;
+  --accent-glow: rgba(99,102,241,0.18);
+  --accent-glow-soft: rgba(99,102,241,0.08);
+  --accent-tint: rgba(99,102,241,0.12);
+  --accent-border: rgba(99,102,241,0.4);
+  --white:    #F2F3F7;
+  --light:    #E1E3EC;
+  --muted:    #8B8FA6;
+  --faint:    #52566B;
+  --success:  #34D399;
+  --danger:   #F16565;
+  --warning:  #F5B843;
+  --info:     #5EA8F5;
+
+  --severity-critical: #F16565;
+  --severity-high:     #F0924D;
+  --severity-medium:   #F5B843;
+  --severity-low:      #6E8FC7;
+
+  --status-pass: #34D399;
+  --status-fail: #F16565;
+  --status-not-run: #8B8FA6;
+
+  --topbar-bg: rgba(14,15,20,0.85);
 }
 
 html { scroll-behavior: smooth; }
@@ -99,7 +140,7 @@ body {
   text-align: left;
 }
 .sidebar-link:hover { background: var(--card2); color: var(--light); }
-.sidebar-link.active { background: rgba(184,70,31,0.12); color: var(--accent); }
+.sidebar-link.active { background: var(--accent-tint); color: var(--accent); }
 .sidebar-link svg { flex-shrink: 0; opacity: 0.7; }
 .sidebar-link.active svg { opacity: 1; }
 
@@ -118,7 +159,7 @@ body {
 .topbar {
   height: 56px;
   border-bottom: 1px solid var(--border);
-  background: rgba(18,16,13,0.85);
+  background: var(--topbar-bg);
   backdrop-filter: blur(10px);
   display: flex;
   align-items: center;
@@ -647,7 +688,7 @@ tr:hover td { background: rgba(237,231,220,0.02); }
   transition: all 0.15s;
 }
 .filter-btn:hover { color: var(--light); border-color: var(--border2); }
-.filter-btn.active { background: rgba(184,70,31,0.12); color: var(--accent); border-color: rgba(184,70,31,0.4); }
+.filter-btn.active { background: var(--accent-tint); color: var(--accent); border-color: var(--accent-border); }
 
 /* AUTH PAGE */
 .auth-page {

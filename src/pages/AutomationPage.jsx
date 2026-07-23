@@ -35,6 +35,23 @@ function StatusPill({ status }) {
   )
 }
 
+function PlatformBadge({ platform }) {
+  const map = {
+    web: { label: 'Web', color: 'var(--accent)' },
+    android: { label: 'Android', color: 'var(--success)' },
+    ios: { label: 'iOS', color: 'var(--muted)' },
+  }
+  const p = map[platform] || { label: platform || 'Unknown', color: 'var(--muted)' }
+  return (
+    <span style={{
+      fontSize: '0.68rem', fontWeight: 600, color: p.color,
+      border: `1px solid ${p.color}`, borderRadius: 0, padding: '0.1rem 0.5rem',
+    }}>
+      {p.label}
+    </span>
+  )
+}
+
 function formatWhen(dateStr) {
   const date = new Date(dateStr)
   const now = new Date()
@@ -64,7 +81,10 @@ function SuiteCard({ suite, onRun, running, readOnly }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem', minHeight: '2.7rem' }}>
         <div>
           <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)', lineHeight: 1.25 }}>{suite.name}</div>
-          <div style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>{suite.test_case_count} test case{suite.test_case_count === 1 ? '' : 's'}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.2rem' }}>
+            <PlatformBadge platform={suite.platform} />
+            <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>{suite.test_case_count} test case{suite.test_case_count === 1 ? '' : 's'}</span>
+          </div>
         </div>
         {suite.latest_status && <StatusPill status={suite.latest_status} />}
       </div>

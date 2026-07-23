@@ -53,6 +53,12 @@ function ClientHome() {
 function Gate() {
   const { user, loading } = useAuth()
 
+  // Client accounts get the cooler "Slate Indigo" theme; QA engineers/admins
+  // keep the warm orange theme. See the data-theme overrides in index.css.
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', user?.role === 'client' ? 'client' : 'qa')
+  }, [user])
+
   if (loading) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--muted)' }}>
