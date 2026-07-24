@@ -369,6 +369,11 @@ export function BugDetailModal({ bug, projectId, isClient, onClose, onUpdated })
               ) : (
                 <span className="badge" title="Logged by hand">Manual</span>
               )}
+              {bug.is_environmental && (
+                <span className="badge badge-environmental" title="The test didn't run to completion — a device/driver/connectivity problem, not a failed assertion">
+                  <Icon name="alertTriangle" size={11} /> Environmental
+                </span>
+              )}
               {bug.jira_issue_key && (
                 <a href={bug.jira_issue_url} target="_blank" rel="noreferrer" className="badge badge-automation" style={{ textDecoration: 'none' }}>
                   {bug.jira_issue_key} ↗
@@ -515,6 +520,7 @@ export default function BugsPage() {
   const [executionRunFilter, setExecutionRunFilter] = useState('')
   const [suiteFilter, setSuiteFilter] = useState('')
   const [sourceFilter, setSourceFilter] = useState('all')
+  const [environmentalOnly, setEnvironmentalOnly] = useState(false)
   const [selectedBug, setSelectedBug] = useState(null)
 
   useEffect(() => { apiFetch(`/projects/${id}`).then(setProject).catch(console.error) }, [id])
@@ -543,6 +549,7 @@ export default function BugsPage() {
     .filter(b => executionRunFilter ? String(b.execution_run_id) === executionRunFilter : true)
     .filter(b => suiteFilter ? String(b.suite_id) === suiteFilter : true)
     .filter(b => sourceFilter === 'all' ? true : b.origin === sourceFilter)
+    .filter(b => environmentalOnly ? b.is_environmental : true)
 
   return (
     <>
@@ -588,6 +595,13 @@ export default function BugsPage() {
               {f === 'all' ? 'Any source' : f.charAt(0).toUpperCase() + f.slice(1)}
             </button>
           ))}
+          <button
+            className={`filter-btn${environmentalOnly ? ' active' : ''}`}
+            onClick={() => setEnvironmentalOnly(v => !v)}
+            title="Only bugs where the test didn't run to completion (device/driver/connectivity), not a failed assertion"
+          >
+            Environmental only
+          </button>
           {executionRuns.length > 0 && (
             <select
               className="form-select"
@@ -636,6 +650,11 @@ export default function BugsPage() {
                         </span>
                       ) : (
                         <span className="badge" title="Logged by hand">Manual</span>
+                      )}
+                      {bug.is_environmental && (
+                        <span className="badge badge-environmental" title="The test didn't run to completion — a device/driver/connectivity problem, not a failed assertion">
+                          <Icon name="alertTriangle" size={11} /> Environmental
+                        </span>
                       )}
                       {bug.jira_issue_key && (
                         <a
