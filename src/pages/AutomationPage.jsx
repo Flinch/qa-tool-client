@@ -52,6 +52,15 @@ function PlatformBadge({ platform }) {
   )
 }
 
+function describeGenerationPhase(status) {
+  if (status === 'pending') return 'Starting…'
+  if (status === 'exploring') return 'Exploring the app…'
+  if (status === 'generating') return 'Writing tests…'
+  if (status === 'healing') return 'Healing failures…'
+  if (status === 'opening_pr') return 'Opening PR…'
+  return null
+}
+
 function formatWhen(dateStr) {
   const date = new Date(dateStr)
   const now = new Date()
@@ -181,6 +190,50 @@ function RunRow({ run }) {
       {phase && <div style={{ fontSize: '0.74rem', color: 'var(--muted)', marginTop: '0.4rem' }}>{phase}</div>}
       {run.status === 'failed' && run.error_message && (
         <div style={{ fontSize: '0.76rem', color: 'var(--danger)', marginTop: '0.4rem' }}>{run.error_message}</div>
+      )}
+    </div>
+  )
+}
+
+// One row per AI test-generation attempt — the "where's my PR" answer.
+// Completed rows resolve to either a live "review this PR" link (still
+// open) or direct links to the generated file(s) at HEAD (already merged,
+// via a live GitHub check — see run.pr_status from generation-runs).
+function GenerationRunRow({ run }) {
+  const isRunning = GENERATION_PHASES.includes(run.status)
+  const tcCount = run.test_case_ids?.length || 0
+
+  return (
+    <div style={{ padding: '0.85rem 0', borderBottom: '1px solid var(--border)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
+        <div>
+          <div style={{ color: 'var(--white)', fontSize: '0.88rem', fontWeight: 600, marginBottom: '0.15rem' }}>{run.suite_name}</div>
+          <div style={{ color: 'var(--muted)', fontSize: '0.76rem' }}>
+            {tcCount} test case{tcCount === 1 ? '' : 's'} · {formatWhen(run.started_at)}
+          </div>
+        </div>
+        <StatusPill status={isRunning ? 'running' : run.status} />
+      </div>
+      {isRunning && (
+        <div style={{ fontSize: '0.74rem', color: 'var(--muted)', marginTop: '0.4rem' }}>{describeGenerationPhase(run.status)}</div>
+      )}
+      {run.status === 'failed' && run.error_message && (
+        <div style={{ fontSize: '0.76rem', color: 'var(--danger)', marginTop: '0.4rem' }}>{run.error_message}</div>
+      )}
+      {run.status === 'completed' && (
+        <div style={{ marginTop: '0.5rem', display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+          {run.pr_status?.merged ? (
+            run.pr_status.files.map(f => (
+              <a key={f.path} href={f.url} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm">
+                <Icon name="link" size={12} /> {f.path.split('/').pop()}
+              </a>
+            ))
+          ) : run.pr_url ? (
+            <a href={run.pr_url} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm">
+              <Icon name="link" size={12} /> Review PR ↗
+            </a>
+          ) : null}
+        </div>
       )}
     </div>
   )
@@ -409,6 +462,7 @@ export default function AutomationPage() {
   // below means a later SSE/poll refresh never yanks the user back to the
   // default tab mid-session.
   const [platformTab, setPlatformTab] = useState(null)
+  const [generationRuns, setGenerationRuns] = useState([])
   const pollRef = useRef(null)
   const pollStartedAt = useRef(null)
   const sseErrorCount = useRef(0)
@@ -417,6 +471,14 @@ export default function AutomationPage() {
   const genPollStartedAt = useRef(null)
 
   useEffect(() => { apiFetch(`/projects/${id}`).then(setProject).catch(console.error) }, [id])
+
+  const loadGenerationRuns = useCallback(() => {
+    apiFetch(`/projects/${id}/automation/generation-runs`)
+      .then(setGenerationRuns)
+      .catch(console.error)
+  }, [id])
+
+  useEffect(loadGenerationRuns, [loadGenerationRuns])
 
   // Throws on failure instead of swallowing it, so callers (the poll loop in
   // particular) can tell "fetch failed" apart from "nothing in flight" —
@@ -474,9 +536,11 @@ export default function AutomationPage() {
       setActiveGenerationRun(run => (run && run.id === data.generation_run_id) ? null : run)
       stopGenPolling()
       // The event only carries the run id, not the final status/pr_url — go
-      // get the real row rather than guess at what to toast.
+      // get the real row rather than guess at what to toast. Also refreshes
+      // the Generation history panel, since this is the same list it reads.
       apiFetch(`/projects/${id}/automation/generation-runs`)
         .then(runs => {
+          setGenerationRuns(runs)
           const finished = runs.find(r => r.id === data.generation_run_id)
           if (!finished) return
           if (finished.status === 'completed') {
@@ -577,6 +641,7 @@ export default function AutomationPage() {
       if (!run || !GENERATION_PHASES.includes(run.status)) {
         stopGenPolling()
         setActiveGenerationRun(null)
+        setGenerationRuns(latest)
         if (run?.status === 'completed') addToast(run.pr_url ? 'Test generation complete — PR is ready for review' : 'Test generation complete')
         else if (run?.status === 'failed') addToast(run.error_message || 'Test generation failed', 'error')
         return
@@ -651,11 +716,7 @@ export default function AutomationPage() {
                   />
                 </div>
                 <div style={{ fontSize: '0.7rem', color: 'var(--muted)', textAlign: 'right' }}>
-                  {activeGenerationRun.status === 'pending' ? 'Starting…'
-                    : activeGenerationRun.status === 'exploring' ? 'Exploring the app…'
-                    : activeGenerationRun.status === 'generating' ? 'Writing tests…'
-                    : activeGenerationRun.status === 'healing' ? 'Healing failures…'
-                    : 'Opening PR…'}
+                  {describeGenerationPhase(activeGenerationRun.status)}
                 </div>
               </div>
             )}
@@ -700,6 +761,19 @@ export default function AutomationPage() {
                 </>
               )}
             </div>
+
+            {!isClient && (
+              <div style={{ marginBottom: '2rem' }}>
+                <h2 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '1.1rem', color: 'var(--white)', marginBottom: '1rem' }}>Generation history</h2>
+                {generationRuns.length === 0 ? (
+                  <div className="empty-state"><h3>No generation runs yet</h3><p>Use "Generate automated tests" above to write a test case with AI.</p></div>
+                ) : (
+                  <div className="card" style={{ padding: '0 1rem' }}>
+                    {generationRuns.map(run => <GenerationRunRow key={run.id} run={run} />)}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div style={{ marginBottom: '2rem' }}>
               <h2 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '1.1rem', color: 'var(--white)', marginBottom: '1rem' }}>Recent executions</h2>

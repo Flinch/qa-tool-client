@@ -34,10 +34,10 @@
   --topbar-bg: rgba(18,16,13,0.85);
 }
 
-/* Client-role accounts get a cooler, more neutral "Slate Indigo" theme —
-   QA engineer/admin accounts keep the warm orange above. Toggled via
-   data-theme on <html> in App.jsx based on user.role. */
-:root[data-theme="client"] {
+/* "Slate Indigo" — the unified theme for every role (was client-only;
+   staff used the warm orange :root above until this was unified). Toggled
+   via data-theme on <html> in App.jsx. */
+:root[data-theme="slate"] {
   --bg:       #0E0F14;
   --bg2:      #15161D;
   --card:     #15161D;
