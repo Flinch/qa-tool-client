@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { apiFetch } from '../lib/api.js'
 import { useAuth } from '../store/AuthContext.jsx'
 import { useToastStore } from '../store/toastStore.jsx'
@@ -16,6 +16,7 @@ function NavIcon({ name }) {
 
 export default function ProjectDetailPage() {
   const { id } = useParams()
+  const navigate = useNavigate()
   const { user } = useAuth()
   const { addToast } = useToastStore()
   const [project, setProject] = useState(null)
@@ -99,7 +100,7 @@ export default function ProjectDetailPage() {
           <span className="topbar-title">{project.name}</span>
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <Link to="/projects" className="back-btn" title="Back to projects" aria-label="Back to projects"><Icon name="arrowLeft" size={14} /></Link>
+            <button className="back-btn" onClick={() => navigate(-1)} title="Back" aria-label="Back"><Icon name="arrowLeft" size={14} /></button>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
               <Link to="/projects" style={{ color: 'var(--muted)', textDecoration: 'none' }}>Projects</Link>
               <span style={{ color: 'var(--muted)' }}>/</span>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { apiFetch } from '../lib/api.js'
 import Icon from '../components/Icon.jsx'
 
@@ -13,6 +13,7 @@ function NavIcon({ name }) {
 
 export default function ProjectReportsPage() {
   const { id } = useParams()
+  const navigate = useNavigate()
   const [project, setProject] = useState(null)
   const [loading, setLoading] = useState(true)
 
@@ -38,7 +39,7 @@ export default function ProjectReportsPage() {
     <>
       <div className="topbar">
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <Link to={`/projects/${id}`} className="back-btn" title="Back to project" aria-label="Back to project"><Icon name="arrowLeft" size={14} /></Link>
+          <button className="back-btn" onClick={() => navigate(-1)} title="Back" aria-label="Back"><Icon name="arrowLeft" size={14} /></button>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
             <Link to={`/projects/${id}`} style={{ color: 'var(--muted)', textDecoration: 'none' }}>{project.name}</Link>
             <span style={{ color: 'var(--muted)' }}>/</span>
