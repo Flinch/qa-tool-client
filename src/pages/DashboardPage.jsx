@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { apiFetch } from '../lib/api.js'
 import { useAuth } from '../store/AuthContext.jsx'
 import { timeAgo } from '../lib/timeAgo.js'
@@ -20,8 +20,22 @@ function runPassColor(passed, total) {
   return 'var(--danger)'
 }
 
+// Bugs have no deep-linkable route of their own — ?bugId= is read by
+// BugsPage to auto-open that bug's detail modal on load. Execution runs
+// already have a real route (/executions/:runId), so those link directly.
+function activityLink(ev) {
+  if ((ev.kind === 'bug_resolved' || ev.kind === 'bug_reported') && ev.projectId && ev.bugId) {
+    return `/projects/${ev.projectId}/bugs?bugId=${ev.bugId}`
+  }
+  if (ev.kind === 'execution_run' && ev.projectId && ev.runId) {
+    return `/projects/${ev.projectId}/executions/${ev.runId}`
+  }
+  return null
+}
+
 export default function DashboardPage() {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const [stats, setStats] = useState(null)
   const [recentProjects, setRecentProjects] = useState([])
   const [loading, setLoading] = useState(true)
@@ -155,20 +169,28 @@ export default function DashboardPage() {
                 <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>Nothing has happened yet.</div>
               ) : (
                 <div>
-                  {stats.recentActivity.map((ev, i) => (
-                    <div className="health-activity-row" key={i}>
-                      <div className="health-activity-dot-wrap">
-                        <span className="health-activity-dot" style={{ background: activityDotColor(ev) }} />
-                        {i < stats.recentActivity.length - 1 && <span className="health-activity-line" />}
-                      </div>
-                      <div>
-                        <div className="health-activity-text">{ev.text}</div>
-                        <div className="health-activity-time">
-                          <span style={{ color: 'var(--accent2)' }}>{ev.projectName?.toUpperCase()}</span> · {timeAgo(ev.time).toUpperCase()}
+                  {stats.recentActivity.map((ev, i) => {
+                    const link = activityLink(ev)
+                    return (
+                      <div
+                        className="health-activity-row"
+                        key={i}
+                        onClick={link ? () => navigate(link) : undefined}
+                        style={link ? { cursor: 'pointer' } : undefined}
+                      >
+                        <div className="health-activity-dot-wrap">
+                          <span className="health-activity-dot" style={{ background: activityDotColor(ev) }} />
+                          {i < stats.recentActivity.length - 1 && <span className="health-activity-line" />}
+                        </div>
+                        <div>
+                          <div className="health-activity-text">{ev.text}</div>
+                          <div className="health-activity-time">
+                            <span style={{ color: 'var(--accent2)' }}>{ev.projectName?.toUpperCase()}</span> · {timeAgo(ev.time).toUpperCase()}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -185,7 +207,11 @@ export default function DashboardPage() {
                     <thead><tr><th>Project</th><th>Run</th><th>Result</th><th>When</th></tr></thead>
                     <tbody>
                       {stats.recentRuns.map((r, i) => (
-                        <tr key={i}>
+                        <tr
+                          key={i}
+                          onClick={r.projectId && r.runId ? () => navigate(`/projects/${r.projectId}/executions/${r.runId}`) : undefined}
+                          style={r.projectId && r.runId ? { cursor: 'pointer' } : undefined}
+                        >
                           <td>{r.projectName}</td>
                           <td>{r.runName}</td>
                           <td>
@@ -215,7 +241,12 @@ export default function DashboardPage() {
                 </div>
               ) : (
                 stats.needsAttention.map(b => (
-                  <div className="health-attn-row" key={b.id}>
+                  <div
+                    className="health-attn-row"
+                    key={b.id}
+                    onClick={b.projectId ? () => navigate(`/projects/${b.projectId}/bugs?bugId=${b.id}`) : undefined}
+                    style={b.projectId ? { cursor: 'pointer' } : undefined}
+                  >
                     <div className="health-sev-stripe" style={{ background: `var(--severity-${b.severity})` }} />
                     <div>
                       <div className="health-attn-title">{b.title}</div>

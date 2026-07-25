@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { apiFetch } from '../lib/api.js'
 import { useAuth } from '../store/AuthContext.jsx'
 import { timeAgo } from '../lib/timeAgo.js'
@@ -135,12 +135,13 @@ function buildActivity(bugs, runs, requirements) {
 
   for (const b of bugs) {
     if (b.status === 'resolved') {
-      events.push({ time: b.updated_at, text: `Bug #${b.id} "${b.title}" resolved`, dotColor: 'var(--success)' })
+      events.push({ time: b.updated_at, text: `Bug #${b.id} "${b.title}" resolved`, dotColor: 'var(--success)', bugId: b.id })
     } else {
       events.push({
         time: b.created_at,
         text: `Bug #${b.id} "${b.title}" reported`,
         dotColor: (b.severity === 'critical' || b.severity === 'high') ? 'var(--severity-high)' : 'var(--border2)',
+        bugId: b.id,
       })
     }
   }
@@ -151,6 +152,7 @@ function buildActivity(bugs, runs, requirements) {
         time: r.completed_at,
         text: `Execution run "${r.name}" finished — ${r.passed}/${r.total_test_cases} passed`,
         dotColor: 'var(--accent2)',
+        runId: r.id,
       })
     }
   }
@@ -178,6 +180,7 @@ function buildActivity(bugs, runs, requirements) {
 
 export default function QualityHealth({ projectId, projectName }) {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const [data, setData] = useState(null)
   const [bugs, setBugs] = useState([])
   const [runs, setRuns] = useState([])
@@ -304,18 +307,28 @@ export default function QualityHealth({ projectId, projectName }) {
               <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>Nothing has happened here yet.</div>
             ) : (
               <div>
-                {activity.map((ev, i) => (
-                  <div className="health-activity-row" key={i}>
-                    <div className="health-activity-dot-wrap">
-                      <span className="health-activity-dot" style={{ background: ev.dotColor }} />
-                      {i < activity.length - 1 && <span className="health-activity-line" />}
+                {activity.map((ev, i) => {
+                  const link = ev.bugId ? `/projects/${projectId}/bugs?bugId=${ev.bugId}`
+                    : ev.runId ? `/projects/${projectId}/executions/${ev.runId}`
+                    : null
+                  return (
+                    <div
+                      className="health-activity-row"
+                      key={i}
+                      onClick={link ? () => navigate(link) : undefined}
+                      style={link ? { cursor: 'pointer' } : undefined}
+                    >
+                      <div className="health-activity-dot-wrap">
+                        <span className="health-activity-dot" style={{ background: ev.dotColor }} />
+                        {i < activity.length - 1 && <span className="health-activity-line" />}
+                      </div>
+                      <div>
+                        <div className="health-activity-text">{ev.text}</div>
+                        <div className="health-activity-time">{timeAgo(ev.time).toUpperCase()}</div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="health-activity-text">{ev.text}</div>
-                      <div className="health-activity-time">{timeAgo(ev.time).toUpperCase()}</div>
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>
@@ -333,7 +346,12 @@ export default function QualityHealth({ projectId, projectName }) {
               </div>
             ) : (
               attention.map(b => (
-                <div className="health-attn-row" key={b.id}>
+                <div
+                  className="health-attn-row"
+                  key={b.id}
+                  onClick={() => navigate(`/projects/${projectId}/bugs?bugId=${b.id}`)}
+                  style={{ cursor: 'pointer' }}
+                >
                   <div className="health-sev-stripe" style={{ background: `var(--severity-${b.severity})` }} />
                   <div>
                     <div className="health-attn-title">{b.title}</div>
@@ -354,6 +372,8 @@ export default function QualityHealth({ projectId, projectName }) {
                 sub={data.totalRequirements > 0 ? `${data.coveredRequirements} of ${data.totalRequirements} covered` : 'None tracked yet'} />
               <AccessTile to={`/projects/${projectId}/tests`} icon="check" title="Test cases"
                 sub={`${tc.total} total`} />
+              <AccessTile to={`/projects/${projectId}/executions`} icon="play" title="Executions"
+                sub="Run manual & automated tests" />
               <AccessTile to={`/projects/${projectId}/bugs`} icon="bug" title="Bug reports"
                 sub={`${openBugsTotal} open`} />
               <AccessTile to={`/projects/${projectId}/automation`} icon="gear" title="Automation"

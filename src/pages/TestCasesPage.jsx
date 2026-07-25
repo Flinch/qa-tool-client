@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { apiFetch } from '../lib/api.js'
 import { useAuth } from '../store/AuthContext.jsx'
 import { useToastStore } from '../store/toastStore.jsx'
@@ -473,6 +473,7 @@ function TestCaseModal({ tc, projectId, isClient, onClose, onBugLogged, onTestCa
 export default function TestCasesPage() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { user } = useAuth()
   const isClient = user?.role === 'client'
   const [project, setProject] = useState(null)
@@ -484,6 +485,15 @@ export default function TestCasesPage() {
   const [platform, setPlatform] = useState('all')
 
   useEffect(() => { apiFetch(`/projects/${id}`).then(setProject).catch(console.error) }, [id])
+
+  // Deep-link support: ?tcId=123 (from the dashboard/health activity feeds)
+  // auto-opens that test case's detail modal once the list has loaded.
+  useEffect(() => {
+    const tcId = searchParams.get('tcId')
+    if (!tcId || testCases.length === 0) return
+    const match = testCases.find(tc => tc.id === Number(tcId))
+    if (match) setSelectedTc(match)
+  }, [testCases, searchParams])
 
   useEffect(() => {
     apiFetch(`/projects/${id}/test-cases`)
@@ -620,7 +630,14 @@ export default function TestCasesPage() {
           tc={selectedTc}
           projectId={id}
           isClient={isClient}
-          onClose={() => setSelectedTc(null)}
+          onClose={() => {
+            setSelectedTc(null)
+            if (searchParams.has('tcId')) {
+              const next = new URLSearchParams(searchParams)
+              next.delete('tcId')
+              setSearchParams(next, { replace: true })
+            }
+          }}
           onBugLogged={handleBugLogged}
           onTestCaseUpdated={(updated) => {
             setTestCases(tcs => tcs.map(t => t.id === updated.id ? { ...t, ...updated } : t))

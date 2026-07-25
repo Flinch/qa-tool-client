@@ -140,6 +140,16 @@ export default function ProjectDetailPage() {
                     <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>View, generate, and execute test cases against this project.</div>
                   </div>
                 </Link>
+                <Link to={`/projects/${id}/executions`} style={{ textDecoration: 'none', display: 'block', height: '100%' }}>
+                  <div className="card" style={{ cursor: 'pointer', transition: 'border-color 0.2s', height: '100%', display: 'flex', flexDirection: 'column' }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,70,31,0.3)'}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+                  >
+                    <NavIcon name="play" />
+                    <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)', marginBottom: '0.3rem' }}>Executions</div>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>Run a session of manual and automated tests and export a report.</div>
+                  </div>
+                </Link>
                 <Link to={`/projects/${id}/bugs`} style={{ textDecoration: 'none', display: 'block', height: '100%' }}>
                   <div className="card" style={{ cursor: 'pointer', transition: 'border-color 0.2s', height: '100%', display: 'flex', flexDirection: 'column' }}
                     onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,70,31,0.3)'}
@@ -158,16 +168,6 @@ export default function ProjectDetailPage() {
                     <NavIcon name="gear" />
                     <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)', marginBottom: '0.3rem' }}>Automation</div>
                     <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>Run automated suites and view CI results, including nightly builds.</div>
-                  </div>
-                </Link>
-                <Link to={`/projects/${id}/executions`} style={{ textDecoration: 'none', display: 'block', height: '100%' }}>
-                  <div className="card" style={{ cursor: 'pointer', transition: 'border-color 0.2s', height: '100%', display: 'flex', flexDirection: 'column' }}
-                    onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,70,31,0.3)'}
-                    onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
-                  >
-                    <NavIcon name="play" />
-                    <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)', marginBottom: '0.3rem' }}>Executions</div>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>Run a session of manual and automated tests and export a report.</div>
                   </div>
                 </Link>
             </div>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { apiFetch } from '../lib/api.js'
 import { useToastStore } from '../store/toastStore.jsx'
 import { useAuth } from '../store/AuthContext.jsx'
@@ -507,6 +507,7 @@ export function BugDetailModal({ bug, projectId, isClient, onClose, onUpdated })
 export default function BugsPage() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { addToast } = useToastStore()
   const { user } = useAuth()
   const isClient = user?.role === 'client'
@@ -533,6 +534,15 @@ export default function BugsPage() {
       .catch(console.error)
       .finally(() => setLoading(false))
   }, [id])
+
+  // Deep-link support: ?bugId=123 (from the dashboard/health activity feeds)
+  // auto-opens that bug's detail modal once the list has loaded.
+  useEffect(() => {
+    const bugId = searchParams.get('bugId')
+    if (!bugId || bugs.length === 0) return
+    const match = bugs.find(b => b.id === Number(bugId))
+    if (match) setSelectedBug(match)
+  }, [bugs, searchParams])
 
   const updateStatus = async (bugId, status) => {
     try {
@@ -715,7 +725,14 @@ export default function BugsPage() {
           bug={selectedBug}
           projectId={id}
           isClient={isClient}
-          onClose={() => setSelectedBug(null)}
+          onClose={() => {
+            setSelectedBug(null)
+            if (searchParams.has('bugId')) {
+              const next = new URLSearchParams(searchParams)
+              next.delete('bugId')
+              setSearchParams(next, { replace: true })
+            }
+          }}
           onUpdated={(updated) => {
             setBugs(bs => bs.map(b => b.id === updated.id ? { ...b, ...updated } : b))
             setSelectedBug(prev => ({ ...prev, ...updated }))
