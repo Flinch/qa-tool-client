@@ -199,7 +199,7 @@ function RunRow({ run }) {
 // Completed rows resolve to either a live "review this PR" link (still
 // open) or direct links to the generated file(s) at HEAD (already merged,
 // via a live GitHub check — see run.pr_status from generation-runs).
-function GenerationRunRow({ run }) {
+export function GenerationRunRow({ run }) {
   const isRunning = GENERATION_PHASES.includes(run.status)
   const tcCount = run.test_case_ids?.length || 0
 
@@ -462,7 +462,6 @@ export default function AutomationPage() {
   // below means a later SSE/poll refresh never yanks the user back to the
   // default tab mid-session.
   const [platformTab, setPlatformTab] = useState(null)
-  const [generationRuns, setGenerationRuns] = useState([])
   const pollRef = useRef(null)
   const pollStartedAt = useRef(null)
   const sseErrorCount = useRef(0)
@@ -471,14 +470,6 @@ export default function AutomationPage() {
   const genPollStartedAt = useRef(null)
 
   useEffect(() => { apiFetch(`/projects/${id}`).then(setProject).catch(console.error) }, [id])
-
-  const loadGenerationRuns = useCallback(() => {
-    apiFetch(`/projects/${id}/automation/generation-runs`)
-      .then(setGenerationRuns)
-      .catch(console.error)
-  }, [id])
-
-  useEffect(loadGenerationRuns, [loadGenerationRuns])
 
   // Throws on failure instead of swallowing it, so callers (the poll loop in
   // particular) can tell "fetch failed" apart from "nothing in flight" —
@@ -536,11 +527,9 @@ export default function AutomationPage() {
       setActiveGenerationRun(run => (run && run.id === data.generation_run_id) ? null : run)
       stopGenPolling()
       // The event only carries the run id, not the final status/pr_url — go
-      // get the real row rather than guess at what to toast. Also refreshes
-      // the Generation history panel, since this is the same list it reads.
+      // get the real row rather than guess at what to toast.
       apiFetch(`/projects/${id}/automation/generation-runs`)
         .then(runs => {
-          setGenerationRuns(runs)
           const finished = runs.find(r => r.id === data.generation_run_id)
           if (!finished) return
           if (finished.status === 'completed') {
@@ -641,7 +630,6 @@ export default function AutomationPage() {
       if (!run || !GENERATION_PHASES.includes(run.status)) {
         stopGenPolling()
         setActiveGenerationRun(null)
-        setGenerationRuns(latest)
         if (run?.status === 'completed') addToast(run.pr_url ? 'Test generation complete — PR is ready for review' : 'Test generation complete')
         else if (run?.status === 'failed') addToast(run.error_message || 'Test generation failed', 'error')
         return
@@ -720,6 +708,7 @@ export default function AutomationPage() {
                 </div>
               </div>
             )}
+            <Link to={`/projects/${id}/automation/history`} className="btn btn-ghost btn-sm">Generation history</Link>
             <button className="btn btn-primary btn-sm" onClick={() => setShowGenerateTests(true)} disabled={!!activeGenerationRun}>
               <Icon name="zap" size={13} /> Generate automated tests
             </button>
@@ -761,19 +750,6 @@ export default function AutomationPage() {
                 </>
               )}
             </div>
-
-            {!isClient && (
-              <div style={{ marginBottom: '2rem' }}>
-                <h2 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '1.1rem', color: 'var(--white)', marginBottom: '1rem' }}>Generation history</h2>
-                {generationRuns.length === 0 ? (
-                  <div className="empty-state"><h3>No generation runs yet</h3><p>Use "Generate automated tests" above to write a test case with AI.</p></div>
-                ) : (
-                  <div className="card" style={{ padding: '0 1rem' }}>
-                    {generationRuns.map(run => <GenerationRunRow key={run.id} run={run} />)}
-                  </div>
-                )}
-              </div>
-            )}
 
             <div style={{ marginBottom: '2rem' }}>
               <h2 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '1.1rem', color: 'var(--white)', marginBottom: '1rem' }}>Recent executions</h2>
