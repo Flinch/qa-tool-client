@@ -75,29 +75,43 @@ function SuiteCard({ suite, onRun, running, readOnly }) {
 
   const isRunning = running || suite.latest_status === 'pending' || suite.latest_status === 'running'
   const phase = isRunning ? describeRunPhase(suite.latest_status || 'pending', suite.latest_started_at) : null
+  // "Completed" next to the last-run-date line below is redundant — a
+  // terminal status only needs a pill when it's actionable (failed) or
+  // in-flight (pending/running). This is specific to the suite card; RunRow
+  // (the execution-history list) still shows every status including
+  // Completed, where it's a real history log entry, not a duplicate signal.
+  const showStatusPill = suite.latest_status && suite.latest_status !== 'completed'
+  const lastRunAt = suite.latest_completed_at || suite.latest_started_at
 
   return (
-    <div className="card" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div
+      className="card suite-card"
+      style={{
+        display: 'flex', flexDirection: 'column', height: '100%',
+        borderLeft: isRunning ? '3px solid var(--warning)' : undefined,
+        animation: isRunning ? 'cardPulse 2s ease-in-out infinite' : undefined,
+      }}
+    >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem', minHeight: '2.7rem' }}>
         <div>
-          <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)', lineHeight: 1.25 }}>{suite.name}</div>
+          <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '0.95rem', color: 'var(--white)', lineHeight: 1.25 }}>{suite.name}</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.2rem' }}>
             <PlatformBadge platform={suite.platform} />
             <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>{suite.test_case_count} test case{suite.test_case_count === 1 ? '' : 's'}</span>
           </div>
         </div>
-        {suite.latest_status && <StatusPill status={suite.latest_status} />}
+        {showStatusPill && <StatusPill status={suite.latest_status} />}
       </div>
 
-      {suite.latest_completed_at && (
+      {!isRunning && lastRunAt && (
         <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginBottom: '0.3rem' }}>
-          Last run {formatWhen(suite.latest_completed_at)}
+          Last run {formatWhen(lastRunAt)}
         </div>
       )}
       {passRate !== null && (
-        <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginBottom: '1rem' }}>
-          <span style={{ color: 'var(--success)' }}>{suite.latest_passed} passed</span>
-          {suite.latest_failed > 0 && <>, <span style={{ color: 'var(--danger)' }}>{suite.latest_failed} failed</span></>}
+        <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '1rem' }}>
+          <span className="badge badge-pass">{suite.latest_passed} passed</span>
+          {suite.latest_failed > 0 && <span className="badge badge-fail">{suite.latest_failed} failed</span>}
         </div>
       )}
       {suite.latest_status === 'failed' && suite.latest_error_message && (
@@ -110,7 +124,7 @@ function SuiteCard({ suite, onRun, running, readOnly }) {
         {isRunning && (
           <>
             <div style={{
-              height: '4px', width: '100%', background: 'var(--border)',
+              height: '6px', width: '100%', background: 'var(--border)',
               borderRadius: 0, overflow: 'hidden', marginBottom: '0.4rem', position: 'relative',
             }}>
               <div style={{
@@ -174,7 +188,7 @@ function RunRow({ run }) {
 
 function GenerateTestsModal({ projectId, suites, onClose, onDispatched }) {
   const { addToast } = useToastStore()
-  const [candidates, setCandidates] = useState([])
+  const [allCandidates, setAllCandidates] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedIds, setSelectedIds] = useState([])
   const [suiteId, setSuiteId] = useState(suites[0]?.id ? String(suites[0].id) : '')
@@ -184,10 +198,23 @@ function GenerateTestsModal({ projectId, suites, onClose, onDispatched }) {
 
   useEffect(() => {
     apiFetch(`/projects/${projectId}/test-cases`)
-      .then(tcs => setCandidates(tcs.filter(tc => tc.automation_candidate)))
+      .then(tcs => setAllCandidates(tcs.filter(tc => tc.automation_candidate)))
       .catch(e => addToast(e.message, 'error'))
       .finally(() => setLoading(false))
   }, [projectId, addToast])
+
+  const selectedSuite = suites.find(s => s.id === Number(suiteId))
+  // test_cases.platform is coarse (web/mobile), unlike a suite's own
+  // web/ios/android — both ios and android suites accept 'mobile' TCs.
+  const suiteCategory = selectedSuite ? (selectedSuite.platform === 'web' ? 'web' : 'mobile') : null
+  const candidates = suiteCategory ? allCandidates.filter(tc => tc.platform === suiteCategory) : allCandidates
+
+  // A TC checked while one suite was selected shouldn't silently ride along
+  // after switching to a different-platform suite.
+  useEffect(() => {
+    setSelectedIds(ids => ids.filter(id => candidates.some(tc => tc.id === id)))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [suiteId])
 
   const toggle = (tcId) => {
     setSelectedIds(ids => {
@@ -204,7 +231,6 @@ function GenerateTestsModal({ projectId, suites, onClose, onDispatched }) {
   }
 
   const selected = candidates.filter(tc => selectedIds.includes(tc.id))
-  const selectedSuite = suites.find(s => s.id === Number(suiteId))
 
   const dispatch = async () => {
     setDispatching(true)
@@ -378,6 +404,11 @@ export default function AutomationPage() {
   const [triggeringSuiteId, setTriggeringSuiteId] = useState(null)
   const [showGenerateTests, setShowGenerateTests] = useState(false)
   const [activeGenerationRun, setActiveGenerationRun] = useState(null)
+  // null until suites load once, then set to whichever category actually has
+  // suites (defaults to 'web' if both do) — the `prev ??` guard in the setter
+  // below means a later SSE/poll refresh never yanks the user back to the
+  // default tab mid-session.
+  const [platformTab, setPlatformTab] = useState(null)
   const pollRef = useRef(null)
   const pollStartedAt = useRef(null)
   const sseErrorCount = useRef(0)
@@ -399,6 +430,9 @@ export default function AutomationPage() {
       ])
       setSuites(suiteData)
       setRuns(runData)
+      const hasWeb = suiteData.some(s => s.platform === 'web')
+      const hasMobile = suiteData.some(s => s.platform !== 'web')
+      setPlatformTab(prev => prev ?? (hasWeb ? 'web' : 'mobile'))
       return runData
     } finally {
       setLoading(false)
@@ -584,6 +618,12 @@ export default function AutomationPage() {
     0% { left: -40%; }
     100% { left: 100%; }
   }
+  @keyframes cardPulse {
+    0%, 100% { box-shadow: 0 0 0 rgba(201,162,39,0); }
+    50% { box-shadow: 0 0 12px rgba(201,162,39,0.25); }
+  }
+  .suite-card { transition: border-color 0.2s, box-shadow 0.2s; }
+  .suite-card:hover { border-color: var(--border2); }
 `}</style>
       <div className="topbar">
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -635,11 +675,29 @@ export default function AutomationPage() {
               {suites.length === 0 ? (
                 <div className="empty-state"><h3>No automation suites yet</h3>{!isClient && <p>Suites are created via the API for now — ask your engineer to set one up.</p>}</div>
               ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1rem', alignItems: 'stretch' }}>
-                  {suites.map(s => (
-                    <SuiteCard key={s.id} suite={s} onRun={runSuite} running={triggeringSuiteId === s.id} readOnly={isClient} />
-                  ))}
-                </div>
+                <>
+                  <div className="platform-tabs">
+                    <button
+                      className="platform-tab" aria-selected={platformTab === 'web'}
+                      disabled={!suites.some(s => s.platform === 'web')}
+                      onClick={() => setPlatformTab('web')}
+                    >
+                      Web
+                    </button>
+                    <button
+                      className="platform-tab" aria-selected={platformTab === 'mobile'}
+                      disabled={!suites.some(s => s.platform !== 'web')}
+                      onClick={() => setPlatformTab('mobile')}
+                    >
+                      Mobile
+                    </button>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1rem', alignItems: 'stretch' }}>
+                    {suites.filter(s => platformTab === 'web' ? s.platform === 'web' : s.platform !== 'web').map(s => (
+                      <SuiteCard key={s.id} suite={s} onRun={runSuite} running={triggeringSuiteId === s.id} readOnly={isClient} />
+                    ))}
+                  </div>
+                </>
               )}
             </div>
 

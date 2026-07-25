@@ -295,6 +295,8 @@ body {
 .badge-automation    { border-color: var(--info); color: var(--info); }
 .badge-automated     { border-color: var(--accent); color: var(--accent); }
 .badge-environmental { border-color: var(--warning); color: var(--warning); }
+.badge-web           { border-color: #5A8DB8; color: #5A8DB8; }
+.badge-mobile        { border-color: #C97AB5; color: #C97AB5; }
 
 /* STATUS MENU — expandable status picker on a swipe-mode test case card */
 .status-menu {
@@ -690,6 +692,35 @@ tr:hover td { background: rgba(237,231,220,0.02); }
 }
 .filter-btn:hover { color: var(--light); border-color: var(--border2); }
 .filter-btn.active { background: var(--accent-tint); color: var(--accent); border-color: var(--accent-border); }
+
+/* PLATFORM TABS — page-level category switch (Automation/Test Cases/
+   Requirements), visually heavier than .filter-btn since these gate which
+   data is loaded/shown at all, not a refinement within an already-loaded
+   list. Grouped into one bordered container with no gap between buttons
+   (vs. filter-btn's independent pills) so it reads as "pick one", not
+   "narrow down". */
+.platform-tabs {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--border);
+  width: fit-content;
+  margin-bottom: 1.5rem;
+}
+.platform-tab {
+  padding: 0.5rem 1.5rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  font-family: 'Manrope', sans-serif;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.platform-tab + .platform-tab { border-left: 1px solid var(--border); }
+.platform-tab:hover:not(:disabled) { color: var(--light); background: var(--card2); }
+.platform-tab[aria-selected="true"] { background: var(--accent-tint); color: var(--accent); }
+.platform-tab:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* AUTH PAGE */
 .auth-page {

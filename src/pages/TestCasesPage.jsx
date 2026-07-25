@@ -12,7 +12,7 @@ const SEVERITIES = ['critical', 'high', 'medium', 'low']
 
 function CreateTestCaseModal({ projectId, onClose, onCreated }) {
   const { addToast } = useToastStore()
-  const [form, setForm] = useState({ title: '', type: 'functional', steps: '', expected: '' })
+  const [form, setForm] = useState({ title: '', type: 'functional', steps: '', expected: '', platform: 'web' })
   const [saving, setSaving] = useState(false)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
@@ -23,7 +23,7 @@ function CreateTestCaseModal({ projectId, onClose, onCreated }) {
       const stepsArray = form.steps.split('\n').map(s => s.trim()).filter(Boolean)
       const created = await apiFetch(`/projects/${projectId}/test-cases`, {
         method: 'POST',
-        body: JSON.stringify({ title: form.title, type: form.type, steps: stepsArray, expected: form.expected }),
+        body: JSON.stringify({ title: form.title, type: form.type, steps: stepsArray, expected: form.expected, platform: form.platform }),
       })
       addToast('Test case created')
       onCreated(created)
@@ -51,6 +51,14 @@ function CreateTestCaseModal({ projectId, onClose, onCreated }) {
             <option value="functional">Functional</option>
             <option value="integration">Integration</option>
             <option value="e2e">E2E</option>
+          </select>
+        </div>
+
+        <div className="form-group">
+          <label className="form-label">Platform</label>
+          <select className="form-select" value={form.platform} onChange={e => set('platform', e.target.value)}>
+            <option value="web">Web</option>
+            <option value="mobile">Mobile</option>
           </select>
         </div>
 
@@ -233,6 +241,7 @@ function TestCaseModal({ tc, projectId, isClient, onClose, onBugLogged, onTestCa
     steps: tc.steps?.join('\n') || '',
     expected: tc.expected || '',
     automationCandidate: !!tc.automation_candidate,
+    platform: tc.platform || 'web',
   })
   const [saving, setSaving] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
@@ -271,6 +280,7 @@ function TestCaseModal({ tc, projectId, isClient, onClose, onBugLogged, onTestCa
           steps: stepsArray,
           expected: editForm.expected,
           automationCandidate: editForm.automationCandidate,
+          platform: editForm.platform,
         }),
       })
       onTestCaseUpdated(updated)
@@ -340,6 +350,14 @@ function TestCaseModal({ tc, projectId, isClient, onClose, onBugLogged, onTestCa
           </div>
 
           <div className="form-group">
+            <label className="form-label">Platform</label>
+            <select className="form-select" value={editForm.platform} onChange={e => setEditForm(f => ({ ...f, platform: e.target.value }))}>
+              <option value="web">Web</option>
+              <option value="mobile">Mobile</option>
+            </select>
+          </div>
+
+          <div className="form-group">
             <label className="form-label">Steps (one per line)</label>
             <textarea
               className="form-textarea"
@@ -388,6 +406,7 @@ function TestCaseModal({ tc, projectId, isClient, onClose, onBugLogged, onTestCa
           <div style={{ flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem', flexWrap: 'wrap' }}>
               <span className={`badge badge-${tc.type}`}>{TYPE_LABELS[tc.type]}</span>
+              <span className={`badge badge-${tc.platform || 'web'}`}>{tc.platform === 'mobile' ? 'Mobile' : 'Web'}</span>
               {tc.automation_candidate && (
                 <span className="badge badge-automation" title={tc.automation_reasoning || undefined}>
                   <Icon name="gear" size={11} /> Automatable
@@ -462,6 +481,7 @@ export default function TestCasesPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [selectedTc, setSelectedTc] = useState(null)
   const [filter, setFilter] = useState('all')
+  const [platform, setPlatform] = useState('all')
 
   useEffect(() => { apiFetch(`/projects/${id}`).then(setProject).catch(console.error) }, [id])
 
@@ -476,11 +496,12 @@ export default function TestCasesPage() {
     setTestCases(tcs => tcs.map(tc => tc.id === bug.test_case_id ? { ...tc, bug_count: (tc.bug_count || 0) + 1 } : tc))
   }
 
-  const filtered = filter === 'all' ? testCases : filter === 'automation'
-    ? testCases.filter(tc => tc.automation_candidate)
-    : testCases.filter(tc => tc.type === filter)
+  const platformFiltered = platform === 'all' ? testCases : testCases.filter(tc => tc.platform === platform)
+  const filtered = filter === 'all' ? platformFiltered : filter === 'automation'
+    ? platformFiltered.filter(tc => tc.automation_candidate)
+    : platformFiltered.filter(tc => tc.type === filter)
 
-  const automationCount = testCases.filter(t => t.automation_candidate).length
+  const automationCount = platformFiltered.filter(t => t.automation_candidate).length
 
   return (
     <>
@@ -507,11 +528,19 @@ export default function TestCasesPage() {
       <div className="page-content fade-in">
         {testCases.length > 0 && (
           <div className="stats-row" style={{ marginBottom: '1.5rem' }}>
-            <div className="stat-card"><div className="stat-num">{testCases.length}</div><div className="stat-label">Total</div></div>
+            <div className="stat-card"><div className="stat-num">{platformFiltered.length}</div><div className="stat-label">Total</div></div>
             <div className="stat-card"><div className="stat-num" style={{ color: 'var(--info)' }}>{automationCount}</div><div className="stat-label">Automation candidates</div></div>
-            <div className="stat-card"><div className="stat-num" style={{ color: 'var(--muted)' }}>{testCases.length - automationCount}</div><div className="stat-label">Manual only</div></div>
+            <div className="stat-card"><div className="stat-num" style={{ color: 'var(--muted)' }}>{platformFiltered.length - automationCount}</div><div className="stat-label">Manual only</div></div>
           </div>
         )}
+
+        <div className="platform-tabs">
+          {['all', 'web', 'mobile'].map(p => (
+            <button key={p} className="platform-tab" aria-selected={platform === p} onClick={() => setPlatform(p)}>
+              {p === 'all' ? 'All' : p === 'web' ? 'Web' : 'Mobile'}
+            </button>
+          ))}
+        </div>
 
         <div className="filters-row">
           {['all', 'functional', 'integration', 'e2e', 'automation'].map(f => (
@@ -543,6 +572,7 @@ export default function TestCasesPage() {
                   <tr>
                     <th>Test case</th>
                     <th>Type</th>
+                    <th>Platform</th>
                     <th>Automation</th>
                     <th>Bugs</th>
                     <th>Created</th>
@@ -556,6 +586,7 @@ export default function TestCasesPage() {
                         {tc.steps?.length > 0 && <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>{tc.steps.length} steps</div>}
                       </td>
                       <td><span className={`badge badge-${tc.type}`}>{TYPE_LABELS[tc.type]}</span></td>
+                      <td><span className={`badge badge-${tc.platform || 'web'}`}>{tc.platform === 'mobile' ? 'Mobile' : 'Web'}</span></td>
                       <td>
                         {tc.automation_candidate
                           ? <span className="badge badge-automation" title={tc.automation_reasoning || undefined}><Icon name="gear" size={11} /> Automatable</span>

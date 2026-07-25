@@ -11,6 +11,7 @@ function UploadRequirementsModal({ projectId, onClose, onUploaded, onDiff }) {
   const [mode, setMode] = useState('file')
   const [file, setFile] = useState(null)
   const [text, setText] = useState('')
+  const [platform, setPlatform] = useState('web')
   const [loading, setLoading] = useState(false)
   const fileInputRef = useRef(null)
 
@@ -29,10 +30,10 @@ function UploadRequirementsModal({ projectId, onClose, onUploaded, onDiff }) {
       const body = mode === 'file' ? await readDocumentFile(file) : { text }
       const result = await apiFetch(`/projects/${projectId}/requirements/upload`, {
         method: 'POST',
-        body: JSON.stringify(body),
+        body: JSON.stringify({ ...body, platform }),
       })
       if (result.mode === 'diff') {
-        onDiff(result.document, result.diff)
+        onDiff(result.document, result.diff, platform)
       } else {
         addToast(`${result.requirements.length} requirement${result.requirements.length === 1 ? '' : 's'} parsed from ${file?.name || 'pasted text'}`)
         onUploaded(result.requirements)
@@ -99,6 +100,31 @@ function UploadRequirementsModal({ projectId, onClose, onUploaded, onDiff }) {
           </div>
         )}
 
+        <div className="form-group">
+          <label className="form-label">Platform</label>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            {[
+              { value: 'web', label: 'Web' },
+              { value: 'mobile', label: 'Mobile' },
+            ].map(p => (
+              <button
+                key={p.value}
+                onClick={() => setPlatform(p.value)}
+                style={{
+                  flex: 1, padding: '0.5rem 1rem', borderRadius: 0, cursor: 'pointer',
+                  border: platform === p.value ? '1px solid var(--accent)' : '1px solid var(--border)',
+                  background: platform === p.value ? 'rgba(184,70,31,0.1)' : 'var(--bg2)',
+                  color: platform === p.value ? 'var(--accent)' : 'var(--muted)',
+                  fontWeight: 600, fontSize: '0.85rem', transition: 'all 0.15s',
+                }}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+          <div className="form-hint">Applies to every requirement parsed from this document.</div>
+        </div>
+
         <div style={{ fontSize: '0.78rem', color: 'var(--muted)', marginBottom: '0.5rem' }}>
           If this project already has requirements, you'll get a chance to review what changed before anything is updated.
         </div>
@@ -122,7 +148,7 @@ function UploadRequirementsModal({ projectId, onClose, onUploaded, onDiff }) {
   )
 }
 
-function DiffReviewModal({ projectId, documentId, diff, onClose, onApplied }) {
+function DiffReviewModal({ projectId, documentId, diff, platform, onClose, onApplied }) {
   const { addToast } = useToastStore()
   const [approvedModified, setApprovedModified] = useState(() => new Set(diff.modified.map(m => m.id)))
   const [approvedRemoved, setApprovedRemoved] = useState(() => new Set(diff.removed.map(r => r.id)))
@@ -147,6 +173,7 @@ function DiffReviewModal({ projectId, documentId, diff, onClose, onApplied }) {
           modified: diff.modified.filter(m => approvedModified.has(m.id)).map(m => ({ id: m.id, title: m.title, description: m.description })),
           removed: diff.removed.filter(r => approvedRemoved.has(r.id)).map(r => r.id),
           added: diff.new.filter((_, i) => approvedNew.has(i)),
+          platform,
         }),
       })
       addToast(`Applied: ${result.updated.length} updated, ${result.removedIds.length} removed, ${result.inserted.length} added`)
@@ -240,7 +267,7 @@ function DiffReviewModal({ projectId, documentId, diff, onClose, onApplied }) {
 
 function CreateRequirementModal({ projectId, onClose, onCreated }) {
   const { addToast } = useToastStore()
-  const [form, setForm] = useState({ title: '', description: '' })
+  const [form, setForm] = useState({ title: '', description: '', platform: 'web' })
   const [saving, setSaving] = useState(false)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
@@ -280,6 +307,13 @@ function CreateRequirementModal({ projectId, onClose, onCreated }) {
             onChange={e => set('description', e.target.value)}
           />
         </div>
+        <div className="form-group">
+          <label className="form-label">Platform</label>
+          <select className="form-select" value={form.platform} onChange={e => set('platform', e.target.value)}>
+            <option value="web">Web</option>
+            <option value="mobile">Mobile</option>
+          </select>
+        </div>
         <div className="modal-footer">
           <button className="btn btn-ghost" onClick={onClose} disabled={saving}>Cancel</button>
           <button className="btn btn-primary" onClick={submit} disabled={saving || !form.title.trim()}>
@@ -305,7 +339,7 @@ function LinkTestCasesModal({ projectId, requirement, linkedIds, onClose, onLink
       .finally(() => setLoading(false))
   }, [projectId])
 
-  const available = testCases.filter(tc => !linkedIds.has(tc.id))
+  const available = testCases.filter(tc => !linkedIds.has(tc.id) && tc.platform === requirement.platform)
 
   const toggle = (id) => setSelected(s => {
     const next = new Set(s)
@@ -371,7 +405,7 @@ function RequirementModal({ requirement, projectId, isClient, onClose, onUpdated
   const [loadingLinked, setLoadingLinked] = useState(true)
   const [showLinkModal, setShowLinkModal] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
-  const [editForm, setEditForm] = useState({ title: requirement.title, description: requirement.description || '' })
+  const [editForm, setEditForm] = useState({ title: requirement.title, description: requirement.description || '', platform: requirement.platform || 'web' })
   const [saving, setSaving] = useState(false)
   const [generating, setGenerating] = useState(false)
 
@@ -470,6 +504,13 @@ function RequirementModal({ requirement, projectId, isClient, onClose, onUpdated
               onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
             />
           </div>
+          <div className="form-group">
+            <label className="form-label">Platform</label>
+            <select className="form-select" value={editForm.platform} onChange={e => setEditForm(f => ({ ...f, platform: e.target.value }))}>
+              <option value="web">Web</option>
+              <option value="mobile">Mobile</option>
+            </select>
+          </div>
           <div className="modal-footer">
             <button className="btn btn-ghost" onClick={() => setIsEditing(false)} disabled={saving}>Cancel</button>
             <button className="btn btn-primary" onClick={saveEdit} disabled={saving || !editForm.title.trim()}>
@@ -485,7 +526,12 @@ function RequirementModal({ requirement, projectId, isClient, onClose, onUpdated
     <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal" style={{ maxWidth: 560 }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem', marginBottom: '1.25rem' }}>
-          <h2 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '1rem', fontWeight: 700, color: 'var(--white)', lineHeight: 1.3 }}>{requirement.title}</h2>
+          <div>
+            <span className={`badge badge-${requirement.platform || 'web'}`} style={{ marginBottom: '0.4rem', display: 'inline-block' }}>
+              {requirement.platform === 'mobile' ? 'Mobile' : 'Web'}
+            </span>
+            <h2 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '1rem', fontWeight: 700, color: 'var(--white)', lineHeight: 1.3 }}>{requirement.title}</h2>
+          </div>
           <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
             {!isClient && <button className="btn btn-ghost btn-sm" onClick={() => setIsEditing(true)}>Edit</button>}
             {!isClient && <button className="btn btn-danger btn-sm" onClick={deleteRequirement}>Delete</button>}
@@ -552,6 +598,7 @@ export default function RequirementsPage() {
   const [selected, setSelected] = useState(null)
   const [generatingIds, setGeneratingIds] = useState(new Set())
   const [bulkGenerating, setBulkGenerating] = useState(false)
+  const [platform, setPlatform] = useState('all')
 
   useEffect(() => { apiFetch(`/projects/${id}`).then(setProject).catch(console.error) }, [id])
 
@@ -563,6 +610,11 @@ export default function RequirementsPage() {
   }, [id])
 
   const uncoveredCount = requirements.filter(r => r.linked_test_case_count === 0).length
+  // Deliberately unscoped by the platform tab: "Generate all test cases"
+  // acts project-wide (the backend endpoint has no platform filter), so its
+  // count would mismatch what it actually does if scoped to the active tab.
+  // The tab only filters which rows the table below shows.
+  const filtered = platform === 'all' ? requirements : requirements.filter(r => r.platform === platform)
 
   const generateOne = async (reqId, e) => {
     e?.stopPropagation()
@@ -628,6 +680,14 @@ export default function RequirementsPage() {
           </div>
         )}
 
+        <div className="platform-tabs">
+          {['all', 'web', 'mobile'].map(p => (
+            <button key={p} className="platform-tab" aria-selected={platform === p} onClick={() => setPlatform(p)}>
+              {p === 'all' ? 'All' : p === 'web' ? 'Web' : 'Mobile'}
+            </button>
+          ))}
+        </div>
+
         {loading ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}><div className="spinner" /></div>
         ) : requirements.length === 0 ? (
@@ -641,6 +701,11 @@ export default function RequirementsPage() {
               </div>
             )}
           </div>
+        ) : filtered.length === 0 ? (
+          <div className="empty-state">
+            <h3>No results for this filter</h3>
+            <p>Try a different platform tab.</p>
+          </div>
         ) : (
           <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
             <div className="table-wrap">
@@ -648,17 +713,19 @@ export default function RequirementsPage() {
                 <thead>
                   <tr>
                     <th>Requirement</th>
+                    <th>Platform</th>
                     <th>Test cases</th>
                     <th>Created</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {requirements.map(r => (
+                  {filtered.map(r => (
                     <tr key={r.id} onClick={() => setSelected(r)} style={{ cursor: 'pointer' }}>
                       <td style={{ maxWidth: 420 }}>
                         <div style={{ fontWeight: 500, color: 'var(--light)', marginBottom: '0.15rem' }}>{r.title}</div>
                         {r.description && <div style={{ fontSize: '0.72rem', color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.description}</div>}
                       </td>
+                      <td><span className={`badge badge-${r.platform || 'web'}`}>{r.platform === 'mobile' ? 'Mobile' : 'Web'}</span></td>
                       <td>
                         {r.linked_test_case_count > 0 ? (
                           <span style={{ fontSize: '0.82rem', color: 'var(--light)' }}>{r.linked_test_case_count}</span>
@@ -697,7 +764,7 @@ export default function RequirementsPage() {
           projectId={id}
           onClose={() => setShowUpload(false)}
           onUploaded={newReqs => setRequirements(rs => [...newReqs, ...rs])}
-          onDiff={(document, diff) => setPendingDiff({ documentId: document.id, diff })}
+          onDiff={(document, diff, uploadPlatform) => setPendingDiff({ documentId: document.id, diff, platform: uploadPlatform })}
         />
       )}
 
@@ -706,6 +773,7 @@ export default function RequirementsPage() {
           projectId={id}
           documentId={pendingDiff.documentId}
           diff={pendingDiff.diff}
+          platform={pendingDiff.platform}
           onClose={() => setPendingDiff(null)}
           onApplied={({ updated, removedIds, inserted }) => {
             setRequirements(rs => rs
