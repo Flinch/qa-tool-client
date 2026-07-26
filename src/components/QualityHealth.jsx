@@ -182,20 +182,16 @@ function featureHealthColor(rate) {
   return 'var(--danger)'
 }
 
-// Compact horizontal chip, not a full card — icon + title/sub packed onto
-// one row so all 5 fit in two tight columns instead of stacking into three
-// tall rows, which was most of what made this section of the page long.
-function AccessTile({ to, icon, title, sub }) {
+// Icon + title only, no count/status sub-line — a 2x2 grid of these reads
+// as clean quick-launch buttons rather than mini stat cards.
+function AccessTile({ to, icon, title }) {
   return (
     <Link to={to} style={{ textDecoration: 'none' }}>
-      <div className="card-sm access-tile" style={{ transition: 'border-color 0.2s', display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-        <div className="access-tile-icon" style={{ width: 26, height: 26, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border2)', color: 'var(--accent)', transition: 'color 0.2s, border-color 0.2s, background 0.2s' }}>
-          <Icon name={icon} size={13} />
+      <div className="card-sm access-tile" style={{ transition: 'border-color 0.2s', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '0.6rem' }}>
+        <div className="access-tile-icon" style={{ width: 40, height: 40, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border2)', color: 'var(--accent)', transition: 'color 0.2s, border-color 0.2s, background 0.2s' }}>
+          <Icon name={icon} size={19} />
         </div>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)', fontSize: '0.8rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</div>
-          <div style={{ fontSize: '0.7rem', color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sub}</div>
-        </div>
+        <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)', fontSize: '0.88rem' }}>{title}</div>
       </div>
     </Link>
   )
@@ -478,16 +474,10 @@ export default function QualityHealth({ projectId, projectName }) {
           <div className="health-panel">
             <div className="health-panel-head"><div className="health-panel-title">Jump in</div></div>
             <div className="health-access-grid">
-              <AccessTile to={`/projects/${projectId}/requirements`} icon="target" title="Requirements"
-                sub={data.totalRequirements > 0 ? `${data.coveredRequirements} of ${data.totalRequirements} covered` : 'None tracked yet'} />
-              <AccessTile to={`/projects/${projectId}/tests`} icon="check" title="Test cases"
-                sub={`${tc.total} total`} />
-              <AccessTile to={`/projects/${projectId}/executions`} icon="play" title="Executions"
-                sub="Run manual & automated tests" />
-              <AccessTile to={`/projects/${projectId}/bugs`} icon="bug" title="Bug reports"
-                sub={`${openBugsTotal} open`} />
-              <AccessTile to={`/projects/${projectId}/automation`} icon="gear" title="Automation"
-                sub={data.automationCoverage !== null ? `${data.automationCoverage}% covered` : 'Not set up yet'} />
+              <AccessTile to={`/projects/${projectId}/requirements`} icon="target" title="Requirements" />
+              <AccessTile to={`/projects/${projectId}/executions`} icon="play" title="Executions" />
+              <AccessTile to={`/projects/${projectId}/bugs`} icon="bug" title="Bug reports" />
+              <AccessTile to={`/projects/${projectId}/automation`} icon="gear" title="Automation" />
             </div>
           </div>
         </div>

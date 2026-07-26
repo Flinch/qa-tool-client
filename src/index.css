@@ -595,8 +595,8 @@ tr:hover td { background: rgba(237,231,220,0.02); }
 .health-activity-text { font-size: 0.85rem; color: var(--light); margin-bottom: 0.15rem; }
 .health-activity-time { font-family: 'IBM Plex Mono', monospace; font-size: 0.66rem; color: var(--faint); }
 
-.health-access-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem; }
-.access-tile { padding: 0.55rem 0.7rem !important; }
+.health-access-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; }
+.access-tile { padding: 1.25rem 0.75rem !important; }
 .access-tile:hover { border-color: var(--accent); }
 .access-tile:hover .access-tile-icon { color: var(--white); border-color: var(--accent); background: var(--accent); }
 
