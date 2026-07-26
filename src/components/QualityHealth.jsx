@@ -182,21 +182,6 @@ function featureHealthColor(rate) {
   return 'var(--danger)'
 }
 
-// Icon + title only, no count/status sub-line — a 2x2 grid of these reads
-// as clean quick-launch buttons rather than mini stat cards.
-function AccessTile({ to, icon, title }) {
-  return (
-    <Link to={to} style={{ textDecoration: 'none' }}>
-      <div className="card-sm access-tile" style={{ transition: 'border-color 0.2s', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '0.6rem' }}>
-        <div className="access-tile-icon" style={{ width: 40, height: 40, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border2)', color: 'var(--accent)', transition: 'color 0.2s, border-color 0.2s, background 0.2s' }}>
-          <Icon name={icon} size={19} />
-        </div>
-        <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)', fontSize: '0.88rem' }}>{title}</div>
-      </div>
-    </Link>
-  )
-}
-
 // Merges bugs + execution runs + requirements into one chronological feed.
 // No dedicated activity-log table exists server-side, so this is built from
 // the same list endpoints the rest of the app already uses (see
@@ -339,6 +324,18 @@ export default function QualityHealth({ projectId, projectName }) {
           </div>
         </div>
 
+        {/* Quick-access links, filling the empty space between the
+            headline and the gauge row instead of living in their own panel
+            further down the page. Its own row, not grouped with the status
+            pill above — kept independent so the pill stays a standalone
+            top-right badge like before. */}
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end', marginTop: '1rem' }}>
+          <Link to={`/projects/${projectId}/requirements`} className="btn btn-ghost btn-sm"><Icon name="target" size={13} /> Requirements</Link>
+          <Link to={`/projects/${projectId}/executions`} className="btn btn-ghost btn-sm"><Icon name="play" size={13} /> Executions</Link>
+          <Link to={`/projects/${projectId}/bugs`} className="btn btn-ghost btn-sm"><Icon name="bug" size={13} /> Bug reports</Link>
+          <Link to={`/projects/${projectId}/automation`} className="btn btn-ghost btn-sm"><Icon name="gear" size={13} /> Automation</Link>
+        </div>
+
         <div className="health-gauge-row">
           <Gauge value={data.passRate} color={status.color} breakdown={features} />
 
@@ -469,16 +466,6 @@ export default function QualityHealth({ projectId, projectName }) {
                 </div>
               ))
             )}
-          </div>
-
-          <div className="health-panel">
-            <div className="health-panel-head"><div className="health-panel-title">Jump in</div></div>
-            <div className="health-access-grid">
-              <AccessTile to={`/projects/${projectId}/requirements`} icon="target" title="Requirements" />
-              <AccessTile to={`/projects/${projectId}/executions`} icon="play" title="Executions" />
-              <AccessTile to={`/projects/${projectId}/bugs`} icon="bug" title="Bug reports" />
-              <AccessTile to={`/projects/${projectId}/automation`} icon="gear" title="Automation" />
-            </div>
           </div>
         </div>
       </div>
