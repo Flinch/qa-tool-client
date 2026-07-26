@@ -5,8 +5,9 @@ import { useAuth } from '../store/AuthContext.jsx'
 import { useToastStore } from '../store/toastStore.jsx'
 import { readDocumentFile } from '../lib/documentUpload.js'
 import Icon from '../components/Icon.jsx'
+import ManageFeaturesModal from '../components/ManageFeaturesModal.jsx'
 
-function UploadRequirementsModal({ projectId, onClose, onUploaded, onDiff }) {
+function UploadRequirementsModal({ projectId, onClose, onDiff }) {
   const { addToast } = useToastStore()
   const [mode, setMode] = useState('file')
   const [file, setFile] = useState(null)
@@ -32,12 +33,9 @@ function UploadRequirementsModal({ projectId, onClose, onUploaded, onDiff }) {
         method: 'POST',
         body: JSON.stringify({ ...body, platform }),
       })
-      if (result.mode === 'diff') {
-        onDiff(result.document, result.diff, platform)
-      } else {
-        addToast(`${result.requirements.length} requirement${result.requirements.length === 1 ? '' : 's'} parsed from ${file?.name || 'pasted text'}`)
-        onUploaded(result.requirements)
-      }
+      // Both modes now return the same diff-shaped payload without writing
+      // anything — nothing commits until DiffReviewModal's Apply.
+      onDiff(result.mode, result.document, result.diff, platform)
       onClose()
     } catch (e) {
       addToast(e.message, 'error')
@@ -148,11 +146,14 @@ function UploadRequirementsModal({ projectId, onClose, onUploaded, onDiff }) {
   )
 }
 
-function DiffReviewModal({ projectId, documentId, diff, platform, onClose, onApplied }) {
+function DiffReviewModal({ projectId, documentId, diff, platform, features, mode, onClose, onApplied }) {
   const { addToast } = useToastStore()
   const [approvedModified, setApprovedModified] = useState(() => new Set(diff.modified.map(m => m.id)))
   const [approvedRemoved, setApprovedRemoved] = useState(() => new Set(diff.removed.map(r => r.id)))
   const [approvedNew, setApprovedNew] = useState(() => new Set(diff.new.map((_, i) => i)))
+  // AI-suggested feature per new requirement, editable before Apply — the
+  // actual "edit the name before accepting" surface.
+  const [featureNames, setFeatureNames] = useState(() => diff.new.map(n => n.feature_name || ''))
   const [saving, setSaving] = useState(false)
 
   const toggle = (setFn, key) => setFn(s => {
@@ -172,7 +173,10 @@ function DiffReviewModal({ projectId, documentId, diff, platform, onClose, onApp
           documentId,
           modified: diff.modified.filter(m => approvedModified.has(m.id)).map(m => ({ id: m.id, title: m.title, description: m.description })),
           removed: diff.removed.filter(r => approvedRemoved.has(r.id)).map(r => r.id),
-          added: diff.new.filter((_, i) => approvedNew.has(i)),
+          // flatMap (not filter().map()) so featureNames[i] stays aligned to
+          // the original index — filter() alone would reindex and misalign
+          // feature names whenever an item is unchecked.
+          added: diff.new.flatMap((n, i) => approvedNew.has(i) ? [{ ...n, feature_name: featureNames[i] }] : []),
           platform,
         }),
       })
@@ -189,11 +193,15 @@ function DiffReviewModal({ projectId, documentId, diff, platform, onClose, onApp
   return (
     <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal" style={{ maxWidth: 640 }}>
-        <div className="modal-title">Review requirement changes</div>
+        <div className="modal-title">{mode === 'created' ? 'Review parsed requirements' : 'Review requirement changes'}</div>
         <div style={{ fontSize: '0.82rem', color: 'var(--muted)', marginBottom: '1.25rem' }}>
-          {diff.unchangedCount} unchanged · {diff.modified.length} modified · {diff.removed.length} removed · {diff.new.length} new.
-          Uncheck anything you don't want applied.
+          {mode === 'created'
+            ? <>{diff.new.length} requirement{diff.new.length === 1 ? '' : 's'} parsed, each with a suggested feature — edit any of them before applying.</>
+            : <>{diff.unchangedCount} unchanged · {diff.modified.length} modified · {diff.removed.length} removed · {diff.new.length} new. Uncheck anything you don't want applied.</>}
         </div>
+        <datalist id="feature-suggestions">
+          {features.map(f => <option key={f.id} value={f.name} />)}
+        </datalist>
 
         <div style={{ maxHeight: 420, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           {diff.modified.length > 0 && (
@@ -245,7 +253,15 @@ function DiffReviewModal({ projectId, documentId, diff, platform, onClose, onApp
                     <input type="checkbox" checked={approvedNew.has(i)} onChange={() => toggle(setApprovedNew, i)} style={{ marginTop: '0.2rem' }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: '0.85rem', color: 'var(--light)', fontWeight: 600, marginBottom: '0.2rem' }}>{n.title}</div>
-                      <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>{n.description}</div>
+                      <div style={{ fontSize: '0.78rem', color: 'var(--muted)', marginBottom: '0.4rem' }}>{n.description}</div>
+                      <input
+                        className="form-input"
+                        style={{ fontSize: '0.78rem', padding: '0.35rem 0.6rem' }}
+                        list="feature-suggestions"
+                        placeholder="Feature (optional)"
+                        value={featureNames[i]}
+                        onChange={e => setFeatureNames(names => names.map((name, idx) => idx === i ? e.target.value : name))}
+                      />
                     </div>
                   </label>
                 ))}
@@ -265,9 +281,9 @@ function DiffReviewModal({ projectId, documentId, diff, platform, onClose, onApp
   )
 }
 
-function CreateRequirementModal({ projectId, onClose, onCreated }) {
+function CreateRequirementModal({ projectId, features, onClose, onCreated }) {
   const { addToast } = useToastStore()
-  const [form, setForm] = useState({ title: '', description: '', platform: 'web' })
+  const [form, setForm] = useState({ title: '', description: '', platform: 'web', feature_id: '' })
   const [saving, setSaving] = useState(false)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
@@ -312,6 +328,13 @@ function CreateRequirementModal({ projectId, onClose, onCreated }) {
           <select className="form-select" value={form.platform} onChange={e => set('platform', e.target.value)}>
             <option value="web">Web</option>
             <option value="mobile">Mobile</option>
+          </select>
+        </div>
+        <div className="form-group">
+          <label className="form-label">Feature</label>
+          <select className="form-select" value={form.feature_id} onChange={e => set('feature_id', e.target.value)}>
+            <option value="">None</option>
+            {features.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
           </select>
         </div>
         <div className="modal-footer">
@@ -399,13 +422,13 @@ function LinkTestCasesModal({ projectId, requirement, linkedIds, onClose, onLink
   )
 }
 
-function RequirementModal({ requirement, projectId, isClient, onClose, onUpdated, onDeleted }) {
+function RequirementModal({ requirement, projectId, isClient, features, onClose, onUpdated, onDeleted }) {
   const { addToast } = useToastStore()
   const [linkedTestCases, setLinkedTestCases] = useState([])
   const [loadingLinked, setLoadingLinked] = useState(true)
   const [showLinkModal, setShowLinkModal] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
-  const [editForm, setEditForm] = useState({ title: requirement.title, description: requirement.description || '', platform: requirement.platform || 'web' })
+  const [editForm, setEditForm] = useState({ title: requirement.title, description: requirement.description || '', platform: requirement.platform || 'web', feature_id: requirement.feature_id || '' })
   const [saving, setSaving] = useState(false)
   const [generating, setGenerating] = useState(false)
 
@@ -511,6 +534,13 @@ function RequirementModal({ requirement, projectId, isClient, onClose, onUpdated
               <option value="mobile">Mobile</option>
             </select>
           </div>
+          <div className="form-group">
+            <label className="form-label">Feature</label>
+            <select className="form-select" value={editForm.feature_id} onChange={e => setEditForm(f => ({ ...f, feature_id: e.target.value }))}>
+              <option value="">None</option>
+              {features.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+            </select>
+          </div>
           <div className="modal-footer">
             <button className="btn btn-ghost" onClick={() => setIsEditing(false)} disabled={saving}>Cancel</button>
             <button className="btn btn-primary" onClick={saveEdit} disabled={saving || !editForm.title.trim()}>
@@ -591,9 +621,11 @@ export default function RequirementsPage() {
   const { addToast } = useToastStore()
   const [project, setProject] = useState(null)
   const [requirements, setRequirements] = useState([])
+  const [features, setFeatures] = useState([])
   const [loading, setLoading] = useState(true)
   const [showCreate, setShowCreate] = useState(false)
   const [showUpload, setShowUpload] = useState(false)
+  const [showManageFeatures, setShowManageFeatures] = useState(false)
   const [pendingDiff, setPendingDiff] = useState(null)
   const [selected, setSelected] = useState(null)
   const [generatingIds, setGeneratingIds] = useState(new Set())
@@ -601,6 +633,9 @@ export default function RequirementsPage() {
   const [platform, setPlatform] = useState('all')
 
   useEffect(() => { apiFetch(`/projects/${id}`).then(setProject).catch(console.error) }, [id])
+
+  const fetchFeatures = () => apiFetch(`/projects/${id}/features`).then(setFeatures).catch(console.error)
+  useEffect(() => { fetchFeatures() }, [id])
 
   useEffect(() => {
     apiFetch(`/projects/${id}/requirements`)
@@ -680,12 +715,15 @@ export default function RequirementsPage() {
           </div>
         )}
 
-        <div className="platform-tabs">
-          {['all', 'web', 'mobile'].map(p => (
-            <button key={p} className="platform-tab" aria-selected={platform === p} onClick={() => setPlatform(p)}>
-              {p === 'all' ? 'All' : p === 'web' ? 'Web' : 'Mobile'}
-            </button>
-          ))}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+          <div className="platform-tabs">
+            {['all', 'web', 'mobile'].map(p => (
+              <button key={p} className="platform-tab" aria-selected={platform === p} onClick={() => setPlatform(p)}>
+                {p === 'all' ? 'All' : p === 'web' ? 'Web' : 'Mobile'}
+              </button>
+            ))}
+          </div>
+          {!isClient && <button className="btn btn-ghost btn-sm" onClick={() => setShowManageFeatures(true)}>Manage features</button>}
         </div>
 
         {loading ? (
@@ -754,8 +792,18 @@ export default function RequirementsPage() {
       {showCreate && (
         <CreateRequirementModal
           projectId={id}
+          features={features}
           onClose={() => setShowCreate(false)}
           onCreated={r => setRequirements(rs => [r, ...rs])}
+        />
+      )}
+
+      {showManageFeatures && (
+        <ManageFeaturesModal
+          projectId={id}
+          features={features}
+          onClose={() => setShowManageFeatures(false)}
+          onChanged={fetchFeatures}
         />
       )}
 
@@ -763,8 +811,7 @@ export default function RequirementsPage() {
         <UploadRequirementsModal
           projectId={id}
           onClose={() => setShowUpload(false)}
-          onUploaded={newReqs => setRequirements(rs => [...newReqs, ...rs])}
-          onDiff={(document, diff, uploadPlatform) => setPendingDiff({ documentId: document.id, diff, platform: uploadPlatform })}
+          onDiff={(mode, document, diff, uploadPlatform) => setPendingDiff({ mode, documentId: document.id, diff, platform: uploadPlatform })}
         />
       )}
 
@@ -774,6 +821,8 @@ export default function RequirementsPage() {
           documentId={pendingDiff.documentId}
           diff={pendingDiff.diff}
           platform={pendingDiff.platform}
+          mode={pendingDiff.mode}
+          features={features}
           onClose={() => setPendingDiff(null)}
           onApplied={({ updated, removedIds, inserted }) => {
             setRequirements(rs => rs
@@ -784,6 +833,7 @@ export default function RequirementsPage() {
               .filter(r => !removedIds.includes(r.id))
             )
             if (inserted.length > 0) setRequirements(rs => [...inserted, ...rs])
+            if (inserted.some(r => r.feature_id)) fetchFeatures()
           }}
         />
       )}
@@ -793,6 +843,7 @@ export default function RequirementsPage() {
           requirement={selected}
           projectId={id}
           isClient={isClient}
+          features={features}
           onClose={() => setSelected(null)}
           onUpdated={(updated) => {
             setRequirements(rs => rs.map(r => r.id === updated.id ? { ...r, ...updated } : r))

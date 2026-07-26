@@ -185,6 +185,7 @@ export default function QualityHealth({ projectId, projectName }) {
   const [bugs, setBugs] = useState([])
   const [runs, setRuns] = useState([])
   const [requirements, setRequirements] = useState([])
+  const [features, setFeatures] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -195,13 +196,15 @@ export default function QualityHealth({ projectId, projectName }) {
       apiFetch(`/projects/${projectId}/bugs`).catch(() => []),
       apiFetch(`/projects/${projectId}/execution-runs`).catch(() => []),
       apiFetch(`/projects/${projectId}/requirements`).catch(() => []),
+      apiFetch(`/projects/${projectId}/features`).catch(() => []),
     ])
-      .then(([health, bugRows, runRows, reqRows]) => {
+      .then(([health, bugRows, runRows, reqRows, featureRows]) => {
         if (cancelled) return
         setData(health)
         setBugs(bugRows)
         setRuns(runRows)
         setRequirements(reqRows)
+        setFeatures(featureRows)
       })
       .catch(console.error)
       .finally(() => { if (!cancelled) setLoading(false) })
@@ -282,6 +285,36 @@ export default function QualityHealth({ projectId, projectName }) {
           </div>
         </div>
       </div>
+
+      {features.length > 0 && (
+        <div className="health-panel">
+          <div className="health-panel-head">
+            <div className="health-panel-title">Features</div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1rem' }}>
+            {features.map(f => {
+              const total = (f.passed || 0) + (f.failed || 0)
+              return (
+                <div key={f.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '0.95rem', color: 'var(--white)' }}>{f.name}</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>{f.test_case_count} test case{f.test_case_count === 1 ? '' : 's'}</div>
+                  {total > 0 && (
+                    <div style={{ display: 'flex', gap: '0.4rem' }}>
+                      <span className="badge badge-pass">{f.passed} passed</span>
+                      {f.failed > 0 && <span className="badge badge-fail">{f.failed} failed</span>}
+                    </div>
+                  )}
+                  {f.open_bug_count > 0 && (
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.78rem', color: 'var(--danger)', fontWeight: 600 }}>
+                      <Icon name="bug" size={12} /> {f.open_bug_count} open
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="health-body-grid">
         <div>

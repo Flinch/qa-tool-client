@@ -34,11 +34,12 @@ function CommentImage({ src }) {
   )
 }
 
-function BugModal({ projectId, onClose, onCreated }) {
+function BugModal({ projectId, features, onClose, onCreated }) {
   const { addToast } = useToastStore()
   const [form, setForm] = useState({ title: '', severity: 'high', steps_to_reproduce: '', expected: '', actual: '', notes: '' })
   const [executionRuns, setExecutionRuns] = useState([])
   const [linkedRunId, setLinkedRunId] = useState('')
+  const [featureId, setFeatureId] = useState('')
   const [loading, setLoading] = useState(false)
   const [attachedImage, setAttachedImage] = useState(null)
   const [compressing, setCompressing] = useState(false)
@@ -95,7 +96,7 @@ function BugModal({ projectId, onClose, onCreated }) {
   }
 
   const submit = async () => {
-    if (!form.title.trim()) return
+    if (!form.title.trim() || !featureId) return
     setLoading(true)
     try {
       const bug = await apiFetch(`/projects/${projectId}/bugs`, {
@@ -103,6 +104,7 @@ function BugModal({ projectId, onClose, onCreated }) {
         body: JSON.stringify({
           ...form,
           execution_run_id: linkedRunId || null,
+          feature_id: featureId,
           post_to_jira: postToJira && !!jiraProjectKey,
           jira: postToJira && jiraProjectKey
             ? { projectKey: jiraProjectKey, organization: jiraOrganization.trim() || null, image: attachedImage || null }
@@ -145,6 +147,13 @@ function BugModal({ projectId, onClose, onCreated }) {
           <select className="form-select" value={linkedRunId} onChange={e => setLinkedRunId(e.target.value)}>
             <option value="">None</option>
             {executionRuns.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+          </select>
+        </div>
+        <div className="form-group">
+          <label className="form-label">Feature *</label>
+          <select className="form-select" value={featureId} onChange={e => setFeatureId(e.target.value)}>
+            <option value="">Select a feature...</option>
+            {features.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
           </select>
         </div>
         <div className="form-group">
@@ -229,7 +238,7 @@ function BugModal({ projectId, onClose, onCreated }) {
 
         <div className="modal-footer">
           <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={submit} disabled={loading || !form.title.trim()}>{loading ? 'Logging...' : 'Log bug'}</button>
+          <button className="btn btn-primary" onClick={submit} disabled={loading || !form.title.trim() || !featureId}>{loading ? 'Logging...' : 'Log bug'}</button>
         </div>
       </div>
     </div>
@@ -515,6 +524,7 @@ export default function BugsPage() {
   const [bugs, setBugs] = useState([])
   const [executionRuns, setExecutionRuns] = useState([])
   const [suites, setSuites] = useState([])
+  const [features, setFeatures] = useState([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [filter, setFilter] = useState('all')
@@ -527,6 +537,7 @@ export default function BugsPage() {
   useEffect(() => { apiFetch(`/projects/${id}`).then(setProject).catch(console.error) }, [id])
   useEffect(() => { apiFetch(`/projects/${id}/execution-runs`).then(setExecutionRuns).catch(console.error) }, [id])
   useEffect(() => { apiFetch(`/projects/${id}/automation/suites`).then(setSuites).catch(console.error) }, [id])
+  useEffect(() => { apiFetch(`/projects/${id}/features`).then(setFeatures).catch(console.error) }, [id])
 
   useEffect(() => {
     apiFetch(`/projects/${id}/bugs`)
@@ -719,7 +730,7 @@ export default function BugsPage() {
           </div>
         )}
       </div>
-      {showModal && <BugModal projectId={id} onClose={() => setShowModal(false)} onCreated={b => setBugs(bs => [b, ...bs])} />}
+      {showModal && <BugModal projectId={id} features={features} onClose={() => setShowModal(false)} onCreated={b => setBugs(bs => [b, ...bs])} />}
       {selectedBug && (
         <BugDetailModal
           bug={selectedBug}

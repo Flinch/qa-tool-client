@@ -18,8 +18,10 @@ function CreateRunModal({ projectId, onClose, onCreated }) {
   const [name, setName] = useState('')
   const [testCases, setTestCases] = useState([])
   const [suites, setSuites] = useState([])
+  const [features, setFeatures] = useState([])
   const [selectedTcIds, setSelectedTcIds] = useState(new Set())
   const [selectedSuiteIds, setSelectedSuiteIds] = useState(new Set())
+  const [selectedFeatureIds, setSelectedFeatureIds] = useState(new Set())
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
@@ -27,9 +29,11 @@ function CreateRunModal({ projectId, onClose, onCreated }) {
     Promise.all([
       apiFetch(`/projects/${projectId}/test-cases`),
       apiFetch(`/projects/${projectId}/automation/suites`),
-    ]).then(([tcs, s]) => {
+      apiFetch(`/projects/${projectId}/features`),
+    ]).then(([tcs, s, f]) => {
       setTestCases(tcs)
       setSuites(s)
+      setFeatures(f)
     }).catch(e => addToast(e.message, 'error')).finally(() => setLoading(false))
   }, [projectId])
 
@@ -37,6 +41,20 @@ function CreateRunModal({ projectId, onClose, onCreated }) {
     const next = new Set(set)
     next.has(id) ? next.delete(id) : next.add(id)
     setSet(next)
+  }
+
+  // A test case has at most one feature_id, so checking/unchecking a feature
+  // can safely add/remove exactly its own test case ids from selectedTcIds
+  // without ever touching a test case another checked feature also claims.
+  const toggleFeature = (featureId) => {
+    const tcIdsForFeature = testCases.filter(tc => tc.feature_id === featureId).map(tc => tc.id)
+    const checking = !selectedFeatureIds.has(featureId)
+    toggle(selectedFeatureIds, setSelectedFeatureIds, featureId)
+    setSelectedTcIds(s => {
+      const next = new Set(s)
+      tcIdsForFeature.forEach(id => checking ? next.add(id) : next.delete(id))
+      return next
+    })
   }
 
   const create = async () => {
@@ -103,6 +121,29 @@ function CreateRunModal({ projectId, onClose, onCreated }) {
                       />
                       <span style={{ flex: 1 }}>{tc.title}</span>
                       <span className={`badge badge-${tc.type}`}>{TYPE_LABELS[tc.type]}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">
+                By feature {selectedFeatureIds.size > 0 && `(${selectedFeatureIds.size} selected)`}
+              </label>
+              {features.length === 0 ? (
+                <div className="form-hint">No features tracked in this project yet.</div>
+              ) : (
+                <div className="checkbox-list">
+                  {features.map(f => (
+                    <label key={f.id}>
+                      <input
+                        type="checkbox"
+                        checked={selectedFeatureIds.has(f.id)}
+                        onChange={() => toggleFeature(f.id)}
+                      />
+                      <span style={{ flex: 1 }}>{f.name}</span>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>{f.test_case_count} tests</span>
                     </label>
                   ))}
                 </div>

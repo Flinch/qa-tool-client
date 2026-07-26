@@ -6,13 +6,14 @@ import { useToastStore } from '../store/toastStore.jsx'
 import { formatStep } from '../lib/steps.js'
 import { handleImageFile } from '../lib/imageUpload.js'
 import Icon from '../components/Icon.jsx'
+import ManageFeaturesModal from '../components/ManageFeaturesModal.jsx'
 
 const TYPE_LABELS = { functional: 'Functional', integration: 'Integration', e2e: 'E2E' }
 const SEVERITIES = ['critical', 'high', 'medium', 'low']
 
-function CreateTestCaseModal({ projectId, onClose, onCreated }) {
+function CreateTestCaseModal({ projectId, features, onClose, onCreated }) {
   const { addToast } = useToastStore()
-  const [form, setForm] = useState({ title: '', type: 'functional', steps: '', expected: '', platform: 'web' })
+  const [form, setForm] = useState({ title: '', type: 'functional', steps: '', expected: '', platform: 'web', feature_id: '' })
   const [saving, setSaving] = useState(false)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
@@ -23,7 +24,7 @@ function CreateTestCaseModal({ projectId, onClose, onCreated }) {
       const stepsArray = form.steps.split('\n').map(s => s.trim()).filter(Boolean)
       const created = await apiFetch(`/projects/${projectId}/test-cases`, {
         method: 'POST',
-        body: JSON.stringify({ title: form.title, type: form.type, steps: stepsArray, expected: form.expected, platform: form.platform }),
+        body: JSON.stringify({ title: form.title, type: form.type, steps: stepsArray, expected: form.expected, platform: form.platform, feature_id: form.feature_id || null }),
       })
       addToast('Test case created')
       onCreated(created)
@@ -63,6 +64,14 @@ function CreateTestCaseModal({ projectId, onClose, onCreated }) {
         </div>
 
         <div className="form-group">
+          <label className="form-label">Feature</label>
+          <select className="form-select" value={form.feature_id} onChange={e => set('feature_id', e.target.value)}>
+            <option value="">None</option>
+            {features.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+          </select>
+        </div>
+
+        <div className="form-group">
           <label className="form-label">Steps (one per line)</label>
           <textarea
             className="form-textarea"
@@ -94,7 +103,7 @@ function CreateTestCaseModal({ projectId, onClose, onCreated }) {
   )
 }
 
-export function LogBugModal({ projectId, testCase, executionRunId, onClose, onLogged }) {
+export function LogBugModal({ projectId, testCase, executionRunId, features, onClose, onLogged }) {
   const { addToast } = useToastStore()
   const [form, setForm] = useState({
     title: `Bug in: ${testCase.title}`,
@@ -106,6 +115,10 @@ export function LogBugModal({ projectId, testCase, executionRunId, onClose, onLo
   })
   const [executionRuns, setExecutionRuns] = useState([])
   const [linkedRunId, setLinkedRunId] = useState(executionRunId || '')
+  // Pre-fill from the source test case's own feature when it has one —
+  // still editable, still required, same as test_case_id being implicitly
+  // set here but not locked.
+  const [featureId, setFeatureId] = useState(testCase.feature_id || '')
   const [loading, setLoading] = useState(false)
   const [attachedImage, setAttachedImage] = useState(null)
   const [compressing, setCompressing] = useState(false)
@@ -131,12 +144,12 @@ export function LogBugModal({ projectId, testCase, executionRunId, onClose, onLo
   }
 
   const submit = async () => {
-    if (!form.title.trim()) return
+    if (!form.title.trim() || !featureId) return
     setLoading(true)
     try {
       const bug = await apiFetch(`/projects/${projectId}/bugs`, {
         method: 'POST',
-        body: JSON.stringify({ ...form, test_case_id: testCase.id, execution_run_id: linkedRunId || null }),
+        body: JSON.stringify({ ...form, test_case_id: testCase.id, execution_run_id: linkedRunId || null, feature_id: featureId }),
       })
       if (attachedImage) {
         await apiFetch(`/projects/${projectId}/bugs/${bug.id}/comments`, {
@@ -171,6 +184,13 @@ export function LogBugModal({ projectId, testCase, executionRunId, onClose, onLo
           <select className="form-select" value={linkedRunId} onChange={e => setLinkedRunId(e.target.value)}>
             <option value="">None</option>
             {executionRuns.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+          </select>
+        </div>
+        <div className="form-group">
+          <label className="form-label">Feature *</label>
+          <select className="form-select" value={featureId} onChange={e => setFeatureId(e.target.value)}>
+            <option value="">Select a feature...</option>
+            {features.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
           </select>
         </div>
         <div className="form-group">
@@ -219,7 +239,7 @@ export function LogBugModal({ projectId, testCase, executionRunId, onClose, onLo
         </div>
         <div className="modal-footer">
           <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={submit} disabled={loading || !form.title.trim()}>
+          <button className="btn btn-primary" onClick={submit} disabled={loading || !form.title.trim() || !featureId}>
             {loading ? 'Logging...' : 'Log bug'}
           </button>
         </div>
@@ -228,7 +248,7 @@ export function LogBugModal({ projectId, testCase, executionRunId, onClose, onLo
   )
 }
 
-function TestCaseModal({ tc, projectId, isClient, onClose, onBugLogged, onTestCaseUpdated, onDeleted }) {
+function TestCaseModal({ tc, projectId, isClient, features, onClose, onBugLogged, onTestCaseUpdated, onDeleted }) {
   const { addToast } = useToastStore()
   const [linkedBugs, setLinkedBugs] = useState([])
   const [loadingBugs, setLoadingBugs] = useState(true)
@@ -242,6 +262,7 @@ function TestCaseModal({ tc, projectId, isClient, onClose, onBugLogged, onTestCa
     expected: tc.expected || '',
     automationCandidate: !!tc.automation_candidate,
     platform: tc.platform || 'web',
+    feature_id: tc.feature_id || '',
   })
   const [saving, setSaving] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
@@ -281,6 +302,7 @@ function TestCaseModal({ tc, projectId, isClient, onClose, onBugLogged, onTestCa
           expected: editForm.expected,
           automationCandidate: editForm.automationCandidate,
           platform: editForm.platform,
+          feature_id: editForm.feature_id || null,
         }),
       })
       onTestCaseUpdated(updated)
@@ -321,6 +343,7 @@ function TestCaseModal({ tc, projectId, isClient, onClose, onBugLogged, onTestCa
     <LogBugModal
       projectId={projectId}
       testCase={tc}
+      features={features}
       onClose={() => setShowLogBug(false)}
       onLogged={(bug) => {
         setLinkedBugs(bs => [bug, ...bs])
@@ -354,6 +377,14 @@ function TestCaseModal({ tc, projectId, isClient, onClose, onBugLogged, onTestCa
             <select className="form-select" value={editForm.platform} onChange={e => setEditForm(f => ({ ...f, platform: e.target.value }))}>
               <option value="web">Web</option>
               <option value="mobile">Mobile</option>
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Feature</label>
+            <select className="form-select" value={editForm.feature_id} onChange={e => setEditForm(f => ({ ...f, feature_id: e.target.value }))}>
+              <option value="">None</option>
+              {features.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
             </select>
           </div>
 
@@ -478,13 +509,18 @@ export default function TestCasesPage() {
   const isClient = user?.role === 'client'
   const [project, setProject] = useState(null)
   const [testCases, setTestCases] = useState([])
+  const [features, setFeatures] = useState([])
   const [loading, setLoading] = useState(true)
   const [showCreate, setShowCreate] = useState(false)
+  const [showManageFeatures, setShowManageFeatures] = useState(false)
   const [selectedTc, setSelectedTc] = useState(null)
   const [filter, setFilter] = useState('all')
   const [platform, setPlatform] = useState('all')
 
   useEffect(() => { apiFetch(`/projects/${id}`).then(setProject).catch(console.error) }, [id])
+
+  const fetchFeatures = () => apiFetch(`/projects/${id}/features`).then(setFeatures).catch(console.error)
+  useEffect(() => { fetchFeatures() }, [id])
 
   // Deep-link support: ?tcId=123 (from the dashboard/health activity feeds)
   // auto-opens that test case's detail modal once the list has loaded.
@@ -544,12 +580,15 @@ export default function TestCasesPage() {
           </div>
         )}
 
-        <div className="platform-tabs">
-          {['all', 'web', 'mobile'].map(p => (
-            <button key={p} className="platform-tab" aria-selected={platform === p} onClick={() => setPlatform(p)}>
-              {p === 'all' ? 'All' : p === 'web' ? 'Web' : 'Mobile'}
-            </button>
-          ))}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+          <div className="platform-tabs">
+            {['all', 'web', 'mobile'].map(p => (
+              <button key={p} className="platform-tab" aria-selected={platform === p} onClick={() => setPlatform(p)}>
+                {p === 'all' ? 'All' : p === 'web' ? 'Web' : 'Mobile'}
+              </button>
+            ))}
+          </div>
+          {!isClient && <button className="btn btn-ghost btn-sm" onClick={() => setShowManageFeatures(true)}>Manage features</button>}
         </div>
 
         <div className="filters-row">
@@ -620,8 +659,18 @@ export default function TestCasesPage() {
       {showCreate && (
         <CreateTestCaseModal
           projectId={id}
+          features={features}
           onClose={() => setShowCreate(false)}
           onCreated={tc => setTestCases(tcs => [tc, ...tcs])}
+        />
+      )}
+
+      {showManageFeatures && (
+        <ManageFeaturesModal
+          projectId={id}
+          features={features}
+          onClose={() => setShowManageFeatures(false)}
+          onChanged={fetchFeatures}
         />
       )}
 
@@ -630,6 +679,7 @@ export default function TestCasesPage() {
           tc={selectedTc}
           projectId={id}
           isClient={isClient}
+          features={features}
           onClose={() => {
             setSelectedTc(null)
             if (searchParams.has('tcId')) {
