@@ -182,18 +182,20 @@ function featureHealthColor(rate) {
   return 'var(--danger)'
 }
 
+// Compact horizontal chip, not a full card — icon + title/sub packed onto
+// one row so all 5 fit in two tight columns instead of stacking into three
+// tall rows, which was most of what made this section of the page long.
 function AccessTile({ to, icon, title, sub }) {
   return (
     <Link to={to} style={{ textDecoration: 'none' }}>
-      <div className="card-sm access-tile" style={{ transition: 'border-color 0.2s', height: '100%', display: 'flex', flexDirection: 'column' }}>
-        <div className="access-tile-icon" style={{ width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border2)', color: 'var(--accent)', marginBottom: '0.75rem', transition: 'color 0.2s, border-color 0.2s, background 0.2s' }}>
-          <Icon name={icon} size={18} />
+      <div className="card-sm access-tile" style={{ transition: 'border-color 0.2s', display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+        <div className="access-tile-icon" style={{ width: 26, height: 26, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border2)', color: 'var(--accent)', transition: 'color 0.2s, border-color 0.2s, background 0.2s' }}>
+          <Icon name={icon} size={13} />
         </div>
-        <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)', fontSize: '0.92rem', marginBottom: '0.2rem' }}>{title}</div>
-        {/* Fixed min-height so a two-line sub (e.g. "Run manual & automated
-            tests") doesn't make its tile taller than the rest of the row —
-            every tile reserves the same space regardless of wording length. */}
-        <div style={{ fontSize: '0.76rem', color: 'var(--muted)', minHeight: '2.1em' }}>{sub}</div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)', fontSize: '0.8rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</div>
+          <div style={{ fontSize: '0.7rem', color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sub}</div>
+        </div>
       </div>
     </Link>
   )
