@@ -259,6 +259,7 @@ export default function QualityHealth({ projectId, projectName }) {
   const [runs, setRuns] = useState([])
   const [requirements, setRequirements] = useState([])
   const [features, setFeatures] = useState([])
+  const [automationRuns, setAutomationRuns] = useState([])
   const [loading, setLoading] = useState(true)
   // The bell lives in the real page topbar (rendered by ProjectDetailPage),
   // not inside this component's own hero card — portaled into the mount
@@ -278,14 +279,16 @@ export default function QualityHealth({ projectId, projectName }) {
       apiFetch(`/projects/${projectId}/execution-runs`).catch(() => []),
       apiFetch(`/projects/${projectId}/requirements`).catch(() => []),
       apiFetch(`/projects/${projectId}/features`).catch(() => []),
+      apiFetch(`/projects/${projectId}/automation/runs`).catch(() => []),
     ])
-      .then(([health, bugRows, runRows, reqRows, featureRows]) => {
+      .then(([health, bugRows, runRows, reqRows, featureRows, automationRunRows]) => {
         if (cancelled) return
         setData(health)
         setBugs(bugRows)
         setRuns(runRows)
         setRequirements(reqRows)
         setFeatures(featureRows)
+        setAutomationRuns(automationRunRows)
       })
       .catch(console.error)
       .finally(() => { if (!cancelled) setLoading(false) })
@@ -390,6 +393,50 @@ export default function QualityHealth({ projectId, projectName }) {
             ) : (
               <div style={{ fontSize: '0.85rem', color: 'var(--muted)', padding: '0.75rem 0' }}>
                 Run your first execution to start tracking trends over time.
+              </div>
+            )}
+          </div>
+
+          <div className="health-panel">
+            <div className="health-panel-head">
+              <div className="health-panel-title">Recent automation runs</div>
+              <Link to={`/projects/${projectId}/automation`} className="health-panel-link">Automation <Icon name="arrowRight" size={11} /></Link>
+            </div>
+            {automationRuns.length === 0 ? (
+              <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>No automation runs yet.</div>
+            ) : (
+              <div>
+                {automationRuns.slice(0, 5).map((r, i, arr) => {
+                  const hasResult = r.status === 'completed' && r.total > 0
+                  const rate = hasResult ? Math.round((r.passed / r.total) * 100) : null
+                  const rateColor = rate === null ? 'var(--muted)' : featureHealthColor(rate)
+                  const statusText = hasResult
+                    ? `${rate}% (${r.passed}/${r.total})`
+                    : r.status === 'failed' ? 'Failed to run'
+                    : r.status === 'running' ? 'Running…'
+                    : 'Pending'
+                  return (
+                    <div
+                      key={r.id}
+                      onClick={() => navigate(`/projects/${projectId}/automation`)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '0.75rem',
+                        padding: '0.55rem 0', cursor: 'pointer',
+                        borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none',
+                      }}
+                    >
+                      <div style={{ flex: 1, minWidth: 0, fontSize: '0.85rem', color: 'var(--light)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {r.suite_name}
+                      </div>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 600, color: rateColor, flexShrink: 0 }}>
+                        {statusText}
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--faint)', flexShrink: 0, width: 68, textAlign: 'right' }}>
+                        {timeAgo(r.completed_at || r.started_at)}
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             )}
           </div>
