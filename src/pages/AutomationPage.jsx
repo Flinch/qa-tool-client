@@ -148,24 +148,22 @@ function SuiteCard({ suite, onRun, running, readOnly }) {
           </>
         )}
         {!readOnly && (
-          <>
-            <Link
-              to={`/projects/${suite.project_id}/automation/suites/${suite.id}/test-cases`}
-              className="btn btn-ghost btn-sm"
-              style={{ width: '100%', justifyContent: 'center', marginBottom: '0.5rem' }}
-            >
-              View test cases
-            </Link>
-            <button
-              className="btn btn-primary btn-sm"
-              onClick={() => onRun(suite)}
-              disabled={isRunning}
-              style={{ width: '100%' }}
-            >
-              {isRunning ? 'Running…' : 'Run suite'}
-            </button>
-          </>
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={() => onRun(suite)}
+            disabled={isRunning}
+            style={{ width: '100%', justifyContent: 'center', marginBottom: '0.5rem' }}
+          >
+            {isRunning ? 'Running…' : 'Run suite'}
+          </button>
         )}
+        <Link
+          to={`/projects/${suite.project_id}/automation/suites/${suite.id}/test-cases`}
+          className="btn btn-ghost btn-sm"
+          style={{ width: '100%', justifyContent: 'center' }}
+        >
+          View test cases
+        </Link>
       </div>
     </div>
   )
@@ -504,14 +502,12 @@ export default function AutomationPage() {
 
   useEffect(() => { load().catch(e => addToast(e.message, 'error')) }, [load])
 
-  // Staff-only, same gate as the backend route — skip the request entirely
-  // for clients rather than eating a guaranteed 403.
+  // Staff + read-only clients both have access to this route.
   useEffect(() => {
-    if (isClient) return
     apiFetch(`/projects/${id}/automation/generated-test-cases`)
       .then(data => setGeneratedCount(data.testCases.length))
       .catch(() => setGeneratedCount(null))
-  }, [id, isClient])
+  }, [id])
 
   // Live updates via SSE — native EventSource can't send Authorization headers,
   // so the token is passed as a query param and verified server-side instead.
@@ -749,7 +745,7 @@ export default function AutomationPage() {
                       cross-cutting view over every suite's generated tests,
                       so it sits above the web/mobile tabs rather than inside
                       one platform's grid. */}
-                  {!isClient && generatedCount !== null && (
+                  {generatedCount !== null && (
                     <Link to={`/projects/${id}/automation/generated-test-cases`} style={{ textDecoration: 'none', display: 'block', marginBottom: '1rem' }}>
                       <div className="card suite-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <div>
