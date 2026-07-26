@@ -148,14 +148,23 @@ function SuiteCard({ suite, onRun, running, readOnly }) {
           </>
         )}
         {!readOnly && (
-          <button
-            className="btn btn-primary btn-sm"
-            onClick={() => onRun(suite)}
-            disabled={isRunning}
-            style={{ width: '100%' }}
-          >
-            {isRunning ? 'Running…' : 'Run suite'}
-          </button>
+          <>
+            <Link
+              to={`/projects/${suite.project_id}/automation/suites/${suite.id}/test-cases`}
+              className="btn btn-ghost btn-sm"
+              style={{ width: '100%', justifyContent: 'center', marginBottom: '0.5rem' }}
+            >
+              View test cases
+            </Link>
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={() => onRun(suite)}
+              disabled={isRunning}
+              style={{ width: '100%' }}
+            >
+              {isRunning ? 'Running…' : 'Run suite'}
+            </button>
+          </>
         )}
       </div>
     </div>
@@ -453,6 +462,7 @@ export default function AutomationPage() {
   const [project, setProject] = useState(null)
   const [suites, setSuites] = useState([])
   const [runs, setRuns] = useState([])
+  const [generatedCount, setGeneratedCount] = useState(null)
   const [loading, setLoading] = useState(true)
   const [triggeringSuiteId, setTriggeringSuiteId] = useState(null)
   const [showGenerateTests, setShowGenerateTests] = useState(false)
@@ -493,6 +503,15 @@ export default function AutomationPage() {
   }, [id])
 
   useEffect(() => { load().catch(e => addToast(e.message, 'error')) }, [load])
+
+  // Staff-only, same gate as the backend route — skip the request entirely
+  // for clients rather than eating a guaranteed 403.
+  useEffect(() => {
+    if (isClient) return
+    apiFetch(`/projects/${id}/automation/generated-test-cases`)
+      .then(data => setGeneratedCount(data.testCases.length))
+      .catch(() => setGeneratedCount(null))
+  }, [id, isClient])
 
   // Live updates via SSE — native EventSource can't send Authorization headers,
   // so the token is passed as a query param and verified server-side instead.
@@ -726,6 +745,23 @@ export default function AutomationPage() {
                 <div className="empty-state"><h3>No automation suites yet</h3>{!isClient && <p>Suites are created via the API for now — ask your engineer to set one up.</p>}</div>
               ) : (
                 <>
+                  {/* Not a real suite (automation_suites row) — it's a
+                      cross-cutting view over every suite's generated tests,
+                      so it sits above the web/mobile tabs rather than inside
+                      one platform's grid. */}
+                  {!isClient && generatedCount !== null && (
+                    <Link to={`/projects/${id}/automation/generated-test-cases`} style={{ textDecoration: 'none', display: 'block', marginBottom: '1rem' }}>
+                      <div className="card suite-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div>
+                          <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '0.95rem', color: 'var(--white)' }}>Generated test cases</div>
+                          <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: '0.2rem' }}>
+                            Every AI-generated test, across all suites — {generatedCount} test case{generatedCount === 1 ? '' : 's'}
+                          </div>
+                        </div>
+                        <Icon name="arrowRight" size={16} style={{ color: 'var(--muted)' }} />
+                      </div>
+                    </Link>
+                  )}
                   <div className="platform-tabs">
                     <button
                       className="platform-tab" aria-selected={platformTab === 'web'}
