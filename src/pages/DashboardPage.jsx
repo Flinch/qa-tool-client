@@ -4,6 +4,7 @@ import { apiFetch } from '../lib/api.js'
 import { useAuth } from '../store/AuthContext.jsx'
 import { timeAgo } from '../lib/timeAgo.js'
 import DashboardNotes from '../components/DashboardNotes.jsx'
+import NotificationBell from '../components/NotificationBell.jsx'
 
 function activityDotColor(ev) {
   if (ev.kind === 'bug_resolved') return 'var(--success)'
@@ -67,10 +68,21 @@ export default function DashboardPage() {
 
   const firstName = user?.name?.split(' ')[0]
   const openBugsTotal = stats ? ['critical', 'high', 'medium', 'low'].reduce((sum, s) => sum + (stats.bugsBySeverity?.[s] || 0), 0) : 0
+  const activityForBell = (stats?.recentActivity || []).map((ev, i) => ({
+    ...ev,
+    key: i,
+    dotColor: activityDotColor(ev),
+    link: activityLink(ev),
+  }))
 
   return (
     <>
-      <div className="topbar"><span className="topbar-title">Dashboard</span></div>
+      <div className="topbar">
+        <span className="topbar-title">Dashboard</span>
+        <div className="topbar-actions">
+          <NotificationBell activity={activityForBell} storageKey="qa_tool_activity_seen_dashboard" />
+        </div>
+      </div>
       <div className="page-content fade-in" style={{ maxWidth: 1280 }}>
         <div>
           <h1 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '1.5rem', fontWeight: 700, color: 'var(--white)', marginBottom: '0.25rem' }}>
@@ -161,40 +173,6 @@ export default function DashboardPage() {
 
         <div className="health-body-grid">
           <div>
-            <div className="health-panel">
-              <div className="health-panel-head">
-                <div className="health-panel-title">Recent activity</div>
-              </div>
-              {!stats?.recentActivity?.length ? (
-                <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>Nothing has happened yet.</div>
-              ) : (
-                <div>
-                  {stats.recentActivity.map((ev, i) => {
-                    const link = activityLink(ev)
-                    return (
-                      <div
-                        className="health-activity-row"
-                        key={i}
-                        onClick={link ? () => navigate(link) : undefined}
-                        style={link ? { cursor: 'pointer' } : undefined}
-                      >
-                        <div className="health-activity-dot-wrap">
-                          <span className="health-activity-dot" style={{ background: activityDotColor(ev) }} />
-                          {i < stats.recentActivity.length - 1 && <span className="health-activity-line" />}
-                        </div>
-                        <div>
-                          <div className="health-activity-text">{ev.text}</div>
-                          <div className="health-activity-time">
-                            <span style={{ color: 'var(--accent2)' }}>{ev.projectName?.toUpperCase()}</span> · {timeAgo(ev.time).toUpperCase()}
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-
             <div className="health-panel">
               <div className="health-panel-head">
                 <div className="health-panel-title">Recent test runs</div>

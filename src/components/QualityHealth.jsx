@@ -4,6 +4,7 @@ import { apiFetch } from '../lib/api.js'
 import { useAuth } from '../store/AuthContext.jsx'
 import { timeAgo } from '../lib/timeAgo.js'
 import Icon from './Icon.jsx'
+import NotificationBell from './NotificationBell.jsx'
 
 const STATUS_META = {
   excellent:        { label: 'Excellent',          color: 'var(--success)' },
@@ -112,14 +113,22 @@ function TrendChart({ points }) {
   )
 }
 
+// Same tiering as the pass-rate color used elsewhere (e.g. DashboardPage's
+// recent-runs column) — kept consistent rather than inventing new thresholds.
+function featureHealthColor(rate) {
+  if (rate >= 90) return 'var(--success)'
+  if (rate >= 70) return 'var(--warning)'
+  return 'var(--danger)'
+}
+
 function AccessTile({ to, icon, title, sub }) {
   return (
     <Link to={to} style={{ textDecoration: 'none' }}>
-      <div className="card-sm">
-        <div style={{ width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border2)', color: 'var(--accent)', marginBottom: '0.65rem' }}>
-          <Icon name={icon} size={16} />
+      <div className="card-sm access-tile" style={{ transition: 'border-color 0.2s' }}>
+        <div className="access-tile-icon" style={{ width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border2)', color: 'var(--accent)', marginBottom: '0.75rem', transition: 'color 0.2s, border-color 0.2s, background 0.2s' }}>
+          <Icon name={icon} size={18} />
         </div>
-        <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)', fontSize: '0.9rem', marginBottom: '0.2rem' }}>{title}</div>
+        <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)', fontSize: '0.92rem', marginBottom: '0.2rem' }}>{title}</div>
         <div style={{ fontSize: '0.76rem', color: 'var(--muted)' }}>{sub}</div>
       </div>
     </Link>
@@ -230,6 +239,13 @@ export default function QualityHealth({ projectId, projectName }) {
     .slice(0, 3)
 
   const activity = buildActivity(bugs, runs, requirements)
+  const activityForBell = activity.map((ev, i) => ({
+    ...ev,
+    key: i,
+    link: ev.bugId ? `/projects/${projectId}/bugs?bugId=${ev.bugId}`
+      : ev.runId ? `/projects/${projectId}/executions/${ev.runId}`
+      : null,
+  }))
 
   return (
     <div className="fade-in">
@@ -240,9 +256,12 @@ export default function QualityHealth({ projectId, projectName }) {
             <h1 className="health-greeting-h1">{summary.headline}</h1>
             <div className="health-greeting-sub">{summary.sub}</div>
           </div>
-          <div className="health-status-pill" style={{ borderColor: status.color, color: status.color }}>
-            <span className="health-status-dot" style={{ background: status.color }} />
-            {status.label}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <NotificationBell activity={activityForBell} storageKey={`qa_tool_activity_seen_project_${projectId}`} />
+            <div className="health-status-pill" style={{ borderColor: status.color, color: status.color }}>
+              <span className="health-status-dot" style={{ background: status.color }} />
+              {status.label}
+            </div>
           </div>
         </div>
 
@@ -286,29 +305,47 @@ export default function QualityHealth({ projectId, projectName }) {
         </div>
       </div>
 
+      <div className="health-panel">
+        <div className="health-panel-head"><div className="health-panel-title">Jump in</div></div>
+        <div className="health-access-grid">
+          <AccessTile to={`/projects/${projectId}/requirements`} icon="target" title="Requirements"
+            sub={data.totalRequirements > 0 ? `${data.coveredRequirements} of ${data.totalRequirements} covered` : 'None tracked yet'} />
+          <AccessTile to={`/projects/${projectId}/tests`} icon="check" title="Test cases"
+            sub={`${tc.total} total`} />
+          <AccessTile to={`/projects/${projectId}/executions`} icon="play" title="Executions"
+            sub="Run manual & automated tests" />
+          <AccessTile to={`/projects/${projectId}/bugs`} icon="bug" title="Bug reports"
+            sub={`${openBugsTotal} open`} />
+          <AccessTile to={`/projects/${projectId}/automation`} icon="gear" title="Automation"
+            sub={data.automationCoverage !== null ? `${data.automationCoverage}% covered` : 'Not set up yet'} />
+        </div>
+      </div>
+
       {features.length > 0 && (
         <div className="health-panel">
           <div className="health-panel-head">
             <div className="health-panel-title">Features</div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
             {features.map(f => {
-              const total = (f.passed || 0) + (f.failed || 0)
+              // Pass rate against the feature's *whole* test case count, not
+              // just the ones that have run — an untested test case should
+              // drag the rate down, not be excluded, so this reads as real
+              // stability rather than "of the ones we bothered to check."
+              const hasData = f.test_case_count > 0 && (f.passed > 0 || f.failed > 0)
+              const rate = hasData ? Math.round((f.passed / f.test_case_count) * 100) : 0
+              const color = hasData ? featureHealthColor(rate) : 'var(--muted)'
               return (
-                <div key={f.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '0.95rem', color: 'var(--white)' }}>{f.name}</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>{f.test_case_count} test case{f.test_case_count === 1 ? '' : 's'}</div>
-                  {total > 0 && (
-                    <div style={{ display: 'flex', gap: '0.4rem' }}>
-                      <span className="badge badge-pass">{f.passed} passed</span>
-                      {f.failed > 0 && <span className="badge badge-fail">{f.failed} failed</span>}
-                    </div>
-                  )}
-                  {f.open_bug_count > 0 && (
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.78rem', color: 'var(--danger)', fontWeight: 600 }}>
-                      <Icon name="bug" size={12} /> {f.open_bug_count} open
-                    </div>
-                  )}
+                <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                  <div style={{ width: 140, flexShrink: 0, fontSize: '0.83rem', color: 'var(--light)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={f.name}>
+                    {f.name}
+                  </div>
+                  <div style={{ flex: 1, height: 6, background: 'var(--border)', borderRadius: 3, overflow: 'hidden' }}>
+                    {hasData && <div style={{ width: `${rate}%`, height: '100%', background: color, borderRadius: 3, transition: 'width 0.4s ease' }} />}
+                  </div>
+                  <div style={{ width: 190, flexShrink: 0, textAlign: 'right', fontSize: '0.78rem', color, fontWeight: hasData ? 600 : 400 }}>
+                    {hasData ? `${rate}% pass rate (${f.passed}/${f.test_case_count})` : 'Not enough info gathered'}
+                  </div>
                 </div>
               )
             })}
@@ -328,40 +365,6 @@ export default function QualityHealth({ projectId, projectName }) {
             ) : (
               <div style={{ fontSize: '0.85rem', color: 'var(--muted)', padding: '0.75rem 0' }}>
                 Run your first execution to start tracking trends over time.
-              </div>
-            )}
-          </div>
-
-          <div className="health-panel">
-            <div className="health-panel-head">
-              <div className="health-panel-title">Recent activity</div>
-            </div>
-            {activity.length === 0 ? (
-              <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>Nothing has happened here yet.</div>
-            ) : (
-              <div>
-                {activity.map((ev, i) => {
-                  const link = ev.bugId ? `/projects/${projectId}/bugs?bugId=${ev.bugId}`
-                    : ev.runId ? `/projects/${projectId}/executions/${ev.runId}`
-                    : null
-                  return (
-                    <div
-                      className="health-activity-row"
-                      key={i}
-                      onClick={link ? () => navigate(link) : undefined}
-                      style={link ? { cursor: 'pointer' } : undefined}
-                    >
-                      <div className="health-activity-dot-wrap">
-                        <span className="health-activity-dot" style={{ background: ev.dotColor }} />
-                        {i < activity.length - 1 && <span className="health-activity-line" />}
-                      </div>
-                      <div>
-                        <div className="health-activity-text">{ev.text}</div>
-                        <div className="health-activity-time">{timeAgo(ev.time).toUpperCase()}</div>
-                      </div>
-                    </div>
-                  )
-                })}
               </div>
             )}
           </div>
@@ -396,22 +399,6 @@ export default function QualityHealth({ projectId, projectName }) {
                 </div>
               ))
             )}
-          </div>
-
-          <div className="health-panel">
-            <div className="health-panel-head"><div className="health-panel-title">Jump in</div></div>
-            <div className="health-access-grid">
-              <AccessTile to={`/projects/${projectId}/requirements`} icon="target" title="Requirements"
-                sub={data.totalRequirements > 0 ? `${data.coveredRequirements} of ${data.totalRequirements} covered` : 'None tracked yet'} />
-              <AccessTile to={`/projects/${projectId}/tests`} icon="check" title="Test cases"
-                sub={`${tc.total} total`} />
-              <AccessTile to={`/projects/${projectId}/executions`} icon="play" title="Executions"
-                sub="Run manual & automated tests" />
-              <AccessTile to={`/projects/${projectId}/bugs`} icon="bug" title="Bug reports"
-                sub={`${openBugsTotal} open`} />
-              <AccessTile to={`/projects/${projectId}/automation`} icon="gear" title="Automation"
-                sub={data.automationCoverage !== null ? `${data.automationCoverage}% covered` : 'Not set up yet'} />
-            </div>
           </div>
         </div>
       </div>

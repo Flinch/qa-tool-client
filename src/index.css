@@ -595,7 +595,53 @@ tr:hover td { background: rgba(237,231,220,0.02); }
 .health-activity-text { font-size: 0.85rem; color: var(--light); margin-bottom: 0.15rem; }
 .health-activity-time { font-family: 'IBM Plex Mono', monospace; font-size: 0.66rem; color: var(--faint); }
 
-.health-access-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; }
+.health-access-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.9rem; }
+.access-tile:hover { border-color: var(--accent); }
+.access-tile:hover .access-tile-icon { color: var(--white); border-color: var(--accent); background: var(--accent); }
+
+/* NOTIFICATION BELL — shared by the client dashboard and staff Dashboard */
+.notif-bell-wrap { position: relative; }
+.notif-bell-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px; height: 34px;
+  border: 1px solid var(--border);
+  background: var(--card2);
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.notif-bell-btn:hover { border-color: var(--border2); color: var(--light); }
+.notif-bell-dot {
+  position: absolute;
+  top: 6px; right: 6px;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--danger);
+  box-shadow: 0 0 0 2px var(--card2);
+}
+.notif-bell-dropdown {
+  position: absolute;
+  top: calc(100% + 0.6rem);
+  right: 0;
+  width: 340px;
+  max-height: 420px;
+  overflow-y: auto;
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: 0 16px 40px rgba(0,0,0,0.4);
+  z-index: 100;
+  padding: 1.1rem 1.2rem;
+}
+.notif-bell-title {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--white);
+  margin-bottom: 0.75rem;
+}
 
 /* COMMAND CENTER DASHBOARD (staff landing page) */
 .dash-kpi-band {
