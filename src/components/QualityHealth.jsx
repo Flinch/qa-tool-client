@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link, useNavigate } from 'react-router-dom'
 import { apiFetch } from '../lib/api.js'
 import { useAuth } from '../store/AuthContext.jsx'
@@ -64,26 +65,86 @@ function buildSummary(data, projectName) {
   }
 }
 
-function Gauge({ value, color }) {
+// Renders the per-feature pass-rate breakdown row — same bar+text shape
+// whether it's showing real data or the "not enough info" empty state.
+function FeatureBreakdownRow({ f }) {
+  // Pass rate against the feature's *whole* test case count, not just the
+  // ones that have run — an untested test case should drag the rate down,
+  // not be excluded, so this reads as real stability rather than "of the
+  // ones we bothered to check."
+  const hasData = f.test_case_count > 0 && (f.passed > 0 || f.failed > 0)
+  const rate = hasData ? Math.round((f.passed / f.test_case_count) * 100) : 0
+  const color = hasData ? featureHealthColor(rate) : 'var(--muted)'
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.3rem 0' }}>
+      <div style={{ width: 92, flexShrink: 0, fontSize: '0.78rem', color: 'var(--light)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={f.name}>
+        {f.name}
+      </div>
+      <div style={{ flex: 1, height: 5, background: 'var(--border)', borderRadius: 3, overflow: 'hidden' }}>
+        {hasData && <div style={{ width: `${rate}%`, height: '100%', background: color, borderRadius: 3 }} />}
+      </div>
+      <div style={{ width: 60, flexShrink: 0, textAlign: 'right', fontSize: '0.72rem', color, fontWeight: hasData ? 600 : 400 }}>
+        {hasData ? `${rate}%` : '—'}
+      </div>
+    </div>
+  )
+}
+
+// The gauge's percentage is a single blended number — hovering reveals the
+// per-feature breakdown behind it. Portaled to document.body (not just
+// absolutely positioned in place) because `.health-hero` clips overflow for
+// its background glow effect, which would otherwise cut the popover off.
+function Gauge({ value, color, breakdown }) {
   const r = 54, c = 2 * Math.PI * r
   const offset = value === null ? 0 : c * (1 - value / 100)
+  const [hover, setHover] = useState(false)
+  const [pos, setPos] = useState(null)
+  const wrapRef = useRef(null)
+
+  const onEnter = () => {
+    if (wrapRef.current) {
+      const rect = wrapRef.current.getBoundingClientRect()
+      setPos({ top: rect.bottom + 10, left: rect.left + rect.width / 2 })
+    }
+    setHover(true)
+  }
+
+  const hasBreakdown = breakdown && breakdown.length > 0
+
   return (
-    <svg width={128} height={128} viewBox="0 0 128 128" style={{ flexShrink: 0 }}>
-      <circle cx="64" cy="64" r={r} fill="none" stroke="var(--border)" strokeWidth="10" />
-      {value !== null && (
-        <circle
-          cx="64" cy="64" r={r} fill="none" stroke={color} strokeWidth="10" strokeLinecap="round"
-          strokeDasharray={c} strokeDashoffset={offset} transform="rotate(-90 64 64)"
-          style={{ transition: 'stroke-dashoffset 0.6s ease' }}
-        />
+    <div
+      ref={wrapRef}
+      style={{ position: 'relative', flexShrink: 0, cursor: hasBreakdown ? 'default' : undefined }}
+      onMouseEnter={hasBreakdown ? onEnter : undefined}
+      onMouseLeave={() => setHover(false)}
+    >
+      <svg width={128} height={128} viewBox="0 0 128 128" style={{ display: 'block' }}>
+        <circle cx="64" cy="64" r={r} fill="none" stroke="var(--border)" strokeWidth="10" />
+        {value !== null && (
+          <circle
+            cx="64" cy="64" r={r} fill="none" stroke={color} strokeWidth="10" strokeLinecap="round"
+            strokeDasharray={c} strokeDashoffset={offset} transform="rotate(-90 64 64)"
+            style={{ transition: 'stroke-dashoffset 0.6s ease' }}
+          />
+        )}
+        <text x="64" y="60" textAnchor="middle" style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: 28, fill: 'var(--white)' }}>
+          {value !== null ? `${value}%` : '—'}
+        </text>
+        <text x="64" y="78" textAnchor="middle" style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 9, letterSpacing: '0.05em', fill: 'var(--muted)' }}>
+          PASS RATE
+        </text>
+      </svg>
+      {hover && hasBreakdown && pos && createPortal(
+        <div
+          className="notif-bell-dropdown"
+          style={{ position: 'fixed', top: pos.top, left: pos.left, transform: 'translateX(-50%)', width: 260 }}
+        >
+          <div className="notif-bell-title">Pass rate by feature</div>
+          {breakdown.map(f => <FeatureBreakdownRow key={f.id} f={f} />)}
+        </div>,
+        document.body
       )}
-      <text x="64" y="60" textAnchor="middle" style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: 28, fill: 'var(--white)' }}>
-        {value !== null ? `${value}%` : '—'}
-      </text>
-      <text x="64" y="78" textAnchor="middle" style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 9, letterSpacing: '0.05em', fill: 'var(--muted)' }}>
-        PASS RATE
-      </text>
-    </svg>
+    </div>
   )
 }
 
@@ -124,12 +185,15 @@ function featureHealthColor(rate) {
 function AccessTile({ to, icon, title, sub }) {
   return (
     <Link to={to} style={{ textDecoration: 'none' }}>
-      <div className="card-sm access-tile" style={{ transition: 'border-color 0.2s' }}>
+      <div className="card-sm access-tile" style={{ transition: 'border-color 0.2s', height: '100%', display: 'flex', flexDirection: 'column' }}>
         <div className="access-tile-icon" style={{ width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border2)', color: 'var(--accent)', marginBottom: '0.75rem', transition: 'color 0.2s, border-color 0.2s, background 0.2s' }}>
           <Icon name={icon} size={18} />
         </div>
         <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)', fontSize: '0.92rem', marginBottom: '0.2rem' }}>{title}</div>
-        <div style={{ fontSize: '0.76rem', color: 'var(--muted)' }}>{sub}</div>
+        {/* Fixed min-height so a two-line sub (e.g. "Run manual & automated
+            tests") doesn't make its tile taller than the rest of the row —
+            every tile reserves the same space regardless of wording length. */}
+        <div style={{ fontSize: '0.76rem', color: 'var(--muted)', minHeight: '2.1em' }}>{sub}</div>
       </div>
     </Link>
   )
@@ -196,6 +260,14 @@ export default function QualityHealth({ projectId, projectName }) {
   const [requirements, setRequirements] = useState([])
   const [features, setFeatures] = useState([])
   const [loading, setLoading] = useState(true)
+  // The bell lives in the real page topbar (rendered by ProjectDetailPage),
+  // not inside this component's own hero card — portaled into the mount
+  // point ProjectDetailPage reserves for it, so it reads as "top of the
+  // page" rather than "top of the first card." Declared up here with the
+  // other hooks since this component has early returns below (loading/error
+  // states) and hooks can't follow those conditionally.
+  const [bellMount, setBellMount] = useState(null)
+  useEffect(() => { setBellMount(document.getElementById('client-topbar-bell')) }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -249,6 +321,10 @@ export default function QualityHealth({ projectId, projectName }) {
 
   return (
     <div className="fade-in">
+      {bellMount && createPortal(
+        <NotificationBell activity={activityForBell} storageKey={`qa_tool_activity_seen_project_${projectId}`} />,
+        bellMount
+      )}
       <div className="health-hero">
         <div className="health-hero-top">
           <div>
@@ -256,17 +332,14 @@ export default function QualityHealth({ projectId, projectName }) {
             <h1 className="health-greeting-h1">{summary.headline}</h1>
             <div className="health-greeting-sub">{summary.sub}</div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <NotificationBell activity={activityForBell} storageKey={`qa_tool_activity_seen_project_${projectId}`} />
-            <div className="health-status-pill" style={{ borderColor: status.color, color: status.color }}>
-              <span className="health-status-dot" style={{ background: status.color }} />
-              {status.label}
-            </div>
+          <div className="health-status-pill" style={{ borderColor: status.color, color: status.color }}>
+            <span className="health-status-dot" style={{ background: status.color }} />
+            {status.label}
           </div>
         </div>
 
         <div className="health-gauge-row">
-          <Gauge value={data.passRate} color={status.color} />
+          <Gauge value={data.passRate} color={status.color} breakdown={features} />
 
           <div className="health-kpi-strip">
             <div className="health-kpi">
@@ -304,54 +377,6 @@ export default function QualityHealth({ projectId, projectName }) {
           </div>
         </div>
       </div>
-
-      <div className="health-panel">
-        <div className="health-panel-head"><div className="health-panel-title">Jump in</div></div>
-        <div className="health-access-grid">
-          <AccessTile to={`/projects/${projectId}/requirements`} icon="target" title="Requirements"
-            sub={data.totalRequirements > 0 ? `${data.coveredRequirements} of ${data.totalRequirements} covered` : 'None tracked yet'} />
-          <AccessTile to={`/projects/${projectId}/tests`} icon="check" title="Test cases"
-            sub={`${tc.total} total`} />
-          <AccessTile to={`/projects/${projectId}/executions`} icon="play" title="Executions"
-            sub="Run manual & automated tests" />
-          <AccessTile to={`/projects/${projectId}/bugs`} icon="bug" title="Bug reports"
-            sub={`${openBugsTotal} open`} />
-          <AccessTile to={`/projects/${projectId}/automation`} icon="gear" title="Automation"
-            sub={data.automationCoverage !== null ? `${data.automationCoverage}% covered` : 'Not set up yet'} />
-        </div>
-      </div>
-
-      {features.length > 0 && (
-        <div className="health-panel">
-          <div className="health-panel-head">
-            <div className="health-panel-title">Features</div>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-            {features.map(f => {
-              // Pass rate against the feature's *whole* test case count, not
-              // just the ones that have run — an untested test case should
-              // drag the rate down, not be excluded, so this reads as real
-              // stability rather than "of the ones we bothered to check."
-              const hasData = f.test_case_count > 0 && (f.passed > 0 || f.failed > 0)
-              const rate = hasData ? Math.round((f.passed / f.test_case_count) * 100) : 0
-              const color = hasData ? featureHealthColor(rate) : 'var(--muted)'
-              return (
-                <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-                  <div style={{ width: 140, flexShrink: 0, fontSize: '0.83rem', color: 'var(--light)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={f.name}>
-                    {f.name}
-                  </div>
-                  <div style={{ flex: 1, height: 6, background: 'var(--border)', borderRadius: 3, overflow: 'hidden' }}>
-                    {hasData && <div style={{ width: `${rate}%`, height: '100%', background: color, borderRadius: 3, transition: 'width 0.4s ease' }} />}
-                  </div>
-                  <div style={{ width: 190, flexShrink: 0, textAlign: 'right', fontSize: '0.78rem', color, fontWeight: hasData ? 600 : 400 }}>
-                    {hasData ? `${rate}% pass rate (${f.passed}/${f.test_case_count})` : 'Not enough info gathered'}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
 
       <div className="health-body-grid">
         <div>
@@ -400,6 +425,22 @@ export default function QualityHealth({ projectId, projectName }) {
               ))
             )}
           </div>
+        </div>
+      </div>
+
+      <div className="health-panel">
+        <div className="health-panel-head"><div className="health-panel-title">Jump in</div></div>
+        <div className="health-access-grid">
+          <AccessTile to={`/projects/${projectId}/requirements`} icon="target" title="Requirements"
+            sub={data.totalRequirements > 0 ? `${data.coveredRequirements} of ${data.totalRequirements} covered` : 'None tracked yet'} />
+          <AccessTile to={`/projects/${projectId}/tests`} icon="check" title="Test cases"
+            sub={`${tc.total} total`} />
+          <AccessTile to={`/projects/${projectId}/executions`} icon="play" title="Executions"
+            sub="Run manual & automated tests" />
+          <AccessTile to={`/projects/${projectId}/bugs`} icon="bug" title="Bug reports"
+            sub={`${openBugsTotal} open`} />
+          <AccessTile to={`/projects/${projectId}/automation`} icon="gear" title="Automation"
+            sub={data.automationCoverage !== null ? `${data.automationCoverage}% covered` : 'Not set up yet'} />
         </div>
       </div>
     </div>

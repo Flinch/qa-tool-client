@@ -97,7 +97,14 @@ export default function ProjectDetailPage() {
     <>
       <div className="topbar">
         {isClient ? (
-          <span className="topbar-title">{project.name}</span>
+          <>
+            <span className="topbar-title">{project.name}</span>
+            {/* QualityHealth portals its NotificationBell into this node —
+                keeps the bell in the actual page topbar (true "top of the
+                page") without QualityHealth needing to duplicate the
+                bugs/runs/requirements fetch it already owns. */}
+            <div className="topbar-actions" id="client-topbar-bell" />
+          </>
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <button className="back-btn" onClick={() => navigate(-1)} title="Back" aria-label="Back"><Icon name="arrowLeft" size={14} /></button>
