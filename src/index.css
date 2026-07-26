@@ -516,9 +516,9 @@ tr:hover td { background: rgba(237,231,220,0.02); }
 
 .health-gauge-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 2.25rem;
-  margin-top: 1.6rem;
+  margin-top: 1.1rem;
   flex-wrap: wrap;
   position: relative;
 }

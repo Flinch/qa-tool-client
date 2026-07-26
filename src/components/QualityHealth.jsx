@@ -95,7 +95,7 @@ function FeatureBreakdownRow({ f }) {
 // absolutely positioned in place) because `.health-hero` clips overflow for
 // its background glow effect, which would otherwise cut the popover off.
 function Gauge({ value, color, breakdown }) {
-  const r = 54, c = 2 * Math.PI * r
+  const r = 58, c = 2 * Math.PI * r
   const offset = value === null ? 0 : c * (1 - value / 100)
   const [hover, setHover] = useState(false)
   const [pos, setPos] = useState(null)
@@ -114,23 +114,30 @@ function Gauge({ value, color, breakdown }) {
   return (
     <div
       ref={wrapRef}
-      style={{ position: 'relative', flexShrink: 0, cursor: hasBreakdown ? 'default' : undefined }}
+      style={{ position: 'relative', flexShrink: 0, marginTop: '-30px', cursor: hasBreakdown ? 'default' : undefined }}
       onMouseEnter={hasBreakdown ? onEnter : undefined}
       onMouseLeave={() => setHover(false)}
     >
-      <svg width={128} height={128} viewBox="0 0 128 128" style={{ display: 'block' }}>
-        <circle cx="64" cy="64" r={r} fill="none" stroke="var(--border)" strokeWidth="10" />
+      {/* cy is shifted above the viewBox's vertical center (66 vs 70) so the
+          ring's visible stroke sits almost flush with the top of its own
+          bounding box — confirmed via getBoundingClientRect that the box
+          itself already lines up exactly with .health-kpi-strip under
+          align-items:flex-start, so the perceived misalignment was the
+          circle's own internal padding versus the KPI boxes' flush top
+          border, not a real layout offset. */}
+      <svg width={140} height={140} viewBox="0 0 140 140" style={{ display: 'block' }}>
+        <circle cx="70" cy="66" r={r} fill="none" stroke="var(--border)" strokeWidth="10" />
         {value !== null && (
           <circle
-            cx="64" cy="64" r={r} fill="none" stroke={color} strokeWidth="10" strokeLinecap="round"
-            strokeDasharray={c} strokeDashoffset={offset} transform="rotate(-90 64 64)"
+            cx="70" cy="66" r={r} fill="none" stroke={color} strokeWidth="10" strokeLinecap="round"
+            strokeDasharray={c} strokeDashoffset={offset} transform="rotate(-90 70 66)"
             style={{ transition: 'stroke-dashoffset 0.6s ease' }}
           />
         )}
-        <text x="64" y="60" textAnchor="middle" style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: 28, fill: 'var(--white)' }}>
+        <text x="70" y="60" textAnchor="middle" style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: 30, fill: 'var(--white)' }}>
           {value !== null ? `${value}%` : '—'}
         </text>
-        <text x="64" y="78" textAnchor="middle" style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 9, letterSpacing: '0.05em', fill: 'var(--muted)' }}>
+        <text x="70" y="82" textAnchor="middle" style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, letterSpacing: '0.05em', fill: 'var(--muted)' }}>
           PASS RATE
         </text>
       </svg>
@@ -391,50 +398,6 @@ export default function QualityHealth({ projectId, projectName }) {
               </div>
             )}
           </div>
-
-          <div className="health-panel">
-            <div className="health-panel-head">
-              <div className="health-panel-title">Recent automation runs</div>
-              <Link to={`/projects/${projectId}/automation`} className="health-panel-link">Automation <Icon name="arrowRight" size={11} /></Link>
-            </div>
-            {automationRuns.length === 0 ? (
-              <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>No automation runs yet.</div>
-            ) : (
-              <div>
-                {automationRuns.slice(0, 5).map((r, i, arr) => {
-                  const hasResult = r.status === 'completed' && r.total > 0
-                  const rate = hasResult ? Math.round((r.passed / r.total) * 100) : null
-                  const rateColor = rate === null ? 'var(--muted)' : featureHealthColor(rate)
-                  const statusText = hasResult
-                    ? `${rate}% (${r.passed}/${r.total})`
-                    : r.status === 'failed' ? 'Failed to run'
-                    : r.status === 'running' ? 'Running…'
-                    : 'Pending'
-                  return (
-                    <div
-                      key={r.id}
-                      onClick={() => navigate(`/projects/${projectId}/automation`)}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: '0.75rem',
-                        padding: '0.55rem 0', cursor: 'pointer',
-                        borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none',
-                      }}
-                    >
-                      <div style={{ flex: 1, minWidth: 0, fontSize: '0.85rem', color: 'var(--light)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {r.suite_name}
-                      </div>
-                      <div style={{ fontSize: '0.8rem', fontWeight: 600, color: rateColor, flexShrink: 0 }}>
-                        {statusText}
-                      </div>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--faint)', flexShrink: 0, width: 68, textAlign: 'right' }}>
-                        {timeAgo(r.completed_at || r.started_at)}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
         </div>
 
         <div>
@@ -468,6 +431,54 @@ export default function QualityHealth({ projectId, projectName }) {
             )}
           </div>
         </div>
+      </div>
+
+      {/* Full-width, not nested in the 2-column grid above — with only
+          "Needs attention" in the right column, this had nothing beside it
+          and looked like a stray leftover. A wider list also gives the
+          suite-name column more room instead of being squeezed. */}
+      <div className="health-panel">
+        <div className="health-panel-head">
+          <div className="health-panel-title">Recent automation runs</div>
+          <Link to={`/projects/${projectId}/automation`} className="health-panel-link">Automation <Icon name="arrowRight" size={11} /></Link>
+        </div>
+        {automationRuns.length === 0 ? (
+          <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>No automation runs yet.</div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', columnGap: '2rem' }}>
+            {automationRuns.slice(0, 5).map((r, i, arr) => {
+              const hasResult = r.status === 'completed' && r.total > 0
+              const rate = hasResult ? Math.round((r.passed / r.total) * 100) : null
+              const rateColor = rate === null ? 'var(--muted)' : featureHealthColor(rate)
+              const statusText = hasResult
+                ? `${rate}% (${r.passed}/${r.total})`
+                : r.status === 'failed' ? 'Failed to run'
+                : r.status === 'running' ? 'Running…'
+                : 'Pending'
+              return (
+                <div
+                  key={r.id}
+                  onClick={() => navigate(`/projects/${projectId}/automation`)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '0.75rem',
+                    padding: '0.55rem 0', cursor: 'pointer',
+                    borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none',
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0, fontSize: '0.85rem', color: 'var(--light)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {r.suite_name}
+                  </div>
+                  <div style={{ fontSize: '0.8rem', fontWeight: 600, color: rateColor, flexShrink: 0 }}>
+                    {statusText}
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--faint)', flexShrink: 0, width: 68, textAlign: 'right' }}>
+                    {timeAgo(r.completed_at || r.started_at)}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
     </div>
   )
