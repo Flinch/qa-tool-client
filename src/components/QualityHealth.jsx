@@ -472,22 +472,22 @@ export default function QualityHealth({ projectId, projectName }) {
               ))
             )}
           </div>
-        </div>
-      </div>
 
-      <div className="health-panel">
-        <div className="health-panel-head"><div className="health-panel-title">Jump in</div></div>
-        <div className="health-access-grid">
-          <AccessTile to={`/projects/${projectId}/requirements`} icon="target" title="Requirements"
-            sub={data.totalRequirements > 0 ? `${data.coveredRequirements} of ${data.totalRequirements} covered` : 'None tracked yet'} />
-          <AccessTile to={`/projects/${projectId}/tests`} icon="check" title="Test cases"
-            sub={`${tc.total} total`} />
-          <AccessTile to={`/projects/${projectId}/executions`} icon="play" title="Executions"
-            sub="Run manual & automated tests" />
-          <AccessTile to={`/projects/${projectId}/bugs`} icon="bug" title="Bug reports"
-            sub={`${openBugsTotal} open`} />
-          <AccessTile to={`/projects/${projectId}/automation`} icon="gear" title="Automation"
-            sub={data.automationCoverage !== null ? `${data.automationCoverage}% covered` : 'Not set up yet'} />
+          <div className="health-panel">
+            <div className="health-panel-head"><div className="health-panel-title">Jump in</div></div>
+            <div className="health-access-grid">
+              <AccessTile to={`/projects/${projectId}/requirements`} icon="target" title="Requirements"
+                sub={data.totalRequirements > 0 ? `${data.coveredRequirements} of ${data.totalRequirements} covered` : 'None tracked yet'} />
+              <AccessTile to={`/projects/${projectId}/tests`} icon="check" title="Test cases"
+                sub={`${tc.total} total`} />
+              <AccessTile to={`/projects/${projectId}/executions`} icon="play" title="Executions"
+                sub="Run manual & automated tests" />
+              <AccessTile to={`/projects/${projectId}/bugs`} icon="bug" title="Bug reports"
+                sub={`${openBugsTotal} open`} />
+              <AccessTile to={`/projects/${projectId}/automation`} icon="gear" title="Automation"
+                sub={data.automationCoverage !== null ? `${data.automationCoverage}% covered` : 'Not set up yet'} />
+            </div>
+          </div>
         </div>
       </div>
     </div>
