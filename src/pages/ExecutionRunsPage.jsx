@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { apiFetch } from '../lib/api.js'
 import { useToastStore } from '../store/toastStore.jsx'
 import { useAuth } from '../store/AuthContext.jsx'
+import { timeAgo } from '../lib/timeAgo.js'
 import Icon from '../components/Icon.jsx'
 
 const TYPE_LABELS = { functional: 'Functional', integration: 'Integration', e2e: 'E2E' }
@@ -190,6 +191,11 @@ function RunCard({ run, projectId }) {
   const navigate = useNavigate()
   const total = run.total_test_cases || 0
   const passRate = total > 0 ? Math.round((run.passed / total) * 100) : null
+  // Failed share of the same bar — without it, a completed run with any
+  // failures only fills the green portion and leaves the rest looking
+  // unfinished even though every test case actually ran. Whatever's left
+  // after passed+failed (not_run/blocked) is correctly left unfilled.
+  const failRate = total > 0 ? Math.round((run.failed / total) * 100) : 0
 
   return (
     <div
@@ -210,6 +216,7 @@ function RunCard({ run, projectId }) {
         <>
           <div className="progress-bar" style={{ marginBottom: '0.5rem' }}>
             <div className="progress-fill green" style={{ width: `${passRate ?? 0}%` }} />
+            {run.failed > 0 && <div className="progress-fill red" style={{ width: `${failRate}%` }} />}
           </div>
           <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>
             <span style={{ color: 'var(--success)' }}>{run.passed} passed</span>
@@ -220,6 +227,7 @@ function RunCard({ run, projectId }) {
       )}
       <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: '0.75rem' }}>
         Created {new Date(run.created_at).toLocaleDateString()}
+        {run.completed_at && <> · Completed {timeAgo(run.completed_at)}</>}
       </div>
     </div>
   )
