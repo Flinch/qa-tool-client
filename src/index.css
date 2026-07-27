@@ -463,6 +463,7 @@ tr:hover td { background: rgba(237,231,220,0.02); }
 }
 .progress-fill.green { background: var(--success); }
 .progress-fill.red { background: var(--danger); }
+.progress-fill.warning { background: var(--warning); }
 
 /* QUALITY HEALTH */
 .health-hero {

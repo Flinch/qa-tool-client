@@ -191,11 +191,6 @@ function RunCard({ run, projectId }) {
   const navigate = useNavigate()
   const total = run.total_test_cases || 0
   const passRate = total > 0 ? Math.round((run.passed / total) * 100) : null
-  // Failed share of the same bar — without it, a completed run with any
-  // failures only fills the green portion and leaves the rest looking
-  // unfinished even though every test case actually ran. Whatever's left
-  // after passed+failed (not_run/blocked) is correctly left unfilled.
-  const failRate = total > 0 ? Math.round((run.failed / total) * 100) : 0
 
   return (
     <div
@@ -214,13 +209,24 @@ function RunCard({ run, projectId }) {
       </div>
       {total > 0 && (
         <>
+          {/* Exact flex-grow ratios (raw counts, not separately-rounded
+              percentages) so the four segments always sum to exactly the
+              bar's full width — a completed run should never show a
+              mystery gap. Rounding each segment's width independently (the
+              previous approach) could itself leave a 1-2% sliver unfilled;
+              this can't, since pass+fail+blocked+not_run always equals
+              total by construction (the status CHECK constraint is
+              exhaustive over those four values). */}
           <div className="progress-bar" style={{ marginBottom: '0.5rem' }}>
-            <div className="progress-fill green" style={{ width: `${passRate ?? 0}%` }} />
-            {run.failed > 0 && <div className="progress-fill red" style={{ width: `${failRate}%` }} />}
+            {run.passed > 0 && <div className="progress-fill green" style={{ flex: run.passed, width: 'auto' }} />}
+            {run.failed > 0 && <div className="progress-fill red" style={{ flex: run.failed, width: 'auto' }} />}
+            {run.blocked > 0 && <div className="progress-fill warning" style={{ flex: run.blocked, width: 'auto' }} />}
+            {run.not_run > 0 && <div style={{ flex: run.not_run }} />}
           </div>
           <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>
             <span style={{ color: 'var(--success)' }}>{run.passed} passed</span>
             {run.failed > 0 && <>, <span style={{ color: 'var(--danger)' }}>{run.failed} failed</span></>}
+            {run.blocked > 0 && <>, <span style={{ color: 'var(--warning)' }}>{run.blocked} blocked</span></>}
             {run.not_run > 0 && <>, {run.not_run} not run</>}
           </div>
         </>
