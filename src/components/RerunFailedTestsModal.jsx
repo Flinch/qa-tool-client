@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { apiFetch } from '../lib/api.js'
 import { useToastStore } from '../store/toastStore.jsx'
+import Icon from './Icon.jsx'
 
 export default function RerunFailedTestsModal({ projectId, run, onClose, onRerunTriggered, onHealTriggered }) {
   const { addToast } = useToastStore()
@@ -9,6 +10,10 @@ export default function RerunFailedTestsModal({ projectId, run, onClose, onRerun
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [rerunning, setRerunning] = useState(false)
   const [healing, setHealing] = useState(false)
+  // Confirm-before-heal is a second step within this same modal, same
+  // select-then-confirm shape GenerateTestsModal already uses for its own
+  // real-cost CI dispatch — not a native window.confirm().
+  const [confirmingHeal, setConfirmingHeal] = useState(false)
 
   useEffect(() => {
     apiFetch(`/projects/${projectId}/automation/runs/${run.id}`)
@@ -47,25 +52,61 @@ export default function RerunFailedTestsModal({ projectId, run, onClose, onRerun
   // test at a time, since the healer dispatches a real CI job + AI agent
   // spend + a PR per file. Enforced via the button's own disabled state
   // below (enabled only when exactly one result is checked).
+  const selectedForHeal = failedResults.find(r => selectedIds.has(r.id))
+
   const heal = async () => {
-    const [result] = failedResults.filter(r => selectedIds.has(r.id))
-    if (!result) return
-    if (!window.confirm(`Diagnose and heal "${result.test_title}"?\n\nThis dispatches a real CI job that uses an AI agent to fix the test and opens a PR with the change — a real cost, not a simulation.`)) {
-      return
-    }
+    if (!selectedForHeal) return
     setHealing(true)
     try {
       const healRun = await apiFetch(`/projects/${projectId}/automation/runs/${run.id}/heal`, {
         method: 'POST',
-        body: JSON.stringify({ result_id: result.id }),
+        body: JSON.stringify({ result_id: selectedForHeal.id }),
       })
-      addToast(`Healing started for "${result.test_title}"`)
+      addToast(`Healing started for "${selectedForHeal.test_title}"`)
       onHealTriggered(healRun)
+      onClose()
     } catch (e) {
       addToast(e.message, 'error')
-    } finally {
       setHealing(false)
     }
+  }
+
+  if (confirmingHeal && selectedForHeal) {
+    return (
+      <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
+        <div className="modal" style={{ maxWidth: 520 }}>
+          <div className="modal-title">Confirm diagnose &amp; heal</div>
+
+          <div style={{ marginBottom: '1rem' }}>
+            <div style={{ fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '0.5rem' }}>
+              Test case
+            </div>
+            <div style={{ fontSize: '0.85rem', color: 'var(--light)', padding: '0.5rem 0.7rem', background: 'var(--bg2)', border: '1px solid var(--border)' }}>
+              {selectedForHeal.test_title}
+            </div>
+          </div>
+
+          <div style={{ marginBottom: '1rem', fontSize: '0.85rem', color: 'var(--light)' }}>
+            Suite: <strong>{run.suite_name}</strong>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', fontSize: '0.8rem', color: 'var(--muted)', marginBottom: '1rem', lineHeight: 1.6, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 0, padding: '0.6rem 0.85rem' }}>
+            <Icon name="zap" size={14} style={{ color: 'var(--accent)', marginTop: '0.1rem', flexShrink: 0 }} />
+            <span>
+              This dispatches a real CI workflow that uses an AI agent to diagnose and fix this test, then opens a PR
+              with the change — a real spend, not a simulation.
+            </span>
+          </div>
+
+          <div className="modal-footer">
+            <button className="btn btn-ghost" onClick={() => setConfirmingHeal(false)} disabled={healing}>Back</button>
+            <button className="btn btn-primary" onClick={heal} disabled={healing}>
+              {healing ? 'Starting...' : 'Confirm & Heal'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -111,11 +152,11 @@ export default function RerunFailedTestsModal({ projectId, run, onClose, onRerun
           <button className="btn btn-ghost" onClick={onClose} disabled={rerunning || healing}>Cancel</button>
           <button
             className="btn btn-ghost"
-            onClick={heal}
+            onClick={() => setConfirmingHeal(true)}
             disabled={healing || rerunning || selectedIds.size !== 1}
             title={selectedIds.size !== 1 ? 'Select exactly one test case to heal' : undefined}
           >
-            {healing ? 'Starting...' : 'Diagnose & heal selected'}
+            Diagnose &amp; heal selected
           </button>
           <button className="btn btn-primary" onClick={rerun} disabled={rerunning || healing || selectedIds.size === 0}>
             {rerunning ? 'Starting...' : `Re-run selected (${selectedIds.size})`}
