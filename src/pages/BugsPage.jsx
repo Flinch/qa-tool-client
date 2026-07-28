@@ -5,7 +5,6 @@ import { useToastStore } from '../store/toastStore.jsx'
 import { useAuth } from '../store/AuthContext.jsx'
 import { handleImageFile } from '../lib/imageUpload.js'
 import Icon from '../components/Icon.jsx'
-import AutomationLink from '../components/AutomationLink.jsx'
 
 const SEVERITIES = ['critical', 'high', 'medium', 'low']
 const STATUSES = ['open', 'in_progress', 'resolved']
@@ -593,7 +592,6 @@ export default function BugsPage() {
         {!isClient && (
           <div className="topbar-actions">
             <button className="btn btn-primary btn-sm" onClick={() => setShowModal(true)}>+ Log bug</button>
-            <AutomationLink projectId={id} />
           </div>
         )}
       </div>

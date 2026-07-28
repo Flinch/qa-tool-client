@@ -2,6 +2,7 @@ import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import { useToastStore } from '../store/toastStore.jsx'
 import { useAuth } from '../store/AuthContext.jsx'
 import Icon from './Icon.jsx'
+import AutomationLink from './AutomationLink.jsx'
 
 const roleLabel = { admin: 'Admin', qa_engineer: 'QA Engineer', client: 'Client' }
 
@@ -10,10 +11,10 @@ export default function AppShell() {
   const { user, logout } = useAuth()
   const { pathname } = useLocation()
 
-  // Clients get a per-project Overview/Reports split as sidebar links (not
-  // in-page tabs) — only meaningful while they're inside a project, so it's
-  // derived from the URL rather than being a permanent nav item.
-  const projectMatch = user?.role === 'client' && pathname.match(/^\/projects\/(\d+)/)
+  // Which project (if any) the current URL is inside — used both for the
+  // client's sidebar Overview/Reports links (client-only) and for staff's
+  // global Automation shortcut (staff-only) below.
+  const projectMatch = pathname.match(/^\/projects\/(\d+)/)
   const projectId = projectMatch?.[1]
 
   return (
@@ -31,7 +32,7 @@ export default function AppShell() {
             </NavLink>
           </div>
         )}
-        {projectId && (
+        {user?.role === 'client' && projectId && (
           <div className="sidebar-section">
             <div className="sidebar-label">Project</div>
             <NavLink to={`/projects/${projectId}`} end className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}>
@@ -72,6 +73,11 @@ export default function AppShell() {
       <main className="main-content">
         <Outlet />
       </main>
+      {user?.role !== 'client' && (
+        <div className="global-automation-shortcut">
+          <AutomationLink projectId={projectId} className="btn btn-ghost btn-sm" />
+        </div>
+      )}
       <div className="toast-wrap">
         {toasts.map(t => (
           <div key={t.id} className={`toast ${t.type}`}>

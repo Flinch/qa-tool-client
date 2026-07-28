@@ -7,7 +7,6 @@ import { formatStep } from '../lib/steps.js'
 import { handleImageFile } from '../lib/imageUpload.js'
 import Icon from '../components/Icon.jsx'
 import ManageFeaturesModal from '../components/ManageFeaturesModal.jsx'
-import AutomationLink from '../components/AutomationLink.jsx'
 import CombineTestCasesModal from '../components/CombineTestCasesModal.jsx'
 
 const TYPE_LABELS = { functional: 'Functional', integration: 'Integration', e2e: 'E2E' }
@@ -591,7 +590,6 @@ export default function TestCasesPage() {
             See executions <Icon name="arrowRight" size={12} />
           </Link>
           {!isClient && <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>+ New test case</button>}
-          {!isClient && <AutomationLink projectId={id} />}
         </div>
       </div>
 

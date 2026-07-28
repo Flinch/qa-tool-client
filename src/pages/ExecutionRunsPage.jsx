@@ -5,7 +5,6 @@ import { useToastStore } from '../store/toastStore.jsx'
 import { useAuth } from '../store/AuthContext.jsx'
 import { timeAgo } from '../lib/timeAgo.js'
 import Icon from '../components/Icon.jsx'
-import AutomationLink from '../components/AutomationLink.jsx'
 
 const TYPE_LABELS = { functional: 'Functional', integration: 'Integration', e2e: 'E2E' }
 
@@ -282,7 +281,6 @@ export default function ExecutionRunsPage() {
             See bugs <Icon name="arrowRight" size={12} />
           </Link>
           {!isClient && <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>+ New execution run</button>}
-          {!isClient && <AutomationLink projectId={id} />}
         </div>
       </div>
 

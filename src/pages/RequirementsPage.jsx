@@ -6,7 +6,6 @@ import { useToastStore } from '../store/toastStore.jsx'
 import { readDocumentFile } from '../lib/documentUpload.js'
 import Icon from '../components/Icon.jsx'
 import ManageFeaturesModal from '../components/ManageFeaturesModal.jsx'
-import AutomationLink from '../components/AutomationLink.jsx'
 
 function UploadRequirementsModal({ projectId, onClose, onDiff }) {
   const { addToast } = useToastStore()
@@ -708,7 +707,6 @@ export default function RequirementsPage() {
                 {bulkGenerating ? 'Generating...' : `Generate all test cases${uncoveredCount > 0 ? ` (${uncoveredCount})` : ''}`}
               </button>
               <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>+ New requirement</button>
-              <AutomationLink projectId={id} />
             </>
           )}
         </div>
