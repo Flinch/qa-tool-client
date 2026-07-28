@@ -310,6 +310,12 @@ body {
 .badge-blocked       { border-color: var(--warning); color: var(--warning); }
 .badge-automation    { border-color: var(--info); color: var(--info); }
 .badge-automated     { border-color: var(--accent); color: var(--accent); }
+/* Distinct from badge-automated above, which means something else entirely
+   (a bug auto-filed from a failed run) — this is "this test case actually
+   has real generated automation," a completed state, so it earns the same
+   success green as a passing test rather than the info blue used for
+   "flagged as a good automation candidate" but not yet automated. */
+.badge-tc-automated  { border-color: var(--success); color: var(--success); }
 .badge-environmental { border-color: var(--warning); color: var(--warning); }
 .badge-web           { border-color: #5A8DB8; color: #5A8DB8; }
 .badge-mobile        { border-color: #C97AB5; color: #C97AB5; }

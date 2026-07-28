@@ -330,7 +330,7 @@ function GenerateTestsModal({ projectId, suites, onClose, onDispatched }) {
       apiFetch(`/projects/${projectId}/automation/generated-test-cases`),
     ])
       .then(([tcs, generated]) => {
-        const automatedIds = new Set(generated.filter(g => g.test_case_id).map(g => g.test_case_id))
+        const automatedIds = new Set(generated.testCases.filter(g => g.test_case_id).map(g => g.test_case_id))
         const candidates = tcs.filter(tc => tc.automation_candidate)
         setAlreadyAutomatedCount(candidates.filter(tc => automatedIds.has(tc.id)).length)
         setAllCandidates(candidates.filter(tc => !automatedIds.has(tc.id)))

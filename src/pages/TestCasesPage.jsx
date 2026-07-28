@@ -439,11 +439,15 @@ function TestCaseModal({ tc, projectId, isClient, features, onClose, onBugLogged
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem', flexWrap: 'wrap' }}>
               <span className={`badge badge-${tc.type}`}>{TYPE_LABELS[tc.type]}</span>
               <span className={`badge badge-${tc.platform || 'web'}`}>{tc.platform === 'mobile' ? 'Mobile' : 'Web'}</span>
-              {tc.automation_candidate && (
+              {tc.is_automated ? (
+                <span className="badge badge-tc-automated" title="Has real generated automation">
+                  <Icon name="check" size={11} /> Automated
+                </span>
+              ) : tc.automation_candidate ? (
                 <span className="badge badge-automation" title={tc.automation_reasoning || undefined}>
                   <Icon name="gear" size={11} /> Automatable
                 </span>
-              )}
+              ) : null}
             </div>
             <h2 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '1rem', fontWeight: 700, color: 'var(--white)', lineHeight: 1.3 }}>{tc.title}</h2>
           </div>
@@ -679,7 +683,9 @@ export default function TestCasesPage() {
                       <td><span className={`badge badge-${tc.type}`}>{TYPE_LABELS[tc.type]}</span></td>
                       <td><span className={`badge badge-${tc.platform || 'web'}`}>{tc.platform === 'mobile' ? 'Mobile' : 'Web'}</span></td>
                       <td>
-                        {tc.automation_candidate
+                        {tc.is_automated
+                          ? <span className="badge badge-tc-automated" title="Has real generated automation"><Icon name="check" size={11} /> Automated</span>
+                          : tc.automation_candidate
                           ? <span className="badge badge-automation" title={tc.automation_reasoning || undefined}><Icon name="gear" size={11} /> Automatable</span>
                           : <span style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>—</span>}
                       </td>
