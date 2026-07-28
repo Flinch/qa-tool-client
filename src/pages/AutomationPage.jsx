@@ -6,6 +6,7 @@ import { useAuth } from '../store/AuthContext.jsx'
 import { describeRunPhase } from '../lib/runPhase.js'
 import { suggestBatches } from '../lib/batchSuggestion.js'
 import Icon from '../components/Icon.jsx'
+import RerunFailedTestsModal from '../components/RerunFailedTestsModal.jsx'
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api'
 const POLL_INTERVAL_MS = 4000
@@ -169,22 +170,44 @@ function SuiteCard({ suite, onRun, running, readOnly }) {
   )
 }
 
-function RunRow({ run }) {
+function RunRow({ run, canRerun, onRerun }) {
   const isRunning = run.status === 'pending' || run.status === 'running'
   const phase = isRunning ? describeRunPhase(run.status, run.started_at) : null
+  // A diagnostic re-run of specific tests is itself scope='test_cases' — its
+  // own failures re-run the same way, but there's no point re-re-running a
+  // re-run's re-run indefinitely from this same row once it's already scoped
+  // down, so the button only appears on scope='suite' rows.
+  const canRerunThis = canRerun && run.scope !== 'test_cases' && run.status === 'completed' && run.failed > 0
 
   return (
     <div style={{ padding: '0.85rem 0', borderBottom: '1px solid var(--border)' }}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto auto', gap: '1rem', alignItems: 'center' }}>
         <div>
-          <div style={{ color: 'var(--white)', fontSize: '0.88rem', fontWeight: 600 }}>{run.suite_name}</div>
+          <div style={{ color: 'var(--white)', fontSize: '0.88rem', fontWeight: 600 }}>
+            {run.suite_name}
+            {run.scope === 'test_cases' && (
+              <span style={{ marginLeft: '0.5rem', fontSize: '0.68rem', fontWeight: 600, color: 'var(--muted)', border: '1px solid var(--border)', padding: '0.1rem 0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Re-run
+              </span>
+            )}
+          </div>
           <div style={{ color: 'var(--muted)', fontSize: '0.76rem' }}>
             {run.trigger_type === 'nightly' ? 'Nightly' : 'Manual'} · {new Date(run.started_at).toLocaleString()}
           </div>
         </div>
         <StatusPill status={run.status} />
         <div style={{ fontSize: '0.82rem', color: 'var(--success)' }}>{run.passed ?? '—'} passed</div>
-        <div style={{ fontSize: '0.82rem', color: run.failed > 0 ? 'var(--danger)' : 'var(--muted)' }}>{run.failed ?? '—'} failed</div>
+        {canRerunThis ? (
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={() => onRerun(run)}
+            style={{ color: 'var(--danger)', borderColor: 'rgba(193,68,58,0.4)' }}
+          >
+            {run.failed} failed
+          </button>
+        ) : (
+          <div style={{ fontSize: '0.82rem', color: run.failed > 0 ? 'var(--danger)' : 'var(--muted)' }}>{run.failed ?? '—'} failed</div>
+        )}
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           {run.report_url && (
             <a href={run.report_url} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm">Report</a>
@@ -206,9 +229,27 @@ function RunRow({ run }) {
 // Completed rows resolve to either a live "review this PR" link (still
 // open) or direct links to the generated file(s) at HEAD (already merged,
 // via a live GitHub check — see run.pr_status from generation-runs).
-export function GenerationRunRow({ run }) {
+export function GenerationRunRow({ run, projectId }) {
+  const { addToast } = useToastStore()
   const isRunning = GENERATION_PHASES.includes(run.status)
   const tcCount = run.test_case_ids?.length || 0
+  const failedCount = run.failed_test_case_ids?.length || 0
+  const [rerunning, setRerunning] = useState(false)
+
+  const rerunFailed = async () => {
+    setRerunning(true)
+    try {
+      await apiFetch(`/projects/${projectId}/automation/generate`, {
+        method: 'POST',
+        body: JSON.stringify({ suite_id: run.suite_id, test_case_ids: run.failed_test_case_ids }),
+      })
+      addToast('Test generation started')
+    } catch (e) {
+      addToast(e.message, 'error')
+    } finally {
+      setRerunning(false)
+    }
+  }
 
   return (
     <div style={{ padding: '0.85rem 0', borderBottom: '1px solid var(--border)' }}>
@@ -240,6 +281,13 @@ export function GenerationRunRow({ run }) {
               <Icon name="link" size={12} /> Review PR ↗
             </a>
           ) : null}
+        </div>
+      )}
+      {failedCount > 0 && (
+        <div style={{ marginTop: '0.5rem' }}>
+          <button className="btn btn-ghost btn-sm" onClick={rerunFailed} disabled={rerunning} style={{ color: 'var(--danger)', borderColor: 'rgba(193,68,58,0.4)' }}>
+            {rerunning ? 'Starting...' : `Re-run failed (${failedCount})`}
+          </button>
         </div>
       )}
     </div>
@@ -486,6 +534,7 @@ export default function AutomationPage() {
   const [triggeringSuiteId, setTriggeringSuiteId] = useState(null)
   const [showGenerateTests, setShowGenerateTests] = useState(false)
   const [activeGenerationRun, setActiveGenerationRun] = useState(null)
+  const [rerunRun, setRerunRun] = useState(null)
   // null until suites load once, then set to whichever category actually has
   // suites (defaults to 'web' if both do) — the `prev ??` guard in the setter
   // below means a later SSE/poll refresh never yanks the user back to the
@@ -810,7 +859,7 @@ export default function AutomationPage() {
                 <div className="empty-state"><h3>No runs yet</h3><p>{isClient ? 'No suite runs have happened yet.' : 'Trigger a suite above to see results here.'}</p></div>
               ) : (
                 <div className="card" style={{ padding: '0 1rem' }}>
-                  {runs.map(r => <RunRow key={r.id} run={r} />)}
+                  {runs.map(r => <RunRow key={r.id} run={r} canRerun={!isClient} onRerun={setRerunRun} />)}
                 </div>
               )}
             </div>
@@ -821,7 +870,7 @@ export default function AutomationPage() {
                 <div className="empty-state"><h3>No nightly runs yet</h3><p>These populate automatically once the scheduled workflow runs.</p></div>
               ) : (
                 <div className="card" style={{ padding: '0 1rem' }}>
-                  {nightlyRuns.map(r => <RunRow key={r.id} run={r} />)}
+                  {nightlyRuns.map(r => <RunRow key={r.id} run={r} canRerun={!isClient} onRerun={setRerunRun} />)}
                 </div>
               )}
             </div>
@@ -835,6 +884,15 @@ export default function AutomationPage() {
           suites={suites}
           onClose={() => setShowGenerateTests(false)}
           onDispatched={handleGenerationDispatched}
+        />
+      )}
+
+      {rerunRun && (
+        <RerunFailedTestsModal
+          projectId={id}
+          run={rerunRun}
+          onClose={() => setRerunRun(null)}
+          onRerunTriggered={() => { setRerunRun(null); load() }}
         />
       )}
     </>

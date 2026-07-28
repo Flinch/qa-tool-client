@@ -46,7 +46,7 @@ export default function GenerationHistoryPage() {
           </div>
         ) : (
           <div className="card" style={{ padding: '0 1rem' }}>
-            {runs.map(run => <GenerationRunRow key={run.id} run={run} />)}
+            {runs.map(run => <GenerationRunRow key={run.id} run={run} projectId={id} />)}
           </div>
         )}
       </div>
