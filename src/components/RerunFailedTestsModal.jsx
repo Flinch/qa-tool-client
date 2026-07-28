@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { apiFetch } from '../lib/api.js'
 import { useToastStore } from '../store/toastStore.jsx'
-import Icon from './Icon.jsx'
 
 export default function RerunFailedTestsModal({ projectId, run, onClose, onRerunTriggered, onHealTriggered }) {
   const { addToast } = useToastStore()
@@ -9,7 +8,7 @@ export default function RerunFailedTestsModal({ projectId, run, onClose, onRerun
   const [failedResults, setFailedResults] = useState([])
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [rerunning, setRerunning] = useState(false)
-  const [healingIds, setHealingIds] = useState(new Set())
+  const [healing, setHealing] = useState(false)
 
   useEffect(() => {
     apiFetch(`/projects/${projectId}/automation/runs/${run.id}`)
@@ -44,8 +43,17 @@ export default function RerunFailedTestsModal({ projectId, run, onClose, onRerun
     }
   }
 
-  const heal = async (result) => {
-    setHealingIds(ids => new Set(ids).add(result.id))
+  // Heal acts on the current selection, same as Re-run — but only ever ONE
+  // test at a time, since the healer dispatches a real CI job + AI agent
+  // spend + a PR per file. Enforced via the button's own disabled state
+  // below (enabled only when exactly one result is checked).
+  const heal = async () => {
+    const [result] = failedResults.filter(r => selectedIds.has(r.id))
+    if (!result) return
+    if (!window.confirm(`Diagnose and heal "${result.test_title}"?\n\nThis dispatches a real CI job that uses an AI agent to fix the test and opens a PR with the change — a real cost, not a simulation.`)) {
+      return
+    }
+    setHealing(true)
     try {
       const healRun = await apiFetch(`/projects/${projectId}/automation/runs/${run.id}/heal`, {
         method: 'POST',
@@ -55,7 +63,8 @@ export default function RerunFailedTestsModal({ projectId, run, onClose, onRerun
       onHealTriggered(healRun)
     } catch (e) {
       addToast(e.message, 'error')
-      setHealingIds(ids => { const next = new Set(ids); next.delete(result.id); return next })
+    } finally {
+      setHealing(false)
     }
   }
 
@@ -93,23 +102,22 @@ export default function RerunFailedTestsModal({ projectId, run, onClose, onRerun
                     <div style={{ fontSize: '0.74rem', color: 'var(--danger)', marginTop: '0.2rem' }}>{r.error_message}</div>
                   )}
                 </div>
-                <button
-                  className="btn btn-ghost btn-sm"
-                  title="Diagnose and heal"
-                  onClick={() => heal(r)}
-                  disabled={healingIds.has(r.id)}
-                  style={{ flexShrink: 0 }}
-                >
-                  <Icon name="medic" size={14} />
-                </button>
               </div>
             ))}
           </div>
         )}
 
         <div className="modal-footer">
-          <button className="btn btn-ghost" onClick={onClose} disabled={rerunning}>Cancel</button>
-          <button className="btn btn-primary" onClick={rerun} disabled={rerunning || selectedIds.size === 0}>
+          <button className="btn btn-ghost" onClick={onClose} disabled={rerunning || healing}>Cancel</button>
+          <button
+            className="btn btn-ghost"
+            onClick={heal}
+            disabled={healing || rerunning || selectedIds.size !== 1}
+            title={selectedIds.size !== 1 ? 'Select exactly one test case to heal' : undefined}
+          >
+            {healing ? 'Starting...' : 'Diagnose & heal selected'}
+          </button>
+          <button className="btn btn-primary" onClick={rerun} disabled={rerunning || healing || selectedIds.size === 0}>
             {rerunning ? 'Starting...' : `Re-run selected (${selectedIds.size})`}
           </button>
         </div>
