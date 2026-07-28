@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { apiFetch } from '../lib/api.js'
 import { useToastStore } from '../store/toastStore.jsx'
-import Icon from './Icon.jsx'
+import HealConfirmModal from './HealConfirmModal.jsx'
 
 export default function RerunFailedTestsModal({ projectId, run, onClose, onRerunTriggered, onHealTriggered }) {
   const { addToast } = useToastStore()
@@ -73,39 +73,13 @@ export default function RerunFailedTestsModal({ projectId, run, onClose, onRerun
 
   if (confirmingHeal && selectedForHeal) {
     return (
-      <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
-        <div className="modal" style={{ maxWidth: 520 }}>
-          <div className="modal-title">Confirm diagnose &amp; heal</div>
-
-          <div style={{ marginBottom: '1rem' }}>
-            <div style={{ fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '0.5rem' }}>
-              Test case
-            </div>
-            <div style={{ fontSize: '0.85rem', color: 'var(--light)', padding: '0.5rem 0.7rem', background: 'var(--bg2)', border: '1px solid var(--border)' }}>
-              {selectedForHeal.test_title}
-            </div>
-          </div>
-
-          <div style={{ marginBottom: '1rem', fontSize: '0.85rem', color: 'var(--light)' }}>
-            Suite: <strong>{run.suite_name}</strong>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', fontSize: '0.8rem', color: 'var(--muted)', marginBottom: '1rem', lineHeight: 1.6, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 0, padding: '0.6rem 0.85rem' }}>
-            <Icon name="zap" size={14} style={{ color: 'var(--accent)', marginTop: '0.1rem', flexShrink: 0 }} />
-            <span>
-              This dispatches a real CI workflow that uses an AI agent to diagnose and fix this test, then opens a PR
-              with the change — a real spend, not a simulation.
-            </span>
-          </div>
-
-          <div className="modal-footer">
-            <button className="btn btn-ghost" onClick={() => setConfirmingHeal(false)} disabled={healing}>Back</button>
-            <button className="btn btn-primary" onClick={heal} disabled={healing}>
-              {healing ? 'Starting...' : 'Confirm & Heal'}
-            </button>
-          </div>
-        </div>
-      </div>
+      <HealConfirmModal
+        testTitle={selectedForHeal.test_title}
+        suiteName={run.suite_name}
+        healing={healing}
+        onCancel={() => setConfirmingHeal(false)}
+        onConfirm={heal}
+      />
     )
   }
 

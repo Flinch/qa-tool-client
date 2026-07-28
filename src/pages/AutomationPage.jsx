@@ -40,7 +40,7 @@ function PlatformBadge({ platform }) {
   const map = {
     web: { label: 'Web', color: 'var(--accent)' },
     android: { label: 'Android', color: 'var(--success)' },
-    ios: { label: 'iOS', color: 'var(--muted)' },
+    ios: { label: 'iOS', color: 'var(--info)' },
   }
   const p = map[platform] || { label: platform || 'Unknown', color: 'var(--muted)' }
   return (
@@ -85,12 +85,13 @@ function SuiteCard({ suite, onRun, running, readOnly }) {
 
   const isRunning = running || suite.latest_status === 'pending' || suite.latest_status === 'running'
   const phase = isRunning ? describeRunPhase(suite.latest_status || 'pending', suite.latest_started_at) : null
-  // "Completed" next to the last-run-date line below is redundant — a
-  // terminal status only needs a pill when it's actionable (failed) or
-  // in-flight (pending/running). This is specific to the suite card; RunRow
-  // (the execution-history list) still shows every status including
-  // Completed, where it's a real history log entry, not a duplicate signal.
-  const showStatusPill = suite.latest_status && suite.latest_status !== 'completed'
+  // A status pill only earns its place while in-flight (pending/running) —
+  // the only point it's the sole signal before real counts exist. Once a
+  // run is terminal, the pass/fail badges below already say everything the
+  // pill would (a red "N failed" badge already means "failed"; a clean pass
+  // rate already means "completed") — the pill was pure duplication. RunRow
+  // (the execution-history list) is different: there every status including
+  // Completed is a real history log entry, not a duplicate of adjacent info.
   const lastRunAt = suite.latest_completed_at || suite.latest_started_at
 
   return (
@@ -102,30 +103,37 @@ function SuiteCard({ suite, onRun, running, readOnly }) {
         animation: isRunning ? 'cardPulse 2s ease-in-out infinite' : undefined,
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem', minHeight: '2.7rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.65rem', minHeight: '2.7rem' }}>
         <div>
           <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '0.95rem', color: 'var(--white)', lineHeight: 1.25 }}>{suite.name}</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.2rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.3rem' }}>
             <PlatformBadge platform={suite.platform} />
             <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>{suite.test_case_count} test case{suite.test_case_count === 1 ? '' : 's'}</span>
           </div>
         </div>
-        {showStatusPill && <StatusPill status={suite.latest_status} />}
+        {isRunning && <StatusPill status={suite.latest_status} />}
       </div>
 
       {!isRunning && lastRunAt && (
-        <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginBottom: '0.3rem' }}>
+        <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginBottom: '0.65rem' }}>
           Last run {formatWhen(lastRunAt)}
         </div>
       )}
       {passRate !== null && (
-        <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '1rem' }}>
+        <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '0.65rem' }}>
           <span className="badge badge-pass">{suite.latest_passed} passed</span>
           {suite.latest_failed > 0 && <span className="badge badge-fail">{suite.latest_failed} failed</span>}
         </div>
       )}
       {suite.latest_status === 'failed' && suite.latest_error_message && (
-        <div style={{ fontSize: '0.76rem', color: 'var(--danger)', background: 'rgba(193,68,58,0.08)', border: '1px solid rgba(193,68,58,0.25)', padding: '0.5rem 0.65rem', marginBottom: '0.75rem', lineHeight: 1.4 }}>
+        <div
+          title={suite.latest_error_message}
+          style={{
+            fontSize: '0.76rem', color: 'var(--danger)', background: 'rgba(193,68,58,0.08)',
+            border: '1px solid rgba(193,68,58,0.25)', padding: '0.5rem 0.65rem', marginBottom: '0.65rem',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}
+        >
           {suite.latest_error_message}
         </div>
       )}
@@ -827,9 +835,9 @@ export default function AutomationPage() {
                     <Link to={`/projects/${id}/automation/generated-test-cases`} style={{ textDecoration: 'none', display: 'block', marginBottom: '1rem' }}>
                       <div className="card suite-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <div>
-                          <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '0.95rem', color: 'var(--white)' }}>Generated test cases</div>
+                          <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '0.95rem', color: 'var(--white)' }}>The Lab</div>
                           <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: '0.2rem' }}>
-                            Every AI-generated test, across all suites — {generatedCount} test case{generatedCount === 1 ? '' : 's'}
+                            Every AI-generated test, its last run, and the option to re-run or heal it — {generatedCount} test case{generatedCount === 1 ? '' : 's'}
                           </div>
                         </div>
                         <Icon name="arrowRight" size={16} style={{ color: 'var(--muted)' }} />
@@ -852,7 +860,7 @@ export default function AutomationPage() {
                       Mobile
                     </button>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1rem', alignItems: 'stretch' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1.25rem', alignItems: 'stretch' }}>
                     {suites.filter(s => platformTab === 'web' ? s.platform === 'web' : s.platform !== 'web').map(s => (
                       <SuiteCard key={s.id} suite={s} onRun={runSuite} running={triggeringSuiteId === s.id} readOnly={isClient} />
                     ))}
