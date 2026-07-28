@@ -7,6 +7,8 @@ import { formatStep } from '../lib/steps.js'
 import { handleImageFile } from '../lib/imageUpload.js'
 import Icon from '../components/Icon.jsx'
 import ManageFeaturesModal from '../components/ManageFeaturesModal.jsx'
+import AutomationLink from '../components/AutomationLink.jsx'
+import CombineTestCasesModal from '../components/CombineTestCasesModal.jsx'
 
 const TYPE_LABELS = { functional: 'Functional', integration: 'Integration', e2e: 'E2E' }
 const SEVERITIES = ['critical', 'high', 'medium', 'low']
@@ -516,6 +518,8 @@ export default function TestCasesPage() {
   const [selectedTc, setSelectedTc] = useState(null)
   const [filter, setFilter] = useState('all')
   const [platform, setPlatform] = useState('all')
+  const [selectedIds, setSelectedIds] = useState(new Set())
+  const [showCombine, setShowCombine] = useState(false)
 
   useEffect(() => { apiFetch(`/projects/${id}`).then(setProject).catch(console.error) }, [id])
 
@@ -549,6 +553,22 @@ export default function TestCasesPage() {
 
   const automationCount = platformFiltered.filter(t => t.automation_candidate).length
 
+  // Combining across platforms isn't meaningful (a web flow and a mobile
+  // flow have nothing to merge) — once one row is selected, only rows of
+  // that same platform can join the selection.
+  const selectedPlatform = selectedIds.size > 0
+    ? testCases.find(tc => selectedIds.has(tc.id))?.platform
+    : null
+
+  const toggleSelected = (tc) => setSelectedIds(ids => {
+    const next = new Set(ids)
+    if (next.has(tc.id)) next.delete(tc.id)
+    else next.add(tc.id)
+    return next
+  })
+
+  const selectedTestCases = testCases.filter(tc => selectedIds.has(tc.id))
+
   return (
     <>
       <div className="topbar">
@@ -567,7 +587,11 @@ export default function TestCasesPage() {
           </div>
         </div>
         <div className="topbar-actions">
+          <Link to={`/projects/${id}/executions`} className="btn btn-ghost btn-sm">
+            See executions <Icon name="arrowRight" size={12} />
+          </Link>
           {!isClient && <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>+ New test case</button>}
+          {!isClient && <AutomationLink projectId={id} />}
         </div>
       </div>
 
@@ -588,7 +612,16 @@ export default function TestCasesPage() {
               </button>
             ))}
           </div>
-          {!isClient && <button className="btn btn-ghost btn-sm" onClick={() => setShowManageFeatures(true)}>Manage features</button>}
+          {!isClient && (
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              {selectedIds.size >= 2 && (
+                <button className="btn btn-primary btn-sm" onClick={() => setShowCombine(true)}>
+                  Combine ({selectedIds.size})
+                </button>
+              )}
+              <button className="btn btn-ghost btn-sm" onClick={() => setShowManageFeatures(true)}>Manage features</button>
+            </div>
+          )}
         </div>
 
         <div className="filters-row">
@@ -619,6 +652,7 @@ export default function TestCasesPage() {
               <table>
                 <thead>
                   <tr>
+                    {!isClient && <th style={{ width: 32 }}></th>}
                     <th>Test case</th>
                     <th>Type</th>
                     <th>Platform</th>
@@ -630,6 +664,16 @@ export default function TestCasesPage() {
                 <tbody>
                   {filtered.map(tc => (
                     <tr key={tc.id} onClick={() => setSelectedTc(tc)} style={{ cursor: 'pointer' }}>
+                      {!isClient && (
+                        <td onClick={e => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.has(tc.id)}
+                            disabled={selectedPlatform !== null && tc.platform !== selectedPlatform && !selectedIds.has(tc.id)}
+                            onChange={() => toggleSelected(tc)}
+                          />
+                        </td>
+                      )}
                       <td style={{ maxWidth: 320 }}>
                         <div style={{ fontWeight: 500, color: 'var(--light)', marginBottom: '0.15rem' }}>{tc.title}</div>
                         {tc.steps?.length > 0 && <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>{tc.steps.length} steps</div>}
@@ -671,6 +715,19 @@ export default function TestCasesPage() {
           features={features}
           onClose={() => setShowManageFeatures(false)}
           onChanged={fetchFeatures}
+        />
+      )}
+
+      {showCombine && (
+        <CombineTestCasesModal
+          projectId={id}
+          testCases={selectedTestCases}
+          features={features}
+          onClose={() => setShowCombine(false)}
+          onCombined={(newTc, oldIds) => {
+            setTestCases(tcs => [newTc, ...tcs.filter(tc => !oldIds.includes(tc.id))])
+            setSelectedIds(new Set())
+          }}
         />
       )}
 

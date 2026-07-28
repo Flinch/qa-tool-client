@@ -6,6 +6,7 @@ import { useToastStore } from '../store/toastStore.jsx'
 import { readDocumentFile } from '../lib/documentUpload.js'
 import Icon from '../components/Icon.jsx'
 import ManageFeaturesModal from '../components/ManageFeaturesModal.jsx'
+import AutomationLink from '../components/AutomationLink.jsx'
 
 function UploadRequirementsModal({ projectId, onClose, onDiff }) {
   const { addToast } = useToastStore()
@@ -696,15 +697,21 @@ export default function RequirementsPage() {
             <span className="topbar-title">Requirements</span>
           </div>
         </div>
-        {!isClient && (
-          <div className="topbar-actions">
-            <button className="btn btn-ghost btn-sm" onClick={() => setShowUpload(true)}>Upload document</button>
-            <button className="btn btn-primary btn-sm" onClick={generateAll} disabled={bulkGenerating || uncoveredCount === 0}>
-              {bulkGenerating ? 'Generating...' : `Generate all test cases${uncoveredCount > 0 ? ` (${uncoveredCount})` : ''}`}
-            </button>
-            <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>+ New requirement</button>
-          </div>
-        )}
+        <div className="topbar-actions">
+          <Link to={`/projects/${id}/tests`} className="btn btn-ghost btn-sm">
+            See test cases <Icon name="arrowRight" size={12} />
+          </Link>
+          {!isClient && (
+            <>
+              <button className="btn btn-ghost btn-sm" onClick={() => setShowUpload(true)}>Upload document</button>
+              <button className="btn btn-primary btn-sm" onClick={generateAll} disabled={bulkGenerating || uncoveredCount === 0}>
+                {bulkGenerating ? 'Generating...' : `Generate all test cases${uncoveredCount > 0 ? ` (${uncoveredCount})` : ''}`}
+              </button>
+              <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>+ New requirement</button>
+              <AutomationLink projectId={id} />
+            </>
+          )}
+        </div>
       </div>
 
       <div className="page-content fade-in">

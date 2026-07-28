@@ -249,6 +249,7 @@ export function GenerationRunRow({ run }) {
 function GenerateTestsModal({ projectId, suites, onClose, onDispatched }) {
   const { addToast } = useToastStore()
   const [allCandidates, setAllCandidates] = useState([])
+  const [alreadyAutomatedCount, setAlreadyAutomatedCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [selectedIds, setSelectedIds] = useState([])
   const [suiteId, setSuiteId] = useState(suites[0]?.id ? String(suites[0].id) : '')
@@ -257,8 +258,19 @@ function GenerateTestsModal({ projectId, suites, onClose, onDispatched }) {
   const [showSuggestions, setShowSuggestions] = useState(false)
 
   useEffect(() => {
-    apiFetch(`/projects/${projectId}/test-cases`)
-      .then(tcs => setAllCandidates(tcs.filter(tc => tc.automation_candidate)))
+    Promise.all([
+      apiFetch(`/projects/${projectId}/test-cases`),
+      // Test cases that already have a real generated automated test
+      // shouldn't be offered again here — picking them would just dispatch
+      // a duplicate generation run for something that already exists.
+      apiFetch(`/projects/${projectId}/automation/generated-test-cases`),
+    ])
+      .then(([tcs, generated]) => {
+        const automatedIds = new Set(generated.filter(g => g.test_case_id).map(g => g.test_case_id))
+        const candidates = tcs.filter(tc => tc.automation_candidate)
+        setAlreadyAutomatedCount(candidates.filter(tc => automatedIds.has(tc.id)).length)
+        setAllCandidates(candidates.filter(tc => !automatedIds.has(tc.id)))
+      })
       .catch(e => addToast(e.message, 'error'))
       .finally(() => setLoading(false))
   }, [projectId, addToast])
@@ -365,7 +377,14 @@ function GenerateTestsModal({ projectId, suites, onClose, onDispatched }) {
 
         <div className="form-group">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <label className="form-label" style={{ marginBottom: 0 }}>Test cases (select up to {MAX_BATCH_SIZE})</label>
+            <div>
+              <label className="form-label" style={{ marginBottom: 0 }}>Test cases (select up to {MAX_BATCH_SIZE})</label>
+              {alreadyAutomatedCount > 0 && (
+                <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>
+                  {alreadyAutomatedCount} already-automated test case{alreadyAutomatedCount === 1 ? '' : 's'} hidden
+                </div>
+              )}
+            </div>
             {candidates.length > 1 && (
               <button className="btn btn-ghost btn-sm" onClick={() => setShowSuggestions(s => !s)} type="button">
                 {showSuggestions ? 'Hide suggestions' : 'Suggest batches'}
@@ -406,7 +425,9 @@ function GenerateTestsModal({ projectId, suites, onClose, onDispatched }) {
             <div style={{ display: 'flex', justifyContent: 'center', padding: '1.5rem' }}><div className="spinner" /></div>
           ) : candidates.length === 0 ? (
             <div style={{ fontSize: '0.82rem', color: 'var(--muted)', padding: '0.75rem', background: 'var(--bg2)', border: '1px solid var(--border)', textAlign: 'center' }}>
-              No test cases are flagged as automation candidates yet. Flag some on the Test Cases page first.
+              {alreadyAutomatedCount > 0
+                ? 'Every automation candidate for this platform is already automated.'
+                : 'No test cases are flagged as automation candidates yet. Flag some on the Test Cases page first.'}
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: 280, overflowY: 'auto' }}>
