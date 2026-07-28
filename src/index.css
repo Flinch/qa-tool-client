@@ -156,14 +156,17 @@ body {
   min-height: 100vh;
 }
 
-/* Tucked into the topbar's own outer padding (0 2rem) rather than
-   right: 1.25rem+, since every page's topbar-actions content (the
-   notification bell, per-page buttons) already occupies that inset area —
-   sitting further out avoids colliding with it on every page. */
+/* Sits BELOW the topbar entirely (56px tall + an 8px gap), not overlapping
+   its right edge — a real bug, confirmed visually: every page's
+   topbar-actions content (the notification bell, per-page buttons) varies
+   in width, so no fixed inset within the topbar's own row could reliably
+   avoid it, and the icon ended up overlapping the bell's clickable area
+   (clicks landing on the wrong element). A separate row below the topbar
+   can't collide with topbar content on any page, regardless of width. */
 .global-automation-shortcut {
   position: fixed;
-  top: 10px;
-  right: 6px;
+  top: 64px;
+  right: 12px;
   z-index: 45;
   background: var(--card);
   box-shadow: 0 2px 8px rgba(0,0,0,0.35);
