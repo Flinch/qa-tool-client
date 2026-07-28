@@ -184,7 +184,7 @@ function RunRow({ run, canRerun, onRerun }) {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto auto', gap: '1rem', alignItems: 'center' }}>
         <div>
           <div style={{ color: 'var(--white)', fontSize: '0.88rem', fontWeight: 600 }}>
-            {run.suite_name}
+            {run.scope === 'test_cases' ? (run.target_titles?.join(', ') || 'Re-run') : run.suite_name}
             {run.scope === 'test_cases' && (
               <span style={{ marginLeft: '0.5rem', fontSize: '0.68rem', fontWeight: 600, color: 'var(--muted)', border: '1px solid var(--border)', padding: '0.1rem 0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 Re-run
@@ -192,6 +192,7 @@ function RunRow({ run, canRerun, onRerun }) {
             )}
           </div>
           <div style={{ color: 'var(--muted)', fontSize: '0.76rem' }}>
+            {run.scope === 'test_cases' && `${run.suite_name} · `}
             {run.trigger_type === 'nightly' ? 'Nightly' : 'Manual'} · {new Date(run.started_at).toLocaleString()}
           </div>
         </div>
