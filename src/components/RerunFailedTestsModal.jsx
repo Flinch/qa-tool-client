@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react'
 import { apiFetch } from '../lib/api.js'
 import { useToastStore } from '../store/toastStore.jsx'
+import Icon from './Icon.jsx'
 
-export default function RerunFailedTestsModal({ projectId, run, onClose, onRerunTriggered }) {
+export default function RerunFailedTestsModal({ projectId, run, onClose, onRerunTriggered, onHealTriggered }) {
   const { addToast } = useToastStore()
   const [loading, setLoading] = useState(true)
   const [failedResults, setFailedResults] = useState([])
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [rerunning, setRerunning] = useState(false)
+  const [healingIds, setHealingIds] = useState(new Set())
 
   useEffect(() => {
     apiFetch(`/projects/${projectId}/automation/runs/${run.id}`)
@@ -42,6 +44,21 @@ export default function RerunFailedTestsModal({ projectId, run, onClose, onRerun
     }
   }
 
+  const heal = async (result) => {
+    setHealingIds(ids => new Set(ids).add(result.id))
+    try {
+      const healRun = await apiFetch(`/projects/${projectId}/automation/runs/${run.id}/heal`, {
+        method: 'POST',
+        body: JSON.stringify({ result_id: result.id }),
+      })
+      addToast(`Healing started for "${result.test_title}"`)
+      onHealTriggered(healRun)
+    } catch (e) {
+      addToast(e.message, 'error')
+      setHealingIds(ids => { const next = new Set(ids); next.delete(result.id); return next })
+    }
+  }
+
   return (
     <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal" style={{ maxWidth: 560 }}>
@@ -60,18 +77,32 @@ export default function RerunFailedTestsModal({ projectId, run, onClose, onRerun
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: 320, overflowY: 'auto' }}>
             {failedResults.map(r => (
-              <label
+              <div
                 key={r.id}
-                style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', padding: '0.55rem 0.75rem', background: 'var(--bg2)', border: '1px solid var(--border)', cursor: 'pointer' }}
+                style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', padding: '0.55rem 0.75rem', background: 'var(--bg2)', border: '1px solid var(--border)' }}
               >
-                <input type="checkbox" checked={selectedIds.has(r.id)} onChange={() => toggle(r.id)} style={{ marginTop: '0.2rem' }} />
+                <input
+                  type="checkbox"
+                  checked={selectedIds.has(r.id)}
+                  onChange={() => toggle(r.id)}
+                  style={{ marginTop: '0.2rem', cursor: 'pointer' }}
+                />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: '0.85rem', color: 'var(--light)' }}>{r.test_title}</div>
                   {r.error_message && (
                     <div style={{ fontSize: '0.74rem', color: 'var(--danger)', marginTop: '0.2rem' }}>{r.error_message}</div>
                   )}
                 </div>
-              </label>
+                <button
+                  className="btn btn-ghost btn-sm"
+                  title="Diagnose and heal"
+                  onClick={() => heal(r)}
+                  disabled={healingIds.has(r.id)}
+                  style={{ flexShrink: 0 }}
+                >
+                  <Icon name="medic" size={14} />
+                </button>
+              </div>
             ))}
           </div>
         )}

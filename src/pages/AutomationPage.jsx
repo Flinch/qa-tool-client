@@ -255,9 +255,16 @@ export function GenerationRunRow({ run, projectId }) {
     <div style={{ padding: '0.85rem 0', borderBottom: '1px solid var(--border)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
         <div>
-          <div style={{ color: 'var(--white)', fontSize: '0.88rem', fontWeight: 600, marginBottom: '0.15rem' }}>{run.suite_name}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.15rem' }}>
+            <span style={{ color: 'var(--white)', fontSize: '0.88rem', fontWeight: 600 }}>{run.suite_name}</span>
+            {run.kind === 'heal' && (
+              <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--accent)', border: '1px solid rgba(184,70,31,0.4)', padding: '0.1rem 0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Heal
+              </span>
+            )}
+          </div>
           <div style={{ color: 'var(--muted)', fontSize: '0.76rem' }}>
-            {tcCount} test case{tcCount === 1 ? '' : 's'} · {formatWhen(run.started_at)}
+            {run.kind === 'heal' ? `Healing: ${run.target_title}` : `${tcCount} test case${tcCount === 1 ? '' : 's'}`} · {formatWhen(run.started_at)}
           </div>
         </div>
         <StatusPill status={isRunning ? 'running' : run.status} />
@@ -893,6 +900,7 @@ export default function AutomationPage() {
           run={rerunRun}
           onClose={() => setRerunRun(null)}
           onRerunTriggered={() => { setRerunRun(null); load() }}
+          onHealTriggered={handleGenerationDispatched}
         />
       )}
     </>
