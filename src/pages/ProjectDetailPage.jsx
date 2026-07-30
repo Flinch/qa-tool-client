@@ -14,6 +14,58 @@ function NavIcon({ name }) {
   )
 }
 
+// Click the text, it becomes an input (or textarea), Save/Cancel appear.
+// One field editable at a time (editingField/editValue live in the parent)
+// rather than three independent draft states — simpler to reason about and
+// matches how this app's other single-value inline edits work.
+function EditableField({ field, value, editingField, editValue, onEditValueChange, onStart, onSave, onCancel, saving, multiline, placeholder, textStyle, canEdit, as: Tag = 'div' }) {
+  const isEditing = editingField === field
+
+  if (isEditing) {
+    const InputTag = multiline ? 'textarea' : 'input'
+    return (
+      <div style={{ marginBottom: '0.5rem' }}>
+        <InputTag
+          className={multiline ? 'form-textarea' : 'form-input'}
+          value={editValue}
+          onChange={e => onEditValueChange(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter' && !multiline) onSave()
+            if (e.key === 'Escape') onCancel()
+          }}
+          style={multiline ? { maxWidth: 600, minHeight: 70 } : { maxWidth: 400 }}
+          autoFocus
+        />
+        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.4rem' }}>
+          <button className="btn btn-primary btn-sm" onClick={onSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
+          <button className="btn btn-ghost btn-sm" onClick={onCancel} disabled={saving}>Cancel</button>
+        </div>
+      </div>
+    )
+  }
+
+  if (!value) {
+    return canEdit ? (
+      <div
+        onClick={() => onStart(field)}
+        style={{ cursor: 'pointer', color: 'var(--muted)', fontSize: '0.85rem', fontStyle: 'italic', marginBottom: '0.5rem' }}
+      >
+        + Add {placeholder}
+      </div>
+    ) : null
+  }
+
+  return (
+    <Tag
+      onClick={canEdit ? () => onStart(field) : undefined}
+      title={canEdit ? 'Click to edit' : undefined}
+      style={{ ...textStyle, cursor: canEdit ? 'pointer' : 'default' }}
+    >
+      {value}
+    </Tag>
+  )
+}
+
 export default function ProjectDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -25,6 +77,9 @@ export default function ProjectDetailPage() {
   const [adding, setAdding] = useState(false)
   const [members, setMembers] = useState([])
   const [removingId, setRemovingId] = useState(null)
+  const [editingField, setEditingField] = useState(null) // 'name' | 'client_name' | 'description' | null
+  const [editValue, setEditValue] = useState('')
+  const [savingField, setSavingField] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -46,6 +101,37 @@ export default function ProjectDetailPage() {
   }
 
   useEffect(loadMembers, [id, user?.role])
+
+  const startEditField = (field) => {
+    setEditingField(field)
+    setEditValue(project[field] || '')
+  }
+
+  const cancelEditField = () => {
+    setEditingField(null)
+    setEditValue('')
+  }
+
+  const saveEditField = async () => {
+    if (editingField === 'name' && !editValue.trim()) {
+      addToast('Name cannot be empty', 'error')
+      return
+    }
+    setSavingField(true)
+    try {
+      const updated = await apiFetch(`/projects/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ [editingField]: editValue }),
+      })
+      setProject(p => ({ ...p, ...updated }))
+      setEditingField(null)
+      setEditValue('')
+    } catch (e) {
+      addToast(e.message, 'error')
+    } finally {
+      setSavingField(false)
+    }
+  }
 
   const addClient = async () => {
     if (!clientEmail.trim()) return
@@ -118,9 +204,24 @@ export default function ProjectDetailPage() {
       </div>
       <div className="page-content fade-in">
         <div style={{ marginBottom: '2rem' }}>
-          <h1 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '1.5rem', fontWeight: 700, color: 'var(--white)', marginBottom: '0.25rem' }}>{project.name}</h1>
-          {project.client_name && <div style={{ color: 'var(--accent)', fontSize: '0.88rem', marginBottom: '0.5rem' }}>{project.client_name}</div>}
-          {project.description && <div style={{ color: 'var(--muted)', fontSize: '0.9rem', maxWidth: 600 }}>{project.description}</div>}
+          <EditableField
+            as="h1" field="name" value={project.name} canEdit={!isClient}
+            editingField={editingField} editValue={editValue} onEditValueChange={setEditValue}
+            onStart={startEditField} onSave={saveEditField} onCancel={cancelEditField} saving={savingField}
+            textStyle={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '1.5rem', fontWeight: 700, color: 'var(--white)', marginBottom: '0.25rem' }}
+          />
+          <EditableField
+            field="client_name" value={project.client_name} canEdit={!isClient} placeholder="company name"
+            editingField={editingField} editValue={editValue} onEditValueChange={setEditValue}
+            onStart={startEditField} onSave={saveEditField} onCancel={cancelEditField} saving={savingField}
+            textStyle={{ color: 'var(--accent)', fontSize: '0.88rem', marginBottom: '0.5rem' }}
+          />
+          <EditableField
+            field="description" value={project.description} canEdit={!isClient} placeholder="description" multiline
+            editingField={editingField} editValue={editValue} onEditValueChange={setEditValue}
+            onStart={startEditField} onSave={saveEditField} onCancel={cancelEditField} saving={savingField}
+            textStyle={{ color: 'var(--muted)', fontSize: '0.9rem', maxWidth: 600 }}
+          />
         </div>
 
         {isClient ? (

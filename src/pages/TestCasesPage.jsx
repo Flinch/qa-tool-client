@@ -444,8 +444,8 @@ function TestCaseModal({ tc, projectId, isClient, features, onClose, onBugLogged
                   <Icon name="check" size={11} /> Automated
                 </span>
               ) : tc.automation_candidate ? (
-                <span className="badge badge-automation" title={tc.automation_reasoning || undefined}>
-                  <Icon name="gear" size={11} /> Automatable
+                <span className="badge badge-automation" title={tc.automation_reasoning || 'Part of the curated critical-flow set'}>
+                  <Icon name="zap" size={11} /> Critical Flow
                 </span>
               ) : null}
             </div>
@@ -686,7 +686,7 @@ export default function TestCasesPage() {
                         {tc.is_automated
                           ? <span className="badge badge-tc-automated" title="Has real generated automation"><Icon name="check" size={11} /> Automated</span>
                           : tc.automation_candidate
-                          ? <span className="badge badge-automation" title={tc.automation_reasoning || undefined}><Icon name="gear" size={11} /> Automatable</span>
+                          ? <span className="badge badge-automation" title={tc.automation_reasoning || 'Part of the curated critical-flow set'}><Icon name="zap" size={11} /> Critical Flow</span>
                           : <span style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>—</span>}
                       </td>
                       <td>

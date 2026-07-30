@@ -281,6 +281,166 @@ function DiffReviewModal({ projectId, documentId, diff, platform, features, mode
   )
 }
 
+// Reviews the diff from POST /critical-flows/review before anything commits
+// — same checkbox-approve-per-item shape as DiffReviewModal above, extended
+// with the extra fields a flow needs (steps, expected, which requirements
+// it covers) since a flow carries more than a requirement's title+description.
+function CriticalFlowsReviewModal({ projectId, diff, unchangedCount, requirements, onClose, onApplied }) {
+  const { addToast } = useToastStore()
+  const [approvedModified, setApprovedModified] = useState(() => new Set((diff.modified || []).map(m => m.id)))
+  const [approvedRemoved, setApprovedRemoved] = useState(() => new Set((diff.removed || []).map(r => r.id)))
+  const [approvedNew, setApprovedNew] = useState(() => new Set((diff.new || []).map((_, i) => i)))
+  // Editable drafts, seeded from the AI's proposal — steps kept as a
+  // newline-joined string while editing (textarea), split back into an
+  // array on apply, same convention TestCasesPage's own edit form uses.
+  const [editedModified, setEditedModified] = useState(() =>
+    (diff.modified || []).map(m => ({ ...m, stepsText: (m.steps || []).join('\n'), requirementIds: m.requirementIds || [] }))
+  )
+  const [editedNew, setEditedNew] = useState(() =>
+    (diff.new || []).map(n => ({ ...n, stepsText: (n.steps || []).join('\n'), requirementIds: n.requirementIds || [] }))
+  )
+  const [saving, setSaving] = useState(false)
+
+  const toggle = (setFn, key) => setFn(s => {
+    const next = new Set(s)
+    next.has(key) ? next.delete(key) : next.add(key)
+    return next
+  })
+
+  const updateModified = (idx, field, value) => setEditedModified(items => items.map((it, i) => i === idx ? { ...it, [field]: value } : it))
+  const updateNew = (idx, field, value) => setEditedNew(items => items.map((it, i) => i === idx ? { ...it, [field]: value } : it))
+  const toggleRequirement = (items, setItems, idx, reqId) => setItems(list => list.map((it, i) => {
+    if (i !== idx) return it
+    const has = it.requirementIds.includes(reqId)
+    return { ...it, requirementIds: has ? it.requirementIds.filter(x => x !== reqId) : [...it.requirementIds, reqId] }
+  }))
+
+  const totalSelected = approvedModified.size + approvedRemoved.size + approvedNew.size
+
+  const requirementPicker = (item, onToggle) => (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginTop: '0.4rem' }}>
+      {requirements.map(r => (
+        <label
+          key={r.id}
+          style={{
+            display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.72rem', padding: '0.2rem 0.5rem',
+            border: `1px solid ${item.requirementIds.includes(r.id) ? 'var(--accent)' : 'var(--border)'}`,
+            color: item.requirementIds.includes(r.id) ? 'var(--white)' : 'var(--muted)', cursor: 'pointer',
+          }}
+        >
+          <input type="checkbox" checked={item.requirementIds.includes(r.id)} onChange={() => onToggle(r.id)} style={{ margin: 0 }} />
+          {r.title.length > 40 ? `${r.title.slice(0, 40)}...` : r.title}
+        </label>
+      ))}
+    </div>
+  )
+
+  const apply = async () => {
+    setSaving(true)
+    try {
+      const result = await apiFetch(`/projects/${projectId}/critical-flows/apply`, {
+        method: 'POST',
+        body: JSON.stringify({
+          modified: editedModified.filter(m => approvedModified.has(m.id)).map(m => ({
+            id: m.id, title: m.title, expected: m.expected, platform: m.platform, reasoning: m.reasoning,
+            steps: m.stepsText.split('\n').map(s => s.trim()).filter(Boolean),
+            requirementIds: m.requirementIds,
+          })),
+          removed: diff.removed.filter(r => approvedRemoved.has(r.id)).map(r => r.id),
+          new: editedNew.filter((_, i) => approvedNew.has(i)).map(n => ({
+            title: n.title, expected: n.expected, platform: n.platform, reasoning: n.reasoning,
+            steps: n.stepsText.split('\n').map(s => s.trim()).filter(Boolean),
+            requirementIds: n.requirementIds,
+          })),
+        }),
+      })
+      addToast(`Applied: ${result.modifiedIds.length} updated, ${result.removedIds.length} demoted, ${result.inserted.length} added`)
+      onApplied(result)
+      onClose()
+    } catch (e) {
+      addToast(e.message, 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal" style={{ maxWidth: 700 }}>
+        <div className="modal-title">Review critical flows</div>
+        <div style={{ fontSize: '0.82rem', color: 'var(--muted)', marginBottom: '1.25rem' }}>
+          {unchangedCount} unchanged · {diff.modified.length} modified · {diff.removed.length} demoted · {diff.new.length} new. Uncheck anything you don't want applied, edit steps/coverage inline.
+        </div>
+
+        <div style={{ maxHeight: 460, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          {diff.modified.length > 0 && (
+            <div>
+              <div style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--warning)', marginBottom: '0.6rem' }}>Modified</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {editedModified.map((m, idx) => (
+                  <label key={m.id} style={{ display: 'flex', gap: '0.6rem', padding: '0.65rem 0.85rem', background: 'var(--bg2)', border: '1px solid var(--border)' }}>
+                    <input type="checkbox" checked={approvedModified.has(m.id)} onChange={() => toggle(setApprovedModified, m.id)} style={{ marginTop: '0.2rem' }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <input className="form-input" style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem' }} value={m.title} onChange={e => updateModified(idx, 'title', e.target.value)} />
+                      <textarea className="form-textarea" style={{ fontSize: '0.78rem', minHeight: 70, marginBottom: '0.4rem' }} value={m.stepsText} onChange={e => updateModified(idx, 'stepsText', e.target.value)} placeholder="One step per line" />
+                      <input className="form-input" style={{ fontSize: '0.78rem' }} value={m.expected} onChange={e => updateModified(idx, 'expected', e.target.value)} placeholder="Expected outcome" />
+                      {requirementPicker(m, reqId => toggleRequirement(editedModified, setEditedModified, idx, reqId))}
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {diff.removed.length > 0 && (
+            <div>
+              <div style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--danger)', marginBottom: '0.6rem' }}>No longer critical (demoted, not deleted)</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                {diff.removed.map(flow => (
+                  <label key={flow.id} style={{ display: 'flex', gap: '0.6rem', padding: '0.65rem 0.85rem', background: 'var(--bg2)', border: '1px solid var(--border)', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={approvedRemoved.has(flow.id)} onChange={() => toggle(setApprovedRemoved, flow.id)} style={{ marginTop: '0.2rem' }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--light)', fontWeight: 600, marginBottom: '0.2rem' }}>{flow.title}</div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>Currently covers {flow.requirementIds?.length || 0} requirement{flow.requirementIds?.length === 1 ? '' : 's'}</div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {diff.new.length > 0 && (
+            <div>
+              <div style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--success)', marginBottom: '0.6rem' }}>New</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {editedNew.map((n, idx) => (
+                  <label key={idx} style={{ display: 'flex', gap: '0.6rem', padding: '0.65rem 0.85rem', background: 'var(--bg2)', border: '1px solid var(--border)' }}>
+                    <input type="checkbox" checked={approvedNew.has(idx)} onChange={() => toggle(setApprovedNew, idx)} style={{ marginTop: '0.2rem' }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <input className="form-input" style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem' }} value={n.title} onChange={e => updateNew(idx, 'title', e.target.value)} />
+                      <textarea className="form-textarea" style={{ fontSize: '0.78rem', minHeight: 70, marginBottom: '0.4rem' }} value={n.stepsText} onChange={e => updateNew(idx, 'stepsText', e.target.value)} placeholder="One step per line" />
+                      <input className="form-input" style={{ fontSize: '0.78rem', marginBottom: '0.3rem' }} value={n.expected} onChange={e => updateNew(idx, 'expected', e.target.value)} placeholder="Expected outcome" />
+                      {n.reasoning && <div style={{ fontSize: '0.72rem', color: 'var(--info)', marginBottom: '0.2rem' }}>{n.reasoning}</div>}
+                      {requirementPicker(n, reqId => toggleRequirement(editedNew, setEditedNew, idx, reqId))}
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="modal-footer">
+          <button className="btn btn-ghost" onClick={onClose} disabled={saving}>Cancel</button>
+          <button className="btn btn-primary" onClick={apply} disabled={saving || totalSelected === 0}>
+            {saving ? 'Applying...' : `Apply ${totalSelected} change${totalSelected === 1 ? '' : 's'}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function CreateRequirementModal({ projectId, features, onClose, onCreated }) {
   const { addToast } = useToastStore()
   const [form, setForm] = useState({ title: '', description: '', platform: 'web', feature_id: '' })
@@ -631,6 +791,8 @@ export default function RequirementsPage() {
   const [generatingIds, setGeneratingIds] = useState(new Set())
   const [bulkGenerating, setBulkGenerating] = useState(false)
   const [platform, setPlatform] = useState('all')
+  const [reviewingFlows, setReviewingFlows] = useState(false)
+  const [pendingFlowsDiff, setPendingFlowsDiff] = useState(null)
 
   useEffect(() => { apiFetch(`/projects/${id}`).then(setProject).catch(console.error) }, [id])
 
@@ -679,6 +841,22 @@ export default function RequirementsPage() {
     }
   }
 
+  const reviewCriticalFlows = async () => {
+    setReviewingFlows(true)
+    try {
+      const result = await apiFetch(`/projects/${id}/critical-flows/review`, { method: 'POST' })
+      if (result.diff.modified.length === 0 && result.diff.removed.length === 0 && result.diff.new.length === 0) {
+        addToast('Critical flows are already up to date')
+      } else {
+        setPendingFlowsDiff(result)
+      }
+    } catch (err) {
+      addToast(err.message, 'error')
+    } finally {
+      setReviewingFlows(false)
+    }
+  }
+
   return (
     <>
       <div className="topbar">
@@ -703,6 +881,9 @@ export default function RequirementsPage() {
           {!isClient && (
             <>
               <button className="btn btn-ghost btn-sm" onClick={() => setShowUpload(true)}>Upload document</button>
+              <button className="btn btn-ghost btn-sm" onClick={reviewCriticalFlows} disabled={reviewingFlows || requirements.length === 0} title="Identify the small set of critical end-to-end flows worth automating first">
+                {reviewingFlows ? 'Reviewing...' : 'Review critical flows'}
+              </button>
               <button className="btn btn-primary btn-sm" onClick={generateAll} disabled={bulkGenerating || uncoveredCount === 0}>
                 {bulkGenerating ? 'Generating...' : `Generate all test cases${uncoveredCount > 0 ? ` (${uncoveredCount})` : ''}`}
               </button>
@@ -839,6 +1020,23 @@ export default function RequirementsPage() {
             )
             if (inserted.length > 0) setRequirements(rs => [...inserted, ...rs])
             if (inserted.some(r => r.feature_id)) fetchFeatures()
+          }}
+        />
+      )}
+
+      {pendingFlowsDiff && (
+        <CriticalFlowsReviewModal
+          projectId={id}
+          diff={pendingFlowsDiff.diff}
+          unchangedCount={pendingFlowsDiff.unchangedCount}
+          requirements={requirements}
+          onClose={() => setPendingFlowsDiff(null)}
+          onApplied={() => {
+            // A flow's requirement_test_cases links change on apply, which
+            // shifts linked_test_case_count on the affected requirements —
+            // simplest correct thing is a refetch rather than trying to
+            // recompute counts client-side from a diff response.
+            apiFetch(`/projects/${id}/requirements`).then(setRequirements).catch(console.error)
           }}
         />
       )}

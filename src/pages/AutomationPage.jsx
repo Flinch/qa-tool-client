@@ -312,7 +312,7 @@ export function GenerationRunRow({ run, projectId }) {
 
 function GenerateTestsModal({ projectId, suites, onClose, onDispatched }) {
   const { addToast } = useToastStore()
-  const [allCandidates, setAllCandidates] = useState([])
+  const [notAutomated, setNotAutomated] = useState([])
   const [alreadyAutomatedCount, setAlreadyAutomatedCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [selectedIds, setSelectedIds] = useState([])
@@ -320,6 +320,12 @@ function GenerateTestsModal({ projectId, suites, onClose, onDispatched }) {
   const [step, setStep] = useState('select') // 'select' | 'confirm'
   const [dispatching, setDispatching] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
+  // automation_candidate is now reserved for the curated critical-flow set
+  // (see "Review critical flows" on the Requirements page) — default to
+  // showing just those, since they're the ones worth automating first.
+  // "All test cases" is the escape hatch for manually promoting something
+  // the AI didn't flag.
+  const [showAll, setShowAll] = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -331,13 +337,14 @@ function GenerateTestsModal({ projectId, suites, onClose, onDispatched }) {
     ])
       .then(([tcs, generated]) => {
         const automatedIds = new Set(generated.testCases.filter(g => g.test_case_id).map(g => g.test_case_id))
-        const candidates = tcs.filter(tc => tc.automation_candidate)
-        setAlreadyAutomatedCount(candidates.filter(tc => automatedIds.has(tc.id)).length)
-        setAllCandidates(candidates.filter(tc => !automatedIds.has(tc.id)))
+        setAlreadyAutomatedCount(tcs.filter(tc => tc.automation_candidate && automatedIds.has(tc.id)).length)
+        setNotAutomated(tcs.filter(tc => !automatedIds.has(tc.id)))
       })
       .catch(e => addToast(e.message, 'error'))
       .finally(() => setLoading(false))
   }, [projectId, addToast])
+
+  const allCandidates = showAll ? notAutomated : notAutomated.filter(tc => tc.automation_candidate)
 
   const selectedSuite = suites.find(s => s.id === Number(suiteId))
   // test_cases.platform is coarse (web/mobile), unlike a suite's own
@@ -440,10 +447,22 @@ function GenerateTestsModal({ projectId, suites, onClose, onDispatched }) {
         </div>
 
         <div className="form-group">
+          <div className="platform-tabs" style={{ marginBottom: '0.6rem' }}>
+            <button
+              type="button" className="platform-tab" aria-selected={!showAll}
+              onClick={() => { setShowAll(false); setSelectedIds(ids => ids.filter(id => notAutomated.some(tc => tc.id === id && tc.automation_candidate))) }}
+            >
+              Critical flows
+            </button>
+            <button type="button" className="platform-tab" aria-selected={showAll} onClick={() => setShowAll(true)}>
+              All test cases
+            </button>
+          </div>
+
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
               <label className="form-label" style={{ marginBottom: 0 }}>Test cases (select up to {MAX_BATCH_SIZE})</label>
-              {alreadyAutomatedCount > 0 && (
+              {!showAll && alreadyAutomatedCount > 0 && (
                 <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>
                   {alreadyAutomatedCount} already-automated test case{alreadyAutomatedCount === 1 ? '' : 's'} hidden
                 </div>
@@ -489,9 +508,11 @@ function GenerateTestsModal({ projectId, suites, onClose, onDispatched }) {
             <div style={{ display: 'flex', justifyContent: 'center', padding: '1.5rem' }}><div className="spinner" /></div>
           ) : candidates.length === 0 ? (
             <div style={{ fontSize: '0.82rem', color: 'var(--muted)', padding: '0.75rem', background: 'var(--bg2)', border: '1px solid var(--border)', textAlign: 'center' }}>
-              {alreadyAutomatedCount > 0
-                ? 'Every automation candidate for this platform is already automated.'
-                : 'No test cases are flagged as automation candidates yet. Flag some on the Test Cases page first.'}
+              {showAll
+                ? 'No other test cases for this platform.'
+                : alreadyAutomatedCount > 0
+                  ? 'Every critical flow for this platform is already automated.'
+                  : 'No critical flows tracked yet for this platform — use "Review critical flows" on the Requirements page, or switch to "All test cases" to pick one manually.'}
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: 280, overflowY: 'auto' }}>
