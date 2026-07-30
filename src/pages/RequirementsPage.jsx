@@ -154,6 +154,11 @@ function DiffReviewModal({ projectId, documentId, diff, platform, features, mode
   // AI-suggested feature per new requirement, editable before Apply — the
   // actual "edit the name before accepting" surface.
   const [featureNames, setFeatureNames] = useState(() => diff.new.map(n => n.feature_name || ''))
+  // Title/description are editable too, before anything is written —
+  // seeded from the AI's proposal, indexed the same way featureNames
+  // already is.
+  const [editedModified, setEditedModified] = useState(() => diff.modified.map(m => ({ ...m })))
+  const [editedNew, setEditedNew] = useState(() => diff.new.map(n => ({ ...n })))
   const [saving, setSaving] = useState(false)
 
   const toggle = (setFn, key) => setFn(s => {
@@ -161,6 +166,9 @@ function DiffReviewModal({ projectId, documentId, diff, platform, features, mode
     next.has(key) ? next.delete(key) : next.add(key)
     return next
   })
+
+  const updateModified = (idx, field, value) => setEditedModified(items => items.map((it, i) => i === idx ? { ...it, [field]: value } : it))
+  const updateNew = (idx, field, value) => setEditedNew(items => items.map((it, i) => i === idx ? { ...it, [field]: value } : it))
 
   const totalSelected = approvedModified.size + approvedRemoved.size + approvedNew.size
 
@@ -171,12 +179,12 @@ function DiffReviewModal({ projectId, documentId, diff, platform, features, mode
         method: 'POST',
         body: JSON.stringify({
           documentId,
-          modified: diff.modified.filter(m => approvedModified.has(m.id)).map(m => ({ id: m.id, title: m.title, description: m.description })),
+          modified: editedModified.filter(m => approvedModified.has(m.id)).map(m => ({ id: m.id, title: m.title, description: m.description })),
           removed: diff.removed.filter(r => approvedRemoved.has(r.id)).map(r => r.id),
-          // flatMap (not filter().map()) so featureNames[i] stays aligned to
-          // the original index — filter() alone would reindex and misalign
-          // feature names whenever an item is unchecked.
-          added: diff.new.flatMap((n, i) => approvedNew.has(i) ? [{ ...n, feature_name: featureNames[i] }] : []),
+          // flatMap (not filter().map()) so featureNames[i]/editedNew[i]
+          // stay aligned to the original index — filter() alone would
+          // reindex and misalign them whenever an item is unchecked.
+          added: editedNew.flatMap((n, i) => approvedNew.has(i) ? [{ ...n, feature_name: featureNames[i] }] : []),
           platform,
         }),
       })
@@ -208,13 +216,13 @@ function DiffReviewModal({ projectId, documentId, diff, platform, features, mode
             <div>
               <div style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--warning)', marginBottom: '0.6rem' }}>Modified</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                {diff.modified.map(m => (
-                  <label key={m.id} style={{ display: 'flex', gap: '0.6rem', padding: '0.65rem 0.85rem', background: 'var(--bg2)', border: '1px solid var(--border)', cursor: 'pointer' }}>
+                {editedModified.map((m, idx) => (
+                  <label key={m.id} style={{ display: 'flex', gap: '0.6rem', padding: '0.65rem 0.85rem', background: 'var(--bg2)', border: '1px solid var(--border)' }}>
                     <input type="checkbox" checked={approvedModified.has(m.id)} onChange={() => toggle(setApprovedModified, m.id)} style={{ marginTop: '0.2rem' }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '0.82rem', color: 'var(--muted)', textDecoration: 'line-through', marginBottom: '0.2rem' }}>{m.old.title}</div>
-                      <div style={{ fontSize: '0.85rem', color: 'var(--light)', fontWeight: 600, marginBottom: '0.3rem' }}>{m.title}</div>
-                      <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>{m.description}</div>
+                      <div style={{ fontSize: '0.78rem', color: 'var(--muted)', textDecoration: 'line-through', marginBottom: '0.3rem' }}>{m.old.title}</div>
+                      <input className="form-input" style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.3rem' }} value={m.title} onChange={e => updateModified(idx, 'title', e.target.value)} />
+                      <textarea className="form-textarea" style={{ fontSize: '0.78rem', minHeight: 55 }} value={m.description} onChange={e => updateModified(idx, 'description', e.target.value)} />
                       {m.old.linked_test_case_count > 0 && (
                         <div style={{ fontSize: '0.72rem', color: 'var(--info)', marginTop: '0.3rem' }}>{m.old.linked_test_case_count} linked test case{m.old.linked_test_case_count === 1 ? '' : 's'} — kept as-is</div>
                       )}
@@ -248,12 +256,12 @@ function DiffReviewModal({ projectId, documentId, diff, platform, features, mode
             <div>
               <div style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--success)', marginBottom: '0.6rem' }}>New</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                {diff.new.map((n, i) => (
-                  <label key={i} style={{ display: 'flex', gap: '0.6rem', padding: '0.65rem 0.85rem', background: 'var(--bg2)', border: '1px solid var(--border)', cursor: 'pointer' }}>
+                {editedNew.map((n, i) => (
+                  <label key={i} style={{ display: 'flex', gap: '0.6rem', padding: '0.65rem 0.85rem', background: 'var(--bg2)', border: '1px solid var(--border)' }}>
                     <input type="checkbox" checked={approvedNew.has(i)} onChange={() => toggle(setApprovedNew, i)} style={{ marginTop: '0.2rem' }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '0.85rem', color: 'var(--light)', fontWeight: 600, marginBottom: '0.2rem' }}>{n.title}</div>
-                      <div style={{ fontSize: '0.78rem', color: 'var(--muted)', marginBottom: '0.4rem' }}>{n.description}</div>
+                      <input className="form-input" style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.3rem' }} value={n.title} onChange={e => updateNew(i, 'title', e.target.value)} />
+                      <textarea className="form-textarea" style={{ fontSize: '0.78rem', minHeight: 55, marginBottom: '0.4rem' }} value={n.description} onChange={e => updateNew(i, 'description', e.target.value)} />
                       <input
                         className="form-input"
                         style={{ fontSize: '0.78rem', padding: '0.35rem 0.6rem' }}
@@ -793,6 +801,8 @@ export default function RequirementsPage() {
   const [platform, setPlatform] = useState('all')
   const [reviewingFlows, setReviewingFlows] = useState(false)
   const [pendingFlowsDiff, setPendingFlowsDiff] = useState(null)
+  const [confirmingFlows, setConfirmingFlows] = useState(false)
+  const [collapsedFeatures, setCollapsedFeatures] = useState(new Set())
 
   useEffect(() => { apiFetch(`/projects/${id}`).then(setProject).catch(console.error) }, [id])
 
@@ -812,6 +822,33 @@ export default function RequirementsPage() {
   // count would mismatch what it actually does if scoped to the active tab.
   // The tab only filters which rows the table below shows.
   const filtered = platform === 'all' ? requirements : requirements.filter(r => r.platform === platform)
+
+  // Groups by feature_id, real features sorted by name, "No feature" last —
+  // a group key is the feature id, or the string 'none' for uncategorized.
+  const featureNameById = Object.fromEntries(features.map(f => [f.id, f.name]))
+  const groupedByFeature = (() => {
+    const map = new Map()
+    for (const r of filtered) {
+      const key = r.feature_id || 'none'
+      if (!map.has(key)) map.set(key, [])
+      map.get(key).push(r)
+    }
+    const entries = [...map.entries()]
+    entries.sort((a, b) => {
+      if (a[0] === 'none') return 1
+      if (b[0] === 'none') return -1
+      return (featureNameById[a[0]] || '').localeCompare(featureNameById[b[0]] || '')
+    })
+    return entries
+  })()
+  const allFeatureKeys = groupedByFeature.map(([key]) => key)
+  const allCollapsed = allFeatureKeys.length > 0 && allFeatureKeys.every(k => collapsedFeatures.has(k))
+  const toggleFeatureCollapse = (key) => setCollapsedFeatures(s => {
+    const next = new Set(s)
+    next.has(key) ? next.delete(key) : next.add(key)
+    return next
+  })
+  const toggleCollapseAll = () => setCollapsedFeatures(allCollapsed ? new Set() : new Set(allFeatureKeys))
 
   const generateOne = async (reqId, e) => {
     e?.stopPropagation()
@@ -841,7 +878,7 @@ export default function RequirementsPage() {
     }
   }
 
-  const reviewCriticalFlows = async () => {
+  const generateCriticalFlows = async () => {
     setReviewingFlows(true)
     try {
       const result = await apiFetch(`/projects/${id}/critical-flows/review`, { method: 'POST' })
@@ -854,6 +891,7 @@ export default function RequirementsPage() {
       addToast(err.message, 'error')
     } finally {
       setReviewingFlows(false)
+      setConfirmingFlows(false)
     }
   }
 
@@ -881,8 +919,8 @@ export default function RequirementsPage() {
           {!isClient && (
             <>
               <button className="btn btn-ghost btn-sm" onClick={() => setShowUpload(true)}>Upload document</button>
-              <button className="btn btn-ghost btn-sm" onClick={reviewCriticalFlows} disabled={reviewingFlows || requirements.length === 0} title="Identify the small set of critical end-to-end flows worth automating first">
-                {reviewingFlows ? 'Reviewing...' : 'Review critical flows'}
+              <button className="btn btn-ghost btn-sm" onClick={() => setConfirmingFlows(true)} disabled={reviewingFlows || requirements.length === 0} title="Identify the small set of critical end-to-end flows worth automating first">
+                {reviewingFlows ? 'Generating...' : 'Generate critical flows'}
               </button>
               <button className="btn btn-primary btn-sm" onClick={generateAll} disabled={bulkGenerating || uncoveredCount === 0}>
                 {bulkGenerating ? 'Generating...' : `Generate all test cases${uncoveredCount > 0 ? ` (${uncoveredCount})` : ''}`}
@@ -909,7 +947,14 @@ export default function RequirementsPage() {
               </button>
             ))}
           </div>
-          {!isClient && <button className="btn btn-ghost btn-sm" onClick={() => setShowManageFeatures(true)}>Manage features</button>}
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            {allFeatureKeys.length > 1 && (
+              <button className="btn btn-ghost btn-sm" onClick={toggleCollapseAll}>
+                {allCollapsed ? 'Expand all' : 'Collapse all'}
+              </button>
+            )}
+            {!isClient && requirements.length > 0 && <button className="btn btn-ghost btn-sm" onClick={() => setShowManageFeatures(true)}>Manage features</button>}
+          </div>
         </div>
 
         {loading ? (
@@ -942,33 +987,51 @@ export default function RequirementsPage() {
                     <th>Created</th>
                   </tr>
                 </thead>
-                <tbody>
-                  {filtered.map(r => (
-                    <tr key={r.id} onClick={() => setSelected(r)} style={{ cursor: 'pointer' }}>
-                      <td style={{ maxWidth: 420 }}>
-                        <div style={{ fontWeight: 500, color: 'var(--light)', marginBottom: '0.15rem' }}>{r.title}</div>
-                        {r.description && <div style={{ fontSize: '0.72rem', color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.description}</div>}
-                      </td>
-                      <td><span className={`badge badge-${r.platform || 'web'}`}>{r.platform === 'mobile' ? 'Mobile' : 'Web'}</span></td>
-                      <td>
-                        {r.linked_test_case_count > 0 ? (
-                          <span style={{ fontSize: '0.82rem', color: 'var(--light)' }}>{r.linked_test_case_count}</span>
-                        ) : isClient ? (
-                          <span style={{ fontSize: '0.78rem', color: 'var(--danger)' }}>No coverage</span>
-                        ) : (
-                          <button
-                            className="btn btn-ghost btn-sm"
-                            onClick={e => generateOne(r.id, e)}
-                            disabled={generatingIds.has(r.id)}
-                          >
-                            {generatingIds.has(r.id) ? 'Generating...' : 'Generate'}
-                          </button>
-                        )}
-                      </td>
-                      <td style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>{new Date(r.created_at).toLocaleDateString()}</td>
-                    </tr>
-                  ))}
-                </tbody>
+                {groupedByFeature.map(([key, reqs]) => {
+                  const isCollapsed = collapsedFeatures.has(key)
+                  const label = key === 'none' ? 'No feature' : (featureNameById[key] || 'Unknown feature')
+                  return (
+                    <tbody key={key}>
+                      <tr
+                        onClick={() => toggleFeatureCollapse(key)}
+                        style={{ cursor: 'pointer', background: 'var(--bg2)' }}
+                      >
+                        <td colSpan={4} style={{ padding: '0.55rem 1rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <Icon name="chevronRight" size={12} style={{ transform: isCollapsed ? 'rotate(0deg)' : 'rotate(90deg)', transition: 'transform 0.15s', color: 'var(--muted)' }} />
+                            <span style={{ fontWeight: 600, fontSize: '0.82rem', color: 'var(--light)' }}>{label}</span>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>({reqs.length})</span>
+                          </div>
+                        </td>
+                      </tr>
+                      {!isCollapsed && reqs.map(r => (
+                        <tr key={r.id} onClick={() => setSelected(r)} style={{ cursor: 'pointer' }}>
+                          <td style={{ maxWidth: 420, paddingLeft: '2rem' }}>
+                            <div style={{ fontWeight: 500, color: 'var(--light)', marginBottom: '0.15rem' }}>{r.title}</div>
+                            {r.description && <div style={{ fontSize: '0.72rem', color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.description}</div>}
+                          </td>
+                          <td><span className={`badge badge-${r.platform || 'web'}`}>{r.platform === 'mobile' ? 'Mobile' : 'Web'}</span></td>
+                          <td>
+                            {r.linked_test_case_count > 0 ? (
+                              <span style={{ fontSize: '0.82rem', color: 'var(--light)' }}>{r.linked_test_case_count}</span>
+                            ) : isClient ? (
+                              <span style={{ fontSize: '0.78rem', color: 'var(--danger)' }}>No coverage</span>
+                            ) : (
+                              <button
+                                className="btn btn-ghost btn-sm"
+                                onClick={e => generateOne(r.id, e)}
+                                disabled={generatingIds.has(r.id)}
+                              >
+                                {generatingIds.has(r.id) ? 'Generating...' : 'Generate'}
+                              </button>
+                            )}
+                          </td>
+                          <td style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>{new Date(r.created_at).toLocaleDateString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  )
+                })}
               </table>
             </div>
           </div>
@@ -1022,6 +1085,28 @@ export default function RequirementsPage() {
             if (inserted.some(r => r.feature_id)) fetchFeatures()
           }}
         />
+      )}
+
+      {confirmingFlows && (
+        <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && !reviewingFlows && setConfirmingFlows(false)}>
+          <div className="modal" style={{ maxWidth: 520 }}>
+            <div className="modal-title">Confirm generate critical flows</div>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', fontSize: '0.8rem', color: 'var(--muted)', marginBottom: '1rem', lineHeight: 1.6, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 0, padding: '0.6rem 0.85rem' }}>
+              <Icon name="zap" size={14} style={{ color: 'var(--accent)', marginTop: '0.1rem', flexShrink: 0 }} />
+              <span>
+                This reasons over every active requirement with AI to identify the small set of critical, top-to-bottom
+                flows worth automating first, and diffs them against what's already tracked — a real AI call, not a
+                simulation. Nothing is written until you review and apply the result.
+              </span>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-ghost" onClick={() => setConfirmingFlows(false)} disabled={reviewingFlows}>Cancel</button>
+              <button className="btn btn-primary" onClick={generateCriticalFlows} disabled={reviewingFlows}>
+                {reviewingFlows ? 'Generating...' : 'Confirm & Generate'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {pendingFlowsDiff && (

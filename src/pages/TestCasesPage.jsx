@@ -17,6 +17,20 @@ function CreateTestCaseModal({ projectId, features, onClose, onCreated }) {
   const [form, setForm] = useState({ title: '', type: 'functional', steps: '', expected: '', platform: 'web', feature_id: '' })
   const [saving, setSaving] = useState(false)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  // A manually-authored critical flow — same definition as the AI-generated
+  // ones (type='e2e' + automation_candidate=true), just authored by hand
+  // instead of through "Generate critical flows" on the Requirements page.
+  const [isCriticalFlow, setIsCriticalFlow] = useState(false)
+  const [requirements, setRequirements] = useState([])
+  const [requirementIds, setRequirementIds] = useState([])
+
+  useEffect(() => {
+    if (isCriticalFlow && requirements.length === 0) {
+      apiFetch(`/projects/${projectId}/requirements`).then(setRequirements).catch(console.error)
+    }
+  }, [isCriticalFlow, projectId])
+
+  const toggleRequirement = (reqId) => setRequirementIds(ids => ids.includes(reqId) ? ids.filter(x => x !== reqId) : [...ids, reqId])
 
   const submit = async () => {
     if (!form.title.trim()) return
@@ -25,9 +39,12 @@ function CreateTestCaseModal({ projectId, features, onClose, onCreated }) {
       const stepsArray = form.steps.split('\n').map(s => s.trim()).filter(Boolean)
       const created = await apiFetch(`/projects/${projectId}/test-cases`, {
         method: 'POST',
-        body: JSON.stringify({ title: form.title, type: form.type, steps: stepsArray, expected: form.expected, platform: form.platform, feature_id: form.feature_id || null }),
+        body: JSON.stringify({
+          title: form.title, type: form.type, steps: stepsArray, expected: form.expected, platform: form.platform, feature_id: form.feature_id || null,
+          is_critical_flow: isCriticalFlow, requirementIds,
+        }),
       })
-      addToast('Test case created')
+      addToast(isCriticalFlow ? 'Critical flow created' : 'Test case created')
       onCreated(created)
       onClose()
     } catch (e) {
@@ -49,11 +66,43 @@ function CreateTestCaseModal({ projectId, features, onClose, onCreated }) {
 
         <div className="form-group">
           <label className="form-label">Type</label>
-          <select className="form-select" value={form.type} onChange={e => set('type', e.target.value)}>
+          <select className="form-select" value={isCriticalFlow ? 'e2e' : form.type} onChange={e => set('type', e.target.value)} disabled={isCriticalFlow}>
             <option value="functional">Functional</option>
             <option value="integration">Integration</option>
             <option value="e2e">E2E</option>
           </select>
+        </div>
+
+        <div className="form-group">
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', color: 'var(--light)', cursor: 'pointer' }}>
+            <input type="checkbox" checked={isCriticalFlow} onChange={e => setIsCriticalFlow(e.target.checked)} />
+            Mark as critical flow
+          </label>
+          <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: '0.2rem' }}>
+            A high-value, top-to-bottom journey worth automating first — same as the ones "Generate critical flows" proposes, authored by hand instead. Forces type to E2E.
+          </div>
+          {isCriticalFlow && (
+            <div style={{ marginTop: '0.6rem' }}>
+              <label className="form-label" style={{ marginBottom: '0.3rem' }}>Covers these requirements (optional)</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', maxHeight: 140, overflowY: 'auto', padding: '0.5rem', background: 'var(--bg2)', border: '1px solid var(--border)' }}>
+                {requirements.length === 0 ? (
+                  <span style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>No requirements to link yet.</span>
+                ) : requirements.map(r => (
+                  <label
+                    key={r.id}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.72rem', padding: '0.2rem 0.5rem',
+                      border: `1px solid ${requirementIds.includes(r.id) ? 'var(--accent)' : 'var(--border)'}`,
+                      color: requirementIds.includes(r.id) ? 'var(--white)' : 'var(--muted)', cursor: 'pointer',
+                    }}
+                  >
+                    <input type="checkbox" checked={requirementIds.includes(r.id)} onChange={() => toggleRequirement(r.id)} style={{ margin: 0 }} />
+                    {r.title.length > 40 ? `${r.title.slice(0, 40)}...` : r.title}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="form-group">
@@ -96,7 +145,7 @@ function CreateTestCaseModal({ projectId, features, onClose, onCreated }) {
         <div className="modal-footer">
           <button className="btn btn-ghost" onClick={onClose} disabled={saving}>Cancel</button>
           <button className="btn btn-primary" onClick={submit} disabled={saving || !form.title.trim()}>
-            {saving ? 'Creating...' : 'Create test case'}
+            {saving ? 'Creating...' : isCriticalFlow ? 'Create critical flow' : 'Create test case'}
           </button>
         </div>
       </div>
