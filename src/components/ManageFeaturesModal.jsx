@@ -38,7 +38,7 @@ export default function ManageFeaturesModal({ projectId, features, onClose, onCh
     if (!editName.trim()) return
     setSavingId(f.id)
     try {
-      await apiFetch(`/features/${f.id}`, {
+      await apiFetch(`/projects/${projectId}/features/${f.id}`, {
         method: 'PATCH',
         body: JSON.stringify({ name: editName.trim() }),
       })
@@ -54,7 +54,7 @@ export default function ManageFeaturesModal({ projectId, features, onClose, onCh
   const remove = async (f) => {
     setDeletingId(f.id)
     try {
-      await apiFetch(`/features/${f.id}`, { method: 'DELETE' })
+      await apiFetch(`/projects/${projectId}/features/${f.id}`, { method: 'DELETE' })
       onChanged()
     } catch (e) {
       addToast(e.message, 'error')

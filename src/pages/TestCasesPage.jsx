@@ -272,7 +272,7 @@ function TestCaseModal({ tc, projectId, isClient, features, onClose, onBugLogged
   const deleteTC = async () => {
     setDeleting(true)
     try {
-      await apiFetch(`/test-cases/${tc.id}`, { method: 'DELETE' })
+      await apiFetch(`/projects/${projectId}/test-cases/${tc.id}`, { method: 'DELETE' })
       addToast('Test case deleted')
       onDeleted(tc.id)
       onClose()
@@ -294,7 +294,7 @@ function TestCaseModal({ tc, projectId, isClient, features, onClose, onBugLogged
     setSaving(true)
     try {
       const stepsArray = editForm.steps.split('\n').map(s => s.trim()).filter(Boolean)
-      const updated = await apiFetch(`/test-cases/${tc.id}`, {
+      const updated = await apiFetch(`/projects/${projectId}/test-cases/${tc.id}`, {
         method: 'PATCH',
         body: JSON.stringify({
           title: editForm.title,

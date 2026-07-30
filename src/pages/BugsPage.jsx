@@ -277,7 +277,7 @@ export function BugDetailModal({ bug, projectId, isClient, onClose, onUpdated })
     if (!editForm.title.trim()) return
     setSaving(true)
     try {
-      const updated = await apiFetch(`/bugs/${bug.id}`, {
+      const updated = await apiFetch(`/projects/${projectId}/bugs/${bug.id}`, {
         method: 'PATCH',
         body: JSON.stringify(editForm),
       })
@@ -557,7 +557,7 @@ export default function BugsPage() {
 
   const updateStatus = async (bugId, status) => {
     try {
-      await apiFetch(`/bugs/${bugId}`, { method: 'PATCH', body: JSON.stringify({ status }) })
+      await apiFetch(`/projects/${id}/bugs/${bugId}`, { method: 'PATCH', body: JSON.stringify({ status }) })
       setBugs(bs => bs.map(b => b.id === bugId ? { ...b, status } : b))
       addToast('Status updated')
     } catch (e) {

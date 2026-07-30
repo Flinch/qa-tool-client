@@ -1,48 +1,32 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { apiFetch } from '../lib/api.js'
-import { useToastStore } from '../store/toastStore.jsx'
 import { useAuth } from '../store/AuthContext.jsx'
 
-function ProjectModal({ onClose, onCreated }) {
-  const { addToast } = useToastStore()
-  const [form, setForm] = useState({ name: '', client_name: '', description: '' })
-  const [loading, setLoading] = useState(false)
-
-  const submit = async () => {
-    if (!form.name.trim()) return
-    setLoading(true)
-    try {
-      const project = await apiFetch('/projects', { method: 'POST', body: JSON.stringify(form) })
-      addToast(`Project "${project.name}" created`)
-      onCreated(project)
-      onClose()
-    } catch (e) {
-      addToast(e.message, 'error')
-    } finally {
-      setLoading(false)
-    }
-  }
-
+// Each project is now its own physically separate database (Phase A:
+// DB-per-client multi-tenancy), so creating one means provisioning real
+// infrastructure — a new Postgres database plus schema migrations — not
+// just an INSERT. That's a deliberate CLI-only operation
+// (scripts/provisionTenant.js) run by hand off the always-on server, so the
+// database-creation credential it needs never has to live on that process.
+// This modal just points to the runbook instead of a form.
+function ProjectModal({ onClose }) {
   return (
     <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal">
         <div className="modal-title">New project</div>
-        <div className="form-group">
-          <label className="form-label">Project name *</label>
-          <input className="form-input" placeholder="e.g. Acme Booking App" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-        </div>
-        <div className="form-group">
-          <label className="form-label">Client name</label>
-          <input className="form-input" placeholder="e.g. Acme Corp" value={form.client_name} onChange={e => setForm(f => ({ ...f, client_name: e.target.value }))} />
-        </div>
-        <div className="form-group">
-          <label className="form-label">Description</label>
-          <textarea className="form-textarea" placeholder="Brief description..." value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} style={{ minHeight: 80 }} />
-        </div>
+        <p style={{ color: 'var(--muted)', fontSize: '0.88rem', lineHeight: 1.6 }}>
+          New clients are provisioned from the command line now, not through the
+          UI — each one gets its own isolated database. Run:
+        </p>
+        <pre style={{ background: 'var(--bg-secondary, #1a1a1a)', padding: '0.75rem', borderRadius: 6, fontSize: '0.82rem', overflowX: 'auto' }}>
+          node scripts/provisionTenant.js --name "Client Name"
+        </pre>
+        <p style={{ color: 'var(--muted)', fontSize: '0.82rem' }}>
+          from the qa-tool-server repo. The new project appears here once it finishes.
+        </p>
         <div className="modal-footer">
-          <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={submit} disabled={loading || !form.name.trim()}>{loading ? 'Creating...' : 'Create project'}</button>
+          <button className="btn btn-primary" onClick={onClose}>Got it</button>
         </div>
       </div>
     </div>
@@ -97,7 +81,7 @@ export default function ProjectsPage() {
           </div>
         )}
       </div>
-      {showModal && <ProjectModal onClose={() => setShowModal(false)} onCreated={p => setProjects(ps => [p, ...ps])} />}
+      {showModal && <ProjectModal onClose={() => setShowModal(false)} />}
     </>
   )
 }

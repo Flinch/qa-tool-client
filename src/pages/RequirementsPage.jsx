@@ -469,7 +469,7 @@ function RequirementModal({ requirement, projectId, isClient, features, onClose,
   const deleteRequirement = async () => {
     if (!window.confirm(`Delete "${requirement.title}"? This can be undone by re-adding it, but it will disappear from the active list.`)) return
     try {
-      await apiFetch(`/requirements/${requirement.id}`, { method: 'PATCH', body: JSON.stringify({ status: 'removed' }) })
+      await apiFetch(`/projects/${projectId}/requirements/${requirement.id}`, { method: 'PATCH', body: JSON.stringify({ status: 'removed' }) })
       addToast('Requirement deleted')
       onDeleted(requirement.id)
       onClose()
@@ -482,7 +482,7 @@ function RequirementModal({ requirement, projectId, isClient, features, onClose,
     if (!editForm.title.trim()) return
     setSaving(true)
     try {
-      const updated = await apiFetch(`/requirements/${requirement.id}`, {
+      const updated = await apiFetch(`/projects/${projectId}/requirements/${requirement.id}`, {
         method: 'PATCH',
         body: JSON.stringify(editForm),
       })
