@@ -91,8 +91,16 @@ function CreateSuiteModal({ projectId, onClose, onCreated }) {
   const { addToast } = useToastStore()
   const [name, setName] = useState('')
   const [platform, setPlatform] = useState('web')
-  const [engine, setEngine] = useState('maestro')
+  // 'browser' | 'api' when platform='web' (browser maps to a null engine —
+  // Playwright UI is web's implicit default, same convention every
+  // existing web suite already uses); 'maestro' | 'appium' for mobile.
+  const [engine, setEngine] = useState('browser')
   const [saving, setSaving] = useState(false)
+
+  const handlePlatformChange = (p) => {
+    setPlatform(p)
+    setEngine(p === 'web' ? 'browser' : 'maestro')
+  }
 
   const submit = async () => {
     if (!name.trim()) return
@@ -104,7 +112,7 @@ function CreateSuiteModal({ projectId, onClose, onCreated }) {
           name: name.trim(),
           slug: slugifySuiteName(name),
           platform,
-          engine: platform === 'web' ? null : engine,
+          engine: platform === 'web' ? (engine === 'api' ? 'api' : null) : engine,
         }),
       })
       addToast(`Suite "${suite.name}" created`)
@@ -133,21 +141,28 @@ function CreateSuiteModal({ projectId, onClose, onCreated }) {
         </div>
         <div className="form-group">
           <label className="form-label">Platform</label>
-          <select className="form-select" value={platform} onChange={e => setPlatform(e.target.value)}>
+          <select className="form-select" value={platform} onChange={e => handlePlatformChange(e.target.value)}>
             <option value="web">Web</option>
             <option value="ios">iOS</option>
             <option value="android">Android</option>
           </select>
         </div>
-        {platform !== 'web' && (
-          <div className="form-group">
-            <label className="form-label">Engine</label>
-            <select className="form-select" value={engine} onChange={e => setEngine(e.target.value)}>
-              <option value="maestro">Maestro</option>
-              <option value="appium">Appium</option>
-            </select>
-          </div>
-        )}
+        <div className="form-group">
+          <label className="form-label">Engine</label>
+          <select className="form-select" value={engine} onChange={e => setEngine(e.target.value)}>
+            {platform === 'web' ? (
+              <>
+                <option value="browser">Browser (Playwright UI)</option>
+                <option value="api">API (HTTP requests)</option>
+              </>
+            ) : (
+              <>
+                <option value="maestro">Maestro</option>
+                <option value="appium">Appium</option>
+              </>
+            )}
+          </select>
+        </div>
         <div className="modal-footer">
           <button className="btn btn-ghost" onClick={onClose} disabled={saving}>Cancel</button>
           <button className="btn btn-primary" onClick={submit} disabled={saving || !name.trim()}>
@@ -189,6 +204,14 @@ function SuiteCard({ suite, onRun, running, readOnly }) {
           <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '0.95rem', color: 'var(--white)', lineHeight: 1.25 }}>{suite.name}</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.3rem' }}>
             <PlatformBadge platform={suite.platform} />
+            {suite.engine === 'api' && (
+              <span style={{
+                fontSize: '0.68rem', fontWeight: 600, color: 'var(--accent2)',
+                border: '1px solid var(--accent2)', borderRadius: 0, padding: '0.1rem 0.5rem',
+              }}>
+                API
+              </span>
+            )}
             <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>{suite.test_case_count} test case{suite.test_case_count === 1 ? '' : 's'}</span>
           </div>
         </div>
