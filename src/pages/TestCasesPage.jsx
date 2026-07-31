@@ -8,6 +8,8 @@ import { handleImageFile } from '../lib/imageUpload.js'
 import Icon from '../components/Icon.jsx'
 import ManageFeaturesModal from '../components/ManageFeaturesModal.jsx'
 import CombineTestCasesModal from '../components/CombineTestCasesModal.jsx'
+import AssignFeatureModal from '../components/AssignFeatureModal.jsx'
+import { RequirementModal } from './RequirementsPage.jsx'
 
 const TYPE_LABELS = { functional: 'Functional', integration: 'Integration', e2e: 'E2E' }
 const SEVERITIES = ['critical', 'high', 'medium', 'low']
@@ -561,9 +563,12 @@ export default function TestCasesPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { user } = useAuth()
   const isClient = user?.role === 'client'
+  const { addToast } = useToastStore()
   const [project, setProject] = useState(null)
   const [testCases, setTestCases] = useState([])
   const [features, setFeatures] = useState([])
+  const [requirements, setRequirements] = useState([])
+  const [viewingReqId, setViewingReqId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [showCreate, setShowCreate] = useState(false)
   const [showManageFeatures, setShowManageFeatures] = useState(false)
@@ -572,11 +577,18 @@ export default function TestCasesPage() {
   const [platform, setPlatform] = useState('all')
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [showCombine, setShowCombine] = useState(false)
+  const [showAssignFeature, setShowAssignFeature] = useState(false)
+  const [collapsedFeatures, setCollapsedFeatures] = useState(new Set())
 
   useEffect(() => { apiFetch(`/projects/${id}`).then(setProject).catch(console.error) }, [id])
 
   const fetchFeatures = () => apiFetch(`/projects/${id}/features`).then(setFeatures).catch(console.error)
   useEffect(() => { fetchFeatures() }, [id])
+
+  // Fetched once so clicking a linked requirement can pop its detail modal
+  // in place (same RequirementModal RequirementsPage uses) instead of
+  // navigating away — client-visible too, same as the Requirement column.
+  useEffect(() => { apiFetch(`/projects/${id}/requirements`).then(setRequirements).catch(console.error) }, [id])
 
   // Deep-link support: ?tcId=123 (from the dashboard/health activity feeds)
   // auto-opens that test case's detail modal once the list has loaded.
@@ -605,6 +617,34 @@ export default function TestCasesPage() {
 
   const automationCount = platformFiltered.filter(t => t.automation_candidate).length
 
+  // Groups by feature_id, real features sorted by name, "No feature" last —
+  // same convention RequirementsPage's grouped table already uses, so a
+  // project reads consistently between the two pages.
+  const featureNameById = Object.fromEntries(features.map(f => [f.id, f.name]))
+  const groupedByFeature = (() => {
+    const map = new Map()
+    for (const tc of filtered) {
+      const key = tc.feature_id || 'none'
+      if (!map.has(key)) map.set(key, [])
+      map.get(key).push(tc)
+    }
+    const entries = [...map.entries()]
+    entries.sort((a, b) => {
+      if (a[0] === 'none') return 1
+      if (b[0] === 'none') return -1
+      return (featureNameById[a[0]] || '').localeCompare(featureNameById[b[0]] || '')
+    })
+    return entries
+  })()
+  const allFeatureKeys = groupedByFeature.map(([key]) => key)
+  const allCollapsed = allFeatureKeys.length > 0 && allFeatureKeys.every(k => collapsedFeatures.has(k))
+  const toggleFeatureCollapse = (key) => setCollapsedFeatures(s => {
+    const next = new Set(s)
+    next.has(key) ? next.delete(key) : next.add(key)
+    return next
+  })
+  const toggleCollapseAll = () => setCollapsedFeatures(allCollapsed ? new Set() : new Set(allFeatureKeys))
+
   // Combining across platforms isn't meaningful (a web flow and a mobile
   // flow have nothing to merge) — once one row is selected, only rows of
   // that same platform can join the selection.
@@ -620,6 +660,16 @@ export default function TestCasesPage() {
   })
 
   const selectedTestCases = testCases.filter(tc => selectedIds.has(tc.id))
+
+  const assignFeatureToSelected = async (featureId) => {
+    const ids = [...selectedIds]
+    await Promise.all(ids.map(tcId =>
+      apiFetch(`/projects/${id}/test-cases/${tcId}`, { method: 'PATCH', body: JSON.stringify({ feature_id: featureId }) })
+    ))
+    setTestCases(tcs => tcs.map(tc => ids.includes(tc.id) ? { ...tc, feature_id: featureId } : tc))
+    setSelectedIds(new Set())
+    addToast(`Updated feature for ${ids.length} test case${ids.length === 1 ? '' : 's'}`)
+  }
 
   return (
     <>
@@ -663,16 +713,24 @@ export default function TestCasesPage() {
               </button>
             ))}
           </div>
-          {!isClient && (
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              {selectedIds.size >= 2 && (
-                <button className="btn btn-primary btn-sm" onClick={() => setShowCombine(true)}>
-                  Combine ({selectedIds.size})
-                </button>
-              )}
-              <button className="btn btn-ghost btn-sm" onClick={() => setShowManageFeatures(true)}>Manage features</button>
-            </div>
-          )}
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            {allFeatureKeys.length > 1 && (
+              <button className="btn btn-ghost btn-sm" onClick={toggleCollapseAll}>
+                {allCollapsed ? 'Expand all' : 'Collapse all'}
+              </button>
+            )}
+            {!isClient && selectedIds.size >= 2 && (
+              <button className="btn btn-primary btn-sm" onClick={() => setShowCombine(true)}>
+                Combine ({selectedIds.size})
+              </button>
+            )}
+            {!isClient && selectedIds.size >= 1 && (
+              <button className="btn btn-ghost btn-sm" onClick={() => setShowAssignFeature(true)}>
+                Assign feature ({selectedIds.size})
+              </button>
+            )}
+            {!isClient && <button className="btn btn-ghost btn-sm" onClick={() => setShowManageFeatures(true)}>Manage features</button>}
+          </div>
         </div>
 
         <div className="filters-row">
@@ -708,45 +766,82 @@ export default function TestCasesPage() {
                     <th>Type</th>
                     <th>Platform</th>
                     <th>Automation</th>
+                    <th>Requirement</th>
                     <th>Bugs</th>
                     <th>Created</th>
                   </tr>
                 </thead>
-                <tbody>
-                  {filtered.map(tc => (
-                    <tr key={tc.id} onClick={() => setSelectedTc(tc)} style={{ cursor: 'pointer' }}>
-                      {!isClient && (
-                        <td onClick={e => e.stopPropagation()}>
-                          <input
-                            type="checkbox"
-                            checked={selectedIds.has(tc.id)}
-                            disabled={selectedPlatform !== null && tc.platform !== selectedPlatform && !selectedIds.has(tc.id)}
-                            onChange={() => toggleSelected(tc)}
-                          />
+                {groupedByFeature.map(([key, tcs]) => {
+                  const isCollapsed = collapsedFeatures.has(key)
+                  const label = key === 'none' ? 'No feature' : (featureNameById[key] || 'Unknown feature')
+                  return (
+                    <tbody key={key}>
+                      <tr
+                        onClick={() => toggleFeatureCollapse(key)}
+                        style={{ cursor: 'pointer', background: 'var(--bg2)' }}
+                      >
+                        <td colSpan={isClient ? 7 : 8} style={{ padding: '0.55rem 1rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <Icon name="chevronRight" size={12} style={{ transform: isCollapsed ? 'rotate(0deg)' : 'rotate(90deg)', transition: 'transform 0.15s', color: 'var(--muted)' }} />
+                            <span style={{ fontWeight: 600, fontSize: '0.82rem', color: 'var(--light)' }}>{label}</span>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>({tcs.length})</span>
+                          </div>
                         </td>
-                      )}
-                      <td style={{ maxWidth: 320 }}>
-                        <div style={{ fontWeight: 500, color: 'var(--light)', marginBottom: '0.15rem' }}>{tc.title}</div>
-                        {tc.steps?.length > 0 && <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>{tc.steps.length} steps</div>}
-                      </td>
-                      <td><span className={`badge badge-${tc.type}`}>{TYPE_LABELS[tc.type]}</span></td>
-                      <td><span className={`badge badge-${tc.platform || 'web'}`}>{tc.platform === 'mobile' ? 'Mobile' : 'Web'}</span></td>
-                      <td>
-                        {tc.is_automated
-                          ? <span className="badge badge-tc-automated" title="Has real generated automation"><Icon name="check" size={11} /> Automated</span>
-                          : tc.automation_candidate
-                          ? <span className="badge badge-automation" title={tc.automation_reasoning || 'Part of the curated critical-flow set'}><Icon name="zap" size={11} /> Critical Flow</span>
-                          : <span style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>—</span>}
-                      </td>
-                      <td>
-                        {tc.bug_count > 0
-                          ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.78rem', color: 'var(--danger)', fontWeight: 600 }}><Icon name="bug" size={12} /> {tc.bug_count}</span>
-                          : <span style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>—</span>}
-                      </td>
-                      <td style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>{new Date(tc.created_at).toLocaleDateString()}</td>
-                    </tr>
-                  ))}
-                </tbody>
+                      </tr>
+                      {!isCollapsed && tcs.map(tc => (
+                        <tr key={tc.id} onClick={() => setSelectedTc(tc)} style={{ cursor: 'pointer' }}>
+                          {!isClient && (
+                            <td onClick={e => e.stopPropagation()}>
+                              <input
+                                type="checkbox"
+                                checked={selectedIds.has(tc.id)}
+                                disabled={selectedPlatform !== null && tc.platform !== selectedPlatform && !selectedIds.has(tc.id)}
+                                onChange={() => toggleSelected(tc)}
+                              />
+                            </td>
+                          )}
+                          <td style={{ maxWidth: 320, paddingLeft: '2rem' }}>
+                            <div style={{ fontWeight: 500, color: 'var(--light)', marginBottom: '0.15rem' }}>{tc.title}</div>
+                            {tc.steps?.length > 0 && <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>{tc.steps.length} steps</div>}
+                          </td>
+                          <td><span className={`badge badge-${tc.type}`}>{TYPE_LABELS[tc.type]}</span></td>
+                          <td><span className={`badge badge-${tc.platform || 'web'}`}>{tc.platform === 'mobile' ? 'Mobile' : 'Web'}</span></td>
+                          <td>
+                            {tc.is_automated
+                              ? <span className="badge badge-tc-automated" title="Has real generated automation"><Icon name="check" size={11} /> Automated</span>
+                              : tc.automation_candidate
+                              ? <span className="badge badge-automation" title={tc.automation_reasoning || 'Part of the curated critical-flow set'}><Icon name="zap" size={11} /> Critical Flow</span>
+                              : <span style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>—</span>}
+                          </td>
+                          <td onClick={e => e.stopPropagation()}>
+                            {tc.linked_requirements.length === 0 ? (
+                              <span style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>—</span>
+                            ) : (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                                {tc.linked_requirements.map(r => (
+                                  <button
+                                    key={r.id}
+                                    onClick={() => setViewingReqId(r.id)}
+                                    style={{ background: 'none', border: 'none', padding: 0, textAlign: 'left', font: 'inherit', cursor: 'pointer', fontSize: '0.78rem', color: 'var(--accent2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }}
+                                    title={r.title}
+                                  >
+                                    {r.title}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </td>
+                          <td>
+                            {tc.bug_count > 0
+                              ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.78rem', color: 'var(--danger)', fontWeight: 600 }}><Icon name="bug" size={12} /> {tc.bug_count}</span>
+                              : <span style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>—</span>}
+                          </td>
+                          <td style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>{new Date(tc.created_at).toLocaleDateString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  )
+                })}
               </table>
             </div>
           </div>
@@ -781,6 +876,27 @@ export default function TestCasesPage() {
             setTestCases(tcs => [newTc, ...tcs.filter(tc => !oldIds.includes(tc.id))])
             setSelectedIds(new Set())
           }}
+        />
+      )}
+
+      {showAssignFeature && (
+        <AssignFeatureModal
+          count={selectedIds.size}
+          features={features}
+          onClose={() => setShowAssignFeature(false)}
+          onAssign={assignFeatureToSelected}
+        />
+      )}
+
+      {viewingReqId && requirements.find(r => r.id === viewingReqId) && (
+        <RequirementModal
+          requirement={requirements.find(r => r.id === viewingReqId)}
+          projectId={id}
+          isClient={isClient}
+          features={features}
+          onClose={() => setViewingReqId(null)}
+          onUpdated={(updated) => setRequirements(rs => rs.map(r => r.id === updated.id ? { ...r, ...updated } : r))}
+          onDeleted={(reqId) => { setRequirements(rs => rs.filter(r => r.id !== reqId)); setViewingReqId(null) }}
         />
       )}
 

@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { apiFetch } from '../lib/api.js'
 import { useAuth } from '../store/AuthContext.jsx'
 import { timeAgo } from '../lib/timeAgo.js'
+import { buildActivity } from '../lib/buildActivity.js'
 import Icon from './Icon.jsx'
 import NotificationBell from './NotificationBell.jsx'
 
@@ -15,8 +16,6 @@ const STATUS_META = {
 }
 
 const SEVERITY_ORDER = ['critical', 'high', 'medium', 'low']
-const SEVERITY_LABEL = { critical: 'Critical', high: 'High', medium: 'Medium', low: 'Low' }
-const SEVERITY_RANK = { critical: 0, high: 1, medium: 2, low: 3 }
 
 function greetingWord() {
   const h = new Date().getHours()
@@ -135,10 +134,10 @@ function Gauge({ value, color, breakdown }) {
           />
         )}
         <text x="70" y="60" textAnchor="middle" style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: 30, fill: 'var(--white)' }}>
-          {value !== null ? `${value}%` : '—'}
+          {value !== null ? value : '—'}
         </text>
         <text x="70" y="82" textAnchor="middle" style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, letterSpacing: '0.05em', fill: 'var(--muted)' }}>
-          PASS RATE
+          QUALITY SCORE
         </text>
       </svg>
       {hover && hasBreakdown && pos && createPortal(
@@ -187,58 +186,6 @@ function featureHealthColor(rate) {
   if (rate >= 90) return 'var(--success)'
   if (rate >= 70) return 'var(--warning)'
   return 'var(--danger)'
-}
-
-// Merges bugs + execution runs + requirements into one chronological feed.
-// No dedicated activity-log table exists server-side, so this is built from
-// the same list endpoints the rest of the app already uses (see
-// DECISIONS.md if that changes and a real feed becomes worth adding).
-function buildActivity(bugs, runs, requirements) {
-  const events = []
-
-  for (const b of bugs) {
-    if (b.status === 'resolved') {
-      events.push({ time: b.updated_at, text: `Bug #${b.id} "${b.title}" resolved`, dotColor: 'var(--success)', bugId: b.id })
-    } else {
-      events.push({
-        time: b.created_at,
-        text: `Bug #${b.id} "${b.title}" reported`,
-        dotColor: (b.severity === 'critical' || b.severity === 'high') ? 'var(--severity-high)' : 'var(--border2)',
-        bugId: b.id,
-      })
-    }
-  }
-
-  for (const r of runs) {
-    if (r.status === 'completed' && r.completed_at) {
-      events.push({
-        time: r.completed_at,
-        text: `Execution run "${r.name}" finished — ${r.passed}/${r.total_test_cases} passed`,
-        dotColor: 'var(--accent2)',
-        runId: r.id,
-      })
-    }
-  }
-
-  // Requirements added within ~10 minutes of each other came from the same
-  // upload/generation batch — group them into one line instead of five.
-  const sortedReqs = [...requirements].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
-  const bucketMs = 10 * 60 * 1000
-  let i = 0
-  while (i < sortedReqs.length) {
-    let j = i + 1
-    while (j < sortedReqs.length && new Date(sortedReqs[j].created_at) - new Date(sortedReqs[i].created_at) < bucketMs) j++
-    const group = sortedReqs.slice(i, j)
-    const latest = group[group.length - 1]
-    events.push({
-      time: latest.created_at,
-      text: group.length === 1 ? `Requirement "${latest.title}" added` : `${group.length} requirements added`,
-      dotColor: 'var(--border2)',
-    })
-    i = j
-  }
-
-  return events.sort((a, b) => new Date(b.time) - new Date(a.time)).slice(0, 5)
 }
 
 export default function QualityHealth({ projectId, projectName }) {
@@ -298,11 +245,6 @@ export default function QualityHealth({ projectId, projectName }) {
   const summary = buildSummary(data, projectName || 'This project')
   const firstName = user?.name?.split(' ')[0]
 
-  const attention = bugs
-    .filter(b => b.status !== 'resolved' && (b.severity === 'critical' || b.severity === 'high'))
-    .sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] || new Date(a.created_at) - new Date(b.created_at))
-    .slice(0, 3)
-
   const activity = buildActivity(bugs, runs, requirements)
   const activityForBell = activity.map((ev, i) => ({
     ...ev,
@@ -336,15 +278,16 @@ export default function QualityHealth({ projectId, projectName }) {
             further down the page. Its own row, not grouped with the status
             pill above — kept independent so the pill stays a standalone
             top-right badge like before. */}
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end', marginTop: '1rem' }}>
-          <Link to={`/projects/${projectId}/requirements`} className="btn btn-ghost btn-sm"><Icon name="target" size={13} /> Requirements</Link>
-          <Link to={`/projects/${projectId}/executions`} className="btn btn-ghost btn-sm"><Icon name="play" size={13} /> Executions</Link>
-          <Link to={`/projects/${projectId}/bugs`} className="btn btn-ghost btn-sm"><Icon name="bug" size={13} /> Bug reports</Link>
-          <Link to={`/projects/${projectId}/automation`} className="btn btn-ghost btn-sm"><Icon name="gear" size={13} /> Automation</Link>
+        <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', justifyContent: 'flex-end', marginTop: '1rem' }}>
+          <Link to={`/projects/${projectId}/requirements`} className="health-quicklink"><Icon name="target" size={14} /> Requirements</Link>
+          <Link to={`/projects/${projectId}/executions`} className="health-quicklink"><Icon name="play" size={14} /> Executions</Link>
+          <Link to={`/projects/${projectId}/bugs`} className="health-quicklink"><Icon name="bug" size={14} /> Bug reports</Link>
+          <Link to={`/projects/${projectId}/automation`} className="health-quicklink"><Icon name="gear" size={14} /> Automation</Link>
+          <Link to={`/projects/${projectId}/timeline`} className="health-quicklink"><Icon name="clock" size={14} /> Timeline</Link>
         </div>
 
         <div className="health-gauge-row">
-          <Gauge value={data.passRate} color={status.color} breakdown={features} />
+          <Gauge value={data.qualityScore} color={status.color} breakdown={features} />
 
           <div className="health-kpi-strip">
             <div className="health-kpi">
@@ -398,36 +341,82 @@ export default function QualityHealth({ projectId, projectName }) {
               </div>
             )}
           </div>
+
+          <div className="health-panel">
+            <div className="health-panel-head">
+              <div className="health-panel-title">Uncovered requirements</div>
+              <Link to={`/projects/${projectId}/requirements`} className="health-panel-link">Requirements <Icon name="arrowRight" size={11} /></Link>
+            </div>
+            {data.uncoveredRequirements.length === 0 ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', color: 'var(--success)' }}>
+                <Icon name="check" size={15} /> Every requirement has test coverage.
+              </div>
+            ) : (
+              data.uncoveredRequirements.map(r => (
+                <div
+                  key={r.id}
+                  onClick={() => navigate(`/projects/${projectId}/requirements`)}
+                  style={{
+                    padding: '0.5rem 0', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--light)',
+                    borderBottom: '1px solid var(--border)',
+                  }}
+                >
+                  {r.title}
+                </div>
+              ))
+            )}
+          </div>
         </div>
 
         <div>
+          {/* Merges what used to be two panels ("Needs attention" — urgent
+              individual bugs, severity-filtered — and "Bug hotspots" —
+              feature concentration, severity-blind). Both were answering
+              overlapping questions with the same underlying bug data; this
+              gives "where" (feature) and "how urgent" (worst severity
+              present) in one place instead of two redundant lists. */}
           <div className="health-panel">
             <div className="health-panel-head">
-              <div className="health-panel-title">Needs attention</div>
+              <div className="health-panel-title">Bug hotspots</div>
               <Link to={`/projects/${projectId}/bugs`} className="health-panel-link">Bugs <Icon name="arrowRight" size={11} /></Link>
             </div>
-            {attention.length === 0 ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', color: 'var(--success)' }}>
-                <Icon name="check" size={15} /> Nothing urgent open right now.
-              </div>
+            {data.bugHotspots.length === 0 ? (
+              <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>No features tracked yet.</div>
             ) : (
-              attention.map(b => (
-                <div
-                  className="health-attn-row"
-                  key={b.id}
-                  onClick={() => navigate(`/projects/${projectId}/bugs?bugId=${b.id}`)}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <div className="health-sev-stripe" style={{ background: `var(--severity-${b.severity})` }} />
-                  <div>
-                    <div className="health-attn-title">{b.title}</div>
-                    <div className="health-attn-meta">
-                      <span className="health-sev-tag" style={{ color: `var(--severity-${b.severity})` }}>{SEVERITY_LABEL[b.severity]}</span>
-                      · #{b.id} · opened {timeAgo(b.created_at)}
+              data.bugHotspots.map(h => {
+                const worst = h.criticalCount > 0 ? 'critical' : h.highCount > 0 ? 'high' : h.mediumCount > 0 ? 'medium' : h.lowCount > 0 ? 'low' : null
+                const color = worst ? `var(--severity-${worst})` : 'var(--muted)'
+                const breakdown = worst
+                  ? [
+                      h.criticalCount > 0 && `${h.criticalCount} critical`,
+                      h.highCount > 0 && `${h.highCount} high`,
+                      h.mediumCount > 0 && `${h.mediumCount} medium`,
+                      h.lowCount > 0 && `${h.lowCount} low`,
+                    ].filter(Boolean).join(' · ')
+                  : 'No open bugs'
+                return (
+                  <div
+                    key={h.featureId}
+                    onClick={() => navigate(`/projects/${projectId}/bugs`)}
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.4rem 0', cursor: 'pointer' }}
+                  >
+                    <div style={{ width: 96, flexShrink: 0 }}>
+                      <div style={{ fontSize: '0.78rem', color: 'var(--light)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={h.featureName}>
+                        {h.featureName}
+                      </div>
+                      <div style={{ fontSize: '0.68rem', color }}>{breakdown}</div>
+                    </div>
+                    <div style={{ flex: 1, height: 5, background: 'var(--border)', borderRadius: 3, overflow: 'hidden' }}>
+                      {h.openBugCount > 0 && (
+                        <div style={{ width: `${Math.min(100, h.openBugCount * 20)}%`, height: '100%', background: color, borderRadius: 3 }} />
+                      )}
+                    </div>
+                    <div style={{ width: 24, flexShrink: 0, textAlign: 'right', fontSize: '0.72rem', color, fontWeight: 600 }}>
+                      {h.openBugCount}
                     </div>
                   </div>
-                </div>
-              ))
+                )
+              })
             )}
           </div>
         </div>

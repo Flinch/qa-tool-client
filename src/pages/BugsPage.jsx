@@ -5,6 +5,7 @@ import { useToastStore } from '../store/toastStore.jsx'
 import { useAuth } from '../store/AuthContext.jsx'
 import { handleImageFile } from '../lib/imageUpload.js'
 import Icon from '../components/Icon.jsx'
+import AssignFeatureModal from '../components/AssignFeatureModal.jsx'
 
 const SEVERITIES = ['critical', 'high', 'medium', 'low']
 const STATUSES = ['open', 'in_progress', 'resolved']
@@ -245,7 +246,7 @@ function BugModal({ projectId, features, onClose, onCreated }) {
   )
 }
 
-export function BugDetailModal({ bug, projectId, isClient, onClose, onUpdated }) {
+export function BugDetailModal({ bug, projectId, isClient, features, onClose, onUpdated }) {
   const { addToast } = useToastStore()
   const [isEditing, setIsEditing] = useState(false)
   const [editForm, setEditForm] = useState({
@@ -255,6 +256,7 @@ export function BugDetailModal({ bug, projectId, isClient, onClose, onUpdated })
     expected: bug.expected || '',
     actual: bug.actual || '',
     notes: bug.notes || '',
+    feature_id: bug.feature_id || '',
   })
   const [saving, setSaving] = useState(false)
 
@@ -336,6 +338,12 @@ export function BugDetailModal({ bug, projectId, isClient, onClose, onUpdated })
             <label className="form-label">Severity</label>
             <select className="form-select" value={editForm.severity} onChange={e => setEditForm(f => ({ ...f, severity: e.target.value }))}>
               {SEVERITIES.map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
+            </select>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Feature</label>
+            <select className="form-select" value={editForm.feature_id} onChange={e => setEditForm(f => ({ ...f, feature_id: e.target.value }))}>
+              {features.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
             </select>
           </div>
           <div className="form-group">
@@ -533,6 +541,8 @@ export default function BugsPage() {
   const [sourceFilter, setSourceFilter] = useState('all')
   const [environmentalOnly, setEnvironmentalOnly] = useState(false)
   const [selectedBug, setSelectedBug] = useState(null)
+  const [selectedIds, setSelectedIds] = useState(new Set())
+  const [showAssignFeature, setShowAssignFeature] = useState(false)
 
   useEffect(() => { apiFetch(`/projects/${id}`).then(setProject).catch(console.error) }, [id])
   useEffect(() => { apiFetch(`/projects/${id}/execution-runs`).then(setExecutionRuns).catch(console.error) }, [id])
@@ -565,6 +575,23 @@ export default function BugsPage() {
     }
   }
 
+  const toggleSelected = (bug) => setSelectedIds(ids => {
+    const next = new Set(ids)
+    next.has(bug.id) ? next.delete(bug.id) : next.add(bug.id)
+    return next
+  })
+
+  const assignFeatureToSelected = async (featureId) => {
+    const ids = [...selectedIds]
+    await Promise.all(ids.map(bugId =>
+      apiFetch(`/projects/${id}/bugs/${bugId}`, { method: 'PATCH', body: JSON.stringify({ feature_id: featureId }) })
+    ))
+    const feature = features.find(f => f.id === Number(featureId))
+    setBugs(bs => bs.map(b => ids.includes(b.id) ? { ...b, feature_id: featureId, feature_name: feature?.name } : b))
+    setSelectedIds(new Set())
+    addToast(`Updated feature for ${ids.length} bug${ids.length === 1 ? '' : 's'}`)
+  }
+
   const filtered = bugs
     .filter(b => filter === 'all' ? true : SEVERITIES.includes(filter) ? b.severity === filter : b.status === filter)
     .filter(b => executionRunFilter ? String(b.execution_run_id) === executionRunFilter : true)
@@ -591,6 +618,11 @@ export default function BugsPage() {
         </div>
         {!isClient && (
           <div className="topbar-actions">
+            {selectedIds.size >= 1 && (
+              <button className="btn btn-ghost btn-sm" onClick={() => setShowAssignFeature(true)}>
+                Assign feature ({selectedIds.size})
+              </button>
+            )}
             <button className="btn btn-primary btn-sm" onClick={() => setShowModal(true)}>+ Log bug</button>
           </div>
         )}
@@ -659,9 +691,20 @@ export default function BugsPage() {
             {filtered.map(bug => (
               <div key={bug.id} className="card-sm">
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+                  {!isClient && (
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(bug.id)}
+                      onChange={() => toggleSelected(bug)}
+                      style={{ marginTop: '0.3rem' }}
+                    />
+                  )}
                   <div onClick={() => setSelectedBug(bug)} style={{ flex: 1, cursor: 'pointer' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem', flexWrap: 'wrap' }}>
                       <Icon name="chevronRight" size={12} style={{ color: 'var(--muted)' }} />
+                      {bug.feature_name && (
+                        <span className="badge" style={{ color: 'var(--accent2)', borderColor: 'var(--accent2)' }}>{bug.feature_name}</span>
+                      )}
                       <span style={{ fontWeight: 600, color: 'var(--light)', fontSize: '0.92rem' }}>{bug.title}</span>
                       <span className={`badge badge-${bug.severity}`}>{bug.severity}</span>
                       <span className={`badge badge-${bug.status.replace('_', '-')}`}>{STATUS_LABELS[bug.status]}</span>
@@ -731,11 +774,21 @@ export default function BugsPage() {
         )}
       </div>
       {showModal && <BugModal projectId={id} features={features} onClose={() => setShowModal(false)} onCreated={b => setBugs(bs => [b, ...bs])} />}
+      {showAssignFeature && (
+        <AssignFeatureModal
+          count={selectedIds.size}
+          features={features}
+          required
+          onClose={() => setShowAssignFeature(false)}
+          onAssign={assignFeatureToSelected}
+        />
+      )}
       {selectedBug && (
         <BugDetailModal
           bug={selectedBug}
           projectId={id}
           isClient={isClient}
+          features={features}
           onClose={() => {
             setSelectedBug(null)
             if (searchParams.has('bugId')) {
@@ -745,8 +798,13 @@ export default function BugsPage() {
             }
           }}
           onUpdated={(updated) => {
-            setBugs(bs => bs.map(b => b.id === updated.id ? { ...b, ...updated } : b))
-            setSelectedBug(prev => ({ ...prev, ...updated }))
+            // PATCH's RETURNING * doesn't carry feature_name — resolve it
+            // client-side from the features list already in scope so the
+            // card's badge doesn't go stale after a feature change.
+            const feature = features.find(f => f.id === updated.feature_id)
+            const merged = { ...updated, feature_name: feature?.name }
+            setBugs(bs => bs.map(b => b.id === updated.id ? { ...b, ...merged } : b))
+            setSelectedBug(prev => ({ ...prev, ...merged }))
           }}
         />
       )}

@@ -279,6 +279,16 @@ export default function ProjectDetailPage() {
                     <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>Run automated suites and view CI results, including nightly builds.</div>
                   </div>
                 </Link>
+                <Link to={`/projects/${id}/engineering`} style={{ textDecoration: 'none', display: 'block', height: '100%' }}>
+                  <div className="card" style={{ cursor: 'pointer', transition: 'border-color 0.2s', height: '100%', display: 'flex', flexDirection: 'column' }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,70,31,0.3)'}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+                  >
+                    <NavIcon name="alertTriangle" />
+                    <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)', marginBottom: '0.3rem' }}>Engineering</div>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>Failing tests, broken environments, PR validation, and automation review backlog.</div>
+                  </div>
+                </Link>
             </div>
             {isAdmin && (
               <div className="card" style={{ maxWidth: 420 }}>

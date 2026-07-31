@@ -17,6 +17,8 @@ import GenerationHistoryPage from './pages/GenerationHistoryPage.jsx'
 import SuiteTestCasesPage from './pages/SuiteTestCasesPage.jsx'
 import ExecutionRunsPage from './pages/ExecutionRunsPage.jsx'
 import ExecutionRunDetailPage from './pages/ExecutionRunDetailPage.jsx'
+import QualityTimelinePage from './pages/QualityTimelinePage.jsx'
+import EngineeringDashboardPage from './pages/EngineeringDashboardPage.jsx'
 
 // Clients only ever have one project (a QA agency's single client account, one
 // engagement) — there's no real list to browse, so skip straight to it instead
@@ -97,6 +99,17 @@ function ProjectGate() {
   return <Outlet />
 }
 
+// Wraps routes that must never be reached by the client role (AI generation/
+// healing internals — Generation History, The Lab) — same "redirect instead
+// of letting the page mount and 403" idea as ProjectGate above, just
+// synchronous since role is already known from useAuth.
+function StaffOnlyRoute() {
+  const { id } = useParams()
+  const { user } = useAuth()
+  if (user?.role === 'client') return <Navigate to={`/projects/${id}/automation`} replace />
+  return <Outlet />
+}
+
 function NotFoundPage() {
   return (
     <>
@@ -149,11 +162,15 @@ function Gate() {
           <Route path="requirements" element={<RequirementsPage />} />
           <Route path="bugs" element={<BugsPage />} />
           <Route path="automation" element={<AutomationPage />} />
-          <Route path="automation/history" element={<GenerationHistoryPage />} />
           <Route path="automation/suites/:suiteId/test-cases" element={<SuiteTestCasesPage />} />
-          <Route path="automation/generated-test-cases" element={<SuiteTestCasesPage />} />
+          <Route element={<StaffOnlyRoute />}>
+            <Route path="automation/history" element={<GenerationHistoryPage />} />
+            <Route path="automation/generated-test-cases" element={<SuiteTestCasesPage />} />
+            <Route path="engineering" element={<EngineeringDashboardPage />} />
+          </Route>
           <Route path="executions" element={<ExecutionRunsPage />} />
           <Route path="executions/:runId" element={<ExecutionRunDetailPage />} />
+          <Route path="timeline" element={<QualityTimelinePage />} />
         </Route>
         <Route path="*" element={<NotFoundPage />} />
       </Route>

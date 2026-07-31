@@ -18,6 +18,7 @@ const PATHS = {
   alertTriangle: 'M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z',
   bell: 'M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0',
   medic: 'M12 8v8M8 12h8',
+  clock: 'M12 7v5l3 3',
 }
 
 // A few icons need more than one primitive (circles alongside a path), so they're
@@ -32,6 +33,7 @@ const CUSTOM = {
   gear: <><circle cx="12" cy="12" r="3" /><path d={PATHS.gear} /></>,
   alertTriangle: <><path d={PATHS.alertTriangle} /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></>,
   medic: <><circle cx="12" cy="12" r="9" /><path d={PATHS.medic} /></>,
+  clock: <><circle cx="12" cy="12" r="9" /><path d={PATHS.clock} /></>,
 }
 
 export default function Icon({ name, size = 16, style, ...rest }) {

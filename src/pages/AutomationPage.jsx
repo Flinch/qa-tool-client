@@ -78,6 +78,87 @@ function formatWhen(dateStr) {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
+function slugifySuiteName(name) {
+  return name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+}
+
+// Suites used to only be creatable via a direct API call ("ask your
+// engineer to set one up") — a new project with zero suites had nowhere for
+// "Generate automated tests" to target, a real dead end. This is that
+// missing UI, plus the same web/ios/android + engine shape the CLI-created
+// suites already use (see automation.js's POST /suites).
+function CreateSuiteModal({ projectId, onClose, onCreated }) {
+  const { addToast } = useToastStore()
+  const [name, setName] = useState('')
+  const [platform, setPlatform] = useState('web')
+  const [engine, setEngine] = useState('maestro')
+  const [saving, setSaving] = useState(false)
+
+  const submit = async () => {
+    if (!name.trim()) return
+    setSaving(true)
+    try {
+      const suite = await apiFetch(`/projects/${projectId}/automation/suites`, {
+        method: 'POST',
+        body: JSON.stringify({
+          name: name.trim(),
+          slug: slugifySuiteName(name),
+          platform,
+          engine: platform === 'web' ? null : engine,
+        }),
+      })
+      addToast(`Suite "${suite.name}" created`)
+      onCreated(suite)
+      onClose()
+    } catch (e) {
+      addToast(e.message, 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal" style={{ maxWidth: 420 }}>
+        <div className="modal-title">New automation suite</div>
+        <div className="form-group">
+          <label className="form-label">Name</label>
+          <input
+            className="form-input"
+            value={name}
+            onChange={e => setName(e.target.value)}
+            placeholder="e.g. Regression Tests"
+            autoFocus
+          />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Platform</label>
+          <select className="form-select" value={platform} onChange={e => setPlatform(e.target.value)}>
+            <option value="web">Web</option>
+            <option value="ios">iOS</option>
+            <option value="android">Android</option>
+          </select>
+        </div>
+        {platform !== 'web' && (
+          <div className="form-group">
+            <label className="form-label">Engine</label>
+            <select className="form-select" value={engine} onChange={e => setEngine(e.target.value)}>
+              <option value="maestro">Maestro</option>
+              <option value="appium">Appium</option>
+            </select>
+          </div>
+        )}
+        <div className="modal-footer">
+          <button className="btn btn-ghost" onClick={onClose} disabled={saving}>Cancel</button>
+          <button className="btn btn-primary" onClick={submit} disabled={saving || !name.trim()}>
+            {saving ? 'Creating...' : 'Create suite'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function SuiteCard({ suite, onRun, running, readOnly }) {
   const passRate = suite.latest_passed != null && (suite.latest_passed + suite.latest_failed) > 0
     ? Math.round((suite.latest_passed / (suite.latest_passed + suite.latest_failed)) * 100)
@@ -570,6 +651,7 @@ export default function AutomationPage() {
   const [loading, setLoading] = useState(true)
   const [triggeringSuiteId, setTriggeringSuiteId] = useState(null)
   const [showGenerateTests, setShowGenerateTests] = useState(false)
+  const [showCreateSuite, setShowCreateSuite] = useState(false)
   const [activeGenerationRun, setActiveGenerationRun] = useState(null)
   const [rerunRun, setRerunRun] = useState(null)
   // null until suites load once, then set to whichever category actually has
@@ -609,12 +691,14 @@ export default function AutomationPage() {
 
   useEffect(() => { load().catch(e => addToast(e.message, 'error')) }, [load])
 
-  // Staff + read-only clients both have access to this route.
+  // The Lab (AI-generated tests, review status, heal/re-run) is staff-only —
+  // clients never see this route at all, not even the count.
   useEffect(() => {
+    if (isClient) return
     apiFetch(`/projects/${id}/automation/generated-test-cases`)
       .then(data => setGeneratedCount(data.testCases.length))
       .catch(() => setGeneratedCount(null))
-  }, [id])
+  }, [id, isClient])
 
   // Live updates via SSE — native EventSource can't send Authorization headers,
   // so the token is passed as a query param and verified server-side instead.
@@ -831,7 +915,12 @@ export default function AutomationPage() {
               </div>
             )}
             <Link to={`/projects/${id}/automation/history`} className="btn btn-ghost btn-sm">Generation history</Link>
-            <button className="btn btn-primary btn-sm" onClick={() => setShowGenerateTests(true)} disabled={!!activeGenerationRun}>
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={() => setShowGenerateTests(true)}
+              disabled={!!activeGenerationRun || suites.length === 0}
+              title={suites.length === 0 ? 'Create a suite first — see "+ New suite" below' : undefined}
+            >
               <Icon name="zap" size={13} /> Generate automated tests
             </button>
           </div>
@@ -843,16 +932,28 @@ export default function AutomationPage() {
         ) : (
           <>
             <div style={{ marginBottom: '2rem' }}>
-              <h2 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '1.1rem', color: 'var(--white)', marginBottom: '1rem' }}>Suites</h2>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                <h2 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '1.1rem', color: 'var(--white)' }}>Suites</h2>
+                {!isClient && <button className="btn btn-ghost btn-sm" onClick={() => setShowCreateSuite(true)}>+ New suite</button>}
+              </div>
               {suites.length === 0 ? (
-                <div className="empty-state"><h3>No automation suites yet</h3>{!isClient && <p>Suites are created via the API for now — ask your engineer to set one up.</p>}</div>
+                <div className="empty-state">
+                  <h3>No automation suites yet</h3>
+                  {!isClient && (
+                    <>
+                      <p>Create a suite to have somewhere for "Generate automated tests" to target.</p>
+                      <button className="btn btn-primary" onClick={() => setShowCreateSuite(true)}>+ New suite</button>
+                    </>
+                  )}
+                </div>
               ) : (
                 <>
                   {/* Not a real suite (automation_suites row) — it's a
                       cross-cutting view over every suite's generated tests,
                       so it sits above the web/mobile tabs rather than inside
-                      one platform's grid. */}
-                  {generatedCount !== null && (
+                      one platform's grid. Staff-only — see the fetch guard
+                      above. */}
+                  {!isClient && generatedCount !== null && (
                     <Link to={`/projects/${id}/automation/generated-test-cases`} style={{ textDecoration: 'none', display: 'block', marginBottom: '1rem' }}>
                       <div className="card suite-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <div>
@@ -921,6 +1022,20 @@ export default function AutomationPage() {
           suites={suites}
           onClose={() => setShowGenerateTests(false)}
           onDispatched={handleGenerationDispatched}
+        />
+      )}
+
+      {showCreateSuite && (
+        <CreateSuiteModal
+          projectId={id}
+          onClose={() => setShowCreateSuite(false)}
+          onCreated={(suite) => {
+            // Re-fetch rather than appending the raw POST response — the
+            // list view's test_case_count/latest_* fields are computed by
+            // GET /suites's query, not present on a bare INSERT ... RETURNING *.
+            load().catch(e => addToast(e.message, 'error'))
+            setPlatformTab(suite.platform === 'web' ? 'web' : 'mobile')
+          }}
         />
       )}
 

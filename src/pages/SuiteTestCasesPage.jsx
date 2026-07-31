@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { apiFetch } from '../lib/api.js'
+import { useAuth } from '../store/AuthContext.jsx'
 import { useToastStore } from '../store/toastStore.jsx'
 import Icon from '../components/Icon.jsx'
 import HealConfirmModal from '../components/HealConfirmModal.jsx'
@@ -85,6 +86,8 @@ function TestCaseRow({ tc, isLab, onRerun, onRequestHeal, busy }) {
 export default function SuiteTestCasesPage() {
   const { id, suiteId } = useParams()
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const isClient = user?.role === 'client'
   const { addToast } = useToastStore()
   const [project, setProject] = useState(null)
   const [suite, setSuite] = useState(null)
@@ -98,7 +101,16 @@ export default function SuiteTestCasesPage() {
 
   useEffect(() => { apiFetch(`/projects/${id}`).then(setProject).catch(console.error) }, [id])
 
+  // The Lab is staff-only (AI generation/healing internals) — a client who
+  // lands here (bookmarked/typed URL) is bounced back to Automation instead
+  // of mounting a page whose data now 403s. The single-suite roster below
+  // stays client-visible.
+  useEffect(() => {
+    if (isLab && isClient) navigate(`/projects/${id}/automation`, { replace: true })
+  }, [isLab, isClient, id, navigate])
+
   const load = () => {
+    if (isLab && isClient) { setLoading(false); return Promise.resolve() }
     setLoading(true)
     const path = suiteId
       ? `/projects/${id}/automation/suites/${suiteId}/test-cases`

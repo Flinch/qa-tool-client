@@ -1,11 +1,12 @@
 import { useEffect, useState, useRef } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { apiFetch } from '../lib/api.js'
 import { useAuth } from '../store/AuthContext.jsx'
 import { useToastStore } from '../store/toastStore.jsx'
 import { readDocumentFile } from '../lib/documentUpload.js'
 import Icon from '../components/Icon.jsx'
 import ManageFeaturesModal from '../components/ManageFeaturesModal.jsx'
+import AssignFeatureModal from '../components/AssignFeatureModal.jsx'
 
 function UploadRequirementsModal({ projectId, onClose, onDiff }) {
   const { addToast } = useToastStore()
@@ -146,6 +147,29 @@ function UploadRequirementsModal({ projectId, onClose, onDiff }) {
   )
 }
 
+const EFFORT_LABEL = { S: 'Small effort', M: 'Medium effort', L: 'Large effort' }
+
+// Requirements Intelligence output (Phase 2.2) — display-only in the review
+// modal, since the primary edit surface here is title/description; a false
+// positive just gets ignored rather than needing a dedicated dismiss UI.
+function AmbiguityEffortBadges({ ambiguityFlag, estimatedEffort }) {
+  if (!ambiguityFlag && !estimatedEffort) return null
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginBottom: '0.4rem' }}>
+      {ambiguityFlag && (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.72rem', color: 'var(--warning)', border: '1px solid var(--warning)', borderRadius: 0, padding: '0.1rem 0.5rem' }} title={ambiguityFlag}>
+          <Icon name="alertTriangle" size={11} /> Ambiguous
+        </span>
+      )}
+      {estimatedEffort && (
+        <span style={{ fontSize: '0.72rem', color: 'var(--muted)', border: '1px solid var(--border2)', borderRadius: 0, padding: '0.1rem 0.5rem' }} title={EFFORT_LABEL[estimatedEffort]}>
+          {estimatedEffort}
+        </span>
+      )}
+    </div>
+  )
+}
+
 function DiffReviewModal({ projectId, documentId, diff, platform, features, mode, onClose, onApplied }) {
   const { addToast } = useToastStore()
   const [approvedModified, setApprovedModified] = useState(() => new Set(diff.modified.map(m => m.id)))
@@ -179,7 +203,7 @@ function DiffReviewModal({ projectId, documentId, diff, platform, features, mode
         method: 'POST',
         body: JSON.stringify({
           documentId,
-          modified: editedModified.filter(m => approvedModified.has(m.id)).map(m => ({ id: m.id, title: m.title, description: m.description })),
+          modified: editedModified.filter(m => approvedModified.has(m.id)).map(m => ({ id: m.id, title: m.title, description: m.description, ambiguity_flag: m.ambiguity_flag, estimated_effort: m.estimated_effort })),
           removed: diff.removed.filter(r => approvedRemoved.has(r.id)).map(r => r.id),
           // flatMap (not filter().map()) so featureNames[i]/editedNew[i]
           // stay aligned to the original index — filter() alone would
@@ -223,6 +247,7 @@ function DiffReviewModal({ projectId, documentId, diff, platform, features, mode
                       <div style={{ fontSize: '0.78rem', color: 'var(--muted)', textDecoration: 'line-through', marginBottom: '0.3rem' }}>{m.old.title}</div>
                       <input className="form-input" style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.3rem' }} value={m.title} onChange={e => updateModified(idx, 'title', e.target.value)} />
                       <textarea className="form-textarea" style={{ fontSize: '0.78rem', minHeight: 55 }} value={m.description} onChange={e => updateModified(idx, 'description', e.target.value)} />
+                      <AmbiguityEffortBadges ambiguityFlag={m.ambiguity_flag} estimatedEffort={m.estimated_effort} />
                       {m.old.linked_test_case_count > 0 && (
                         <div style={{ fontSize: '0.72rem', color: 'var(--info)', marginTop: '0.3rem' }}>{m.old.linked_test_case_count} linked test case{m.old.linked_test_case_count === 1 ? '' : 's'} — kept as-is</div>
                       )}
@@ -262,6 +287,7 @@ function DiffReviewModal({ projectId, documentId, diff, platform, features, mode
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <input className="form-input" style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.3rem' }} value={n.title} onChange={e => updateNew(i, 'title', e.target.value)} />
                       <textarea className="form-textarea" style={{ fontSize: '0.78rem', minHeight: 55, marginBottom: '0.4rem' }} value={n.description} onChange={e => updateNew(i, 'description', e.target.value)} />
+                      <AmbiguityEffortBadges ambiguityFlag={n.ambiguity_flag} estimatedEffort={n.estimated_effort} />
                       <input
                         className="form-input"
                         style={{ fontSize: '0.78rem', padding: '0.35rem 0.6rem' }}
@@ -590,7 +616,7 @@ function LinkTestCasesModal({ projectId, requirement, linkedIds, onClose, onLink
   )
 }
 
-function RequirementModal({ requirement, projectId, isClient, features, onClose, onUpdated, onDeleted }) {
+export function RequirementModal({ requirement, projectId, isClient, features, onClose, onUpdated, onDeleted }) {
   const { addToast } = useToastStore()
   const [linkedTestCases, setLinkedTestCases] = useState([])
   const [loadingLinked, setLoadingLinked] = useState(true)
@@ -784,6 +810,7 @@ function RequirementModal({ requirement, projectId, isClient, features, onClose,
 export default function RequirementsPage() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { user } = useAuth()
   const isClient = user?.role === 'client'
   const { addToast } = useToastStore()
@@ -803,11 +830,23 @@ export default function RequirementsPage() {
   const [pendingFlowsDiff, setPendingFlowsDiff] = useState(null)
   const [confirmingFlows, setConfirmingFlows] = useState(false)
   const [collapsedFeatures, setCollapsedFeatures] = useState(new Set())
+  const [selectedIds, setSelectedIds] = useState(new Set())
+  const [showAssignFeature, setShowAssignFeature] = useState(false)
 
   useEffect(() => { apiFetch(`/projects/${id}`).then(setProject).catch(console.error) }, [id])
 
   const fetchFeatures = () => apiFetch(`/projects/${id}/features`).then(setFeatures).catch(console.error)
   useEffect(() => { fetchFeatures() }, [id])
+
+  // Deep-link support: ?reqId=123 (e.g. from the Test Cases page's
+  // Requirement column) auto-opens that requirement's detail modal once the
+  // list has loaded — same pattern as TestCasesPage's ?tcId=.
+  useEffect(() => {
+    const reqId = searchParams.get('reqId')
+    if (!reqId || requirements.length === 0) return
+    const match = requirements.find(r => r.id === Number(reqId))
+    if (match) setSelected(match)
+  }, [requirements, searchParams])
 
   useEffect(() => {
     apiFetch(`/projects/${id}/requirements`)
@@ -849,6 +888,22 @@ export default function RequirementsPage() {
     return next
   })
   const toggleCollapseAll = () => setCollapsedFeatures(allCollapsed ? new Set() : new Set(allFeatureKeys))
+
+  const toggleSelected = (r) => setSelectedIds(ids => {
+    const next = new Set(ids)
+    next.has(r.id) ? next.delete(r.id) : next.add(r.id)
+    return next
+  })
+
+  const assignFeatureToSelected = async (featureId) => {
+    const ids = [...selectedIds]
+    await Promise.all(ids.map(reqId =>
+      apiFetch(`/projects/${id}/requirements/${reqId}`, { method: 'PATCH', body: JSON.stringify({ feature_id: featureId }) })
+    ))
+    setRequirements(rs => rs.map(r => ids.includes(r.id) ? { ...r, feature_id: featureId } : r))
+    setSelectedIds(new Set())
+    addToast(`Updated feature for ${ids.length} requirement${ids.length === 1 ? '' : 's'}`)
+  }
 
   const generateOne = async (reqId, e) => {
     e?.stopPropagation()
@@ -953,6 +1008,11 @@ export default function RequirementsPage() {
                 {allCollapsed ? 'Expand all' : 'Collapse all'}
               </button>
             )}
+            {!isClient && selectedIds.size >= 1 && (
+              <button className="btn btn-primary btn-sm" onClick={() => setShowAssignFeature(true)}>
+                Assign feature ({selectedIds.size})
+              </button>
+            )}
             {!isClient && requirements.length > 0 && <button className="btn btn-ghost btn-sm" onClick={() => setShowManageFeatures(true)}>Manage features</button>}
           </div>
         </div>
@@ -981,6 +1041,7 @@ export default function RequirementsPage() {
               <table>
                 <thead>
                   <tr>
+                    {!isClient && <th style={{ width: 32 }}></th>}
                     <th>Requirement</th>
                     <th>Platform</th>
                     <th>Test cases</th>
@@ -996,7 +1057,7 @@ export default function RequirementsPage() {
                         onClick={() => toggleFeatureCollapse(key)}
                         style={{ cursor: 'pointer', background: 'var(--bg2)' }}
                       >
-                        <td colSpan={4} style={{ padding: '0.55rem 1rem' }}>
+                        <td colSpan={isClient ? 4 : 5} style={{ padding: '0.55rem 1rem' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                             <Icon name="chevronRight" size={12} style={{ transform: isCollapsed ? 'rotate(0deg)' : 'rotate(90deg)', transition: 'transform 0.15s', color: 'var(--muted)' }} />
                             <span style={{ fontWeight: 600, fontSize: '0.82rem', color: 'var(--light)' }}>{label}</span>
@@ -1006,8 +1067,23 @@ export default function RequirementsPage() {
                       </tr>
                       {!isCollapsed && reqs.map(r => (
                         <tr key={r.id} onClick={() => setSelected(r)} style={{ cursor: 'pointer' }}>
+                          {!isClient && (
+                            <td onClick={e => e.stopPropagation()}>
+                              <input type="checkbox" checked={selectedIds.has(r.id)} onChange={() => toggleSelected(r)} />
+                            </td>
+                          )}
                           <td style={{ maxWidth: 420, paddingLeft: '2rem' }}>
-                            <div style={{ fontWeight: 500, color: 'var(--light)', marginBottom: '0.15rem' }}>{r.title}</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.15rem' }}>
+                              <div style={{ fontWeight: 500, color: 'var(--light)' }}>{r.title}</div>
+                              {!isClient && r.ambiguity_flag && (
+                                <Icon name="alertTriangle" size={12} style={{ color: 'var(--warning)', flexShrink: 0 }} />
+                              )}
+                              {!isClient && r.estimated_effort && (
+                                <span style={{ fontSize: '0.68rem', color: 'var(--muted)', border: '1px solid var(--border2)', borderRadius: 0, padding: '0 0.35rem', flexShrink: 0 }}>
+                                  {r.estimated_effort}
+                                </span>
+                              )}
+                            </div>
                             {r.description && <div style={{ fontSize: '0.72rem', color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.description}</div>}
                           </td>
                           <td><span className={`badge badge-${r.platform || 'web'}`}>{r.platform === 'mobile' ? 'Mobile' : 'Web'}</span></td>
@@ -1053,6 +1129,15 @@ export default function RequirementsPage() {
           features={features}
           onClose={() => setShowManageFeatures(false)}
           onChanged={fetchFeatures}
+        />
+      )}
+
+      {showAssignFeature && (
+        <AssignFeatureModal
+          count={selectedIds.size}
+          features={features}
+          onClose={() => setShowAssignFeature(false)}
+          onAssign={assignFeatureToSelected}
         />
       )}
 
@@ -1132,7 +1217,14 @@ export default function RequirementsPage() {
           projectId={id}
           isClient={isClient}
           features={features}
-          onClose={() => setSelected(null)}
+          onClose={() => {
+            setSelected(null)
+            if (searchParams.has('reqId')) {
+              const next = new URLSearchParams(searchParams)
+              next.delete('reqId')
+              setSearchParams(next, { replace: true })
+            }
+          }}
           onUpdated={(updated) => {
             setRequirements(rs => rs.map(r => r.id === updated.id ? { ...r, ...updated } : r))
             setSelected(prev => ({ ...prev, ...updated }))
