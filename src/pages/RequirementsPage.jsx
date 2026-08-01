@@ -475,6 +475,153 @@ function CriticalFlowsReviewModal({ projectId, diff, unchangedCount, requirement
   )
 }
 
+// Reviews a diff from POST /generate-test-cases/review before it's applied
+// — modeled closely on CriticalFlowsReviewModal above, but each item here
+// belongs to exactly one requirement (no multi-select coverage picker
+// needed) and "removed" means archived, not demoted.
+function TestCaseDiffReviewModal({ projectId, diff, unchangedCount, requirementTitleById, onClose, onApplied }) {
+  const { addToast } = useToastStore()
+  const [approvedModified, setApprovedModified] = useState(() => new Set((diff.modified || []).map(m => m.id)))
+  const [approvedRemoved, setApprovedRemoved] = useState(() => new Set((diff.removed || []).map(r => r.id)))
+  const [approvedNew, setApprovedNew] = useState(() => new Set((diff.new || []).map((_, i) => i)))
+  const [editedModified, setEditedModified] = useState(() =>
+    (diff.modified || []).map(m => ({ ...m, stepsText: (m.steps || []).join('\n') }))
+  )
+  const [editedNew, setEditedNew] = useState(() =>
+    (diff.new || []).map(n => ({ ...n, stepsText: (n.steps || []).join('\n') }))
+  )
+  const [saving, setSaving] = useState(false)
+
+  const toggle = (setFn, key) => setFn(s => {
+    const next = new Set(s)
+    next.has(key) ? next.delete(key) : next.add(key)
+    return next
+  })
+
+  const updateModified = (idx, field, value) => setEditedModified(items => items.map((it, i) => i === idx ? { ...it, [field]: value } : it))
+  const updateNew = (idx, field, value) => setEditedNew(items => items.map((it, i) => i === idx ? { ...it, [field]: value } : it))
+
+  const totalSelected = approvedModified.size + approvedRemoved.size + approvedNew.size
+
+  const typeSelect = (value, onChange) => (
+    <select className="form-select" style={{ fontSize: '0.78rem', marginBottom: '0.4rem' }} value={value} onChange={onChange}>
+      <option value="functional">Functional</option>
+      <option value="integration">Integration</option>
+      <option value="e2e">E2E</option>
+    </select>
+  )
+
+  const apply = async () => {
+    setSaving(true)
+    try {
+      const result = await apiFetch(`/projects/${projectId}/requirements/generate-test-cases/apply`, {
+        method: 'POST',
+        body: JSON.stringify({
+          modified: editedModified.filter(m => approvedModified.has(m.id)).map(m => ({
+            id: m.id, title: m.title, type: m.type, expected: m.expected,
+            automationCandidate: m.automationCandidate, automationReasoning: m.automationReasoning,
+            steps: m.stepsText.split('\n').map(s => s.trim()).filter(Boolean),
+          })),
+          removed: (diff.removed || []).filter(r => approvedRemoved.has(r.id)).map(r => ({ id: r.id, requirementId: r.requirementId })),
+          new: editedNew.filter((_, i) => approvedNew.has(i)).map(n => ({
+            title: n.title, type: n.type, expected: n.expected, requirementId: n.requirementId,
+            platform: n.platform, feature_id: n.feature_id,
+            automationCandidate: n.automationCandidate, automationReasoning: n.automationReasoning,
+            steps: n.stepsText.split('\n').map(s => s.trim()).filter(Boolean),
+          })),
+        }),
+      })
+      addToast(`Applied: ${result.modifiedIds.length} updated, ${result.archivedIds.length} archived, ${result.inserted.length} added`)
+      onApplied(result)
+      onClose()
+    } catch (e) {
+      addToast(e.message, 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal" style={{ maxWidth: 700 }}>
+        <div className="modal-title">Review test cases</div>
+        <div style={{ fontSize: '0.82rem', color: 'var(--muted)', marginBottom: '1.25rem' }}>
+          {unchangedCount} requirement{unchangedCount === 1 ? '' : 's'} unchanged · {diff.modified.length} modified · {diff.removed.length} archived · {diff.new.length} new. Uncheck anything you don't want applied, edit inline.
+        </div>
+
+        <div style={{ maxHeight: 460, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          {diff.modified.length > 0 && (
+            <div>
+              <div style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--warning)', marginBottom: '0.6rem' }}>Modified</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {editedModified.map((m, idx) => (
+                  <label key={m.id} style={{ display: 'flex', gap: '0.6rem', padding: '0.65rem 0.85rem', background: 'var(--bg2)', border: '1px solid var(--border)' }}>
+                    <input type="checkbox" checked={approvedModified.has(m.id)} onChange={() => toggle(setApprovedModified, m.id)} style={{ marginTop: '0.2rem' }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--info)', marginBottom: '0.3rem' }}>For: {requirementTitleById[m.requirementId]}</div>
+                      <input className="form-input" style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem' }} value={m.title} onChange={e => updateModified(idx, 'title', e.target.value)} />
+                      {typeSelect(m.type, e => updateModified(idx, 'type', e.target.value))}
+                      <textarea className="form-textarea" style={{ fontSize: '0.78rem', minHeight: 70, marginBottom: '0.4rem' }} value={m.stepsText} onChange={e => updateModified(idx, 'stepsText', e.target.value)} placeholder="One step per line" />
+                      <input className="form-input" style={{ fontSize: '0.78rem' }} value={m.expected} onChange={e => updateModified(idx, 'expected', e.target.value)} placeholder="Expected outcome" />
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {diff.removed.length > 0 && (
+            <div>
+              <div style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--danger)', marginBottom: '0.6rem' }}>No longer needed (archived, not deleted)</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                {diff.removed.map(tc => (
+                  <label key={tc.id} style={{ display: 'flex', gap: '0.6rem', padding: '0.65rem 0.85rem', background: 'var(--bg2)', border: '1px solid var(--border)', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={approvedRemoved.has(tc.id)} onChange={() => toggle(setApprovedRemoved, tc.id)} style={{ marginTop: '0.2rem' }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--light)', fontWeight: 600, marginBottom: '0.2rem' }}>{tc.title}</div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>
+                        For: {requirementTitleById[tc.requirementId]}
+                        {tc.bug_count > 0 && <span style={{ color: 'var(--danger)' }}> · has {tc.bug_count} linked bug{tc.bug_count === 1 ? '' : 's'} — review before archiving</span>}
+                      </div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {diff.new.length > 0 && (
+            <div>
+              <div style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--success)', marginBottom: '0.6rem' }}>New</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {editedNew.map((n, idx) => (
+                  <label key={idx} style={{ display: 'flex', gap: '0.6rem', padding: '0.65rem 0.85rem', background: 'var(--bg2)', border: '1px solid var(--border)' }}>
+                    <input type="checkbox" checked={approvedNew.has(idx)} onChange={() => toggle(setApprovedNew, idx)} style={{ marginTop: '0.2rem' }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--info)', marginBottom: '0.3rem' }}>For: {requirementTitleById[n.requirementId]}</div>
+                      <input className="form-input" style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem' }} value={n.title} onChange={e => updateNew(idx, 'title', e.target.value)} />
+                      {typeSelect(n.type, e => updateNew(idx, 'type', e.target.value))}
+                      <textarea className="form-textarea" style={{ fontSize: '0.78rem', minHeight: 70, marginBottom: '0.4rem' }} value={n.stepsText} onChange={e => updateNew(idx, 'stepsText', e.target.value)} placeholder="One step per line" />
+                      <input className="form-input" style={{ fontSize: '0.78rem' }} value={n.expected} onChange={e => updateNew(idx, 'expected', e.target.value)} placeholder="Expected outcome" />
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="modal-footer">
+          <button className="btn btn-ghost" onClick={onClose} disabled={saving}>Cancel</button>
+          <button className="btn btn-primary" onClick={apply} disabled={saving || totalSelected === 0}>
+            {saving ? 'Applying...' : `Apply ${totalSelected} change${totalSelected === 1 ? '' : 's'}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function CreateRequirementModal({ projectId, features, onClose, onCreated }) {
   const { addToast } = useToastStore()
   const [form, setForm] = useState({ title: '', description: '', platform: 'web', feature_id: '' })
@@ -625,11 +772,18 @@ export function RequirementModal({ requirement, projectId, isClient, features, o
   const [editForm, setEditForm] = useState({ title: requirement.title, description: requirement.description || '', platform: requirement.platform || 'web', feature_id: requirement.feature_id || '' })
   const [saving, setSaving] = useState(false)
   const [generating, setGenerating] = useState(false)
+  const [pendingTcDiff, setPendingTcDiff] = useState(null)
 
   const loadLinked = () => {
     setLoadingLinked(true)
     apiFetch(`/projects/${projectId}/requirements/${requirement.id}/test-cases`)
-      .then(setLinkedTestCases)
+      .then(tcs => {
+        setLinkedTestCases(tcs)
+        // Always resync the count from the actual current list rather than
+        // trusting a stale prop or a hand-computed delta — cheap and keeps
+        // this correct after any of unlink/generate/apply.
+        onUpdated({ ...requirement, linked_test_case_count: tcs.length })
+      })
       .catch(console.error)
       .finally(() => setLoadingLinked(false))
   }
@@ -639,8 +793,7 @@ export function RequirementModal({ requirement, projectId, isClient, features, o
   const unlink = async (tcId) => {
     try {
       await apiFetch(`/projects/${projectId}/requirements/${requirement.id}/test-cases/${tcId}`, { method: 'DELETE' })
-      setLinkedTestCases(tcs => tcs.filter(t => t.id !== tcId))
-      onUpdated({ ...requirement, linked_test_case_count: linkedTestCases.length - 1 })
+      loadLinked()
     } catch (e) {
       addToast(e.message, 'error')
     }
@@ -649,10 +802,24 @@ export function RequirementModal({ requirement, projectId, isClient, features, o
   const generateTestCase = async () => {
     setGenerating(true)
     try {
-      const result = await apiFetch(`/projects/${projectId}/requirements/${requirement.id}/generate-test-case`, { method: 'POST' })
-      addToast(`Generated ${result.testCases.length} test case${result.testCases.length === 1 ? '' : 's'}`)
-      loadLinked()
-      onUpdated({ ...requirement, linked_test_case_count: result.linked_test_case_count })
+      const result = await apiFetch(`/projects/${projectId}/requirements/generate-test-cases/review`, {
+        method: 'POST',
+        body: JSON.stringify({ requirementIds: [requirement.id] }),
+      })
+      const { diff } = result
+      if (diff.modified.length === 0 && diff.removed.length === 0 && diff.new.length === 0) {
+        addToast('Test cases already up to date')
+      } else if (diff.modified.length === 0 && diff.removed.length === 0) {
+        // Pure net-new — nothing existing touched, safe to apply instantly.
+        const applied = await apiFetch(`/projects/${projectId}/requirements/generate-test-cases/apply`, {
+          method: 'POST',
+          body: JSON.stringify({ modified: [], removed: [], new: diff.new }),
+        })
+        addToast(`Generated ${applied.inserted.length} test case${applied.inserted.length === 1 ? '' : 's'}`)
+        loadLinked()
+      } else {
+        setPendingTcDiff(result)
+      }
     } catch (e) {
       addToast(e.message, 'error')
     } finally {
@@ -746,6 +913,17 @@ export function RequirementModal({ requirement, projectId, isClient, features, o
     )
   }
 
+  if (pendingTcDiff) return (
+    <TestCaseDiffReviewModal
+      projectId={projectId}
+      diff={pendingTcDiff.diff}
+      unchangedCount={pendingTcDiff.unchangedCount}
+      requirementTitleById={pendingTcDiff.requirementTitleById}
+      onClose={() => setPendingTcDiff(null)}
+      onApplied={() => { setPendingTcDiff(null); loadLinked() }}
+    />
+  )
+
   return (
     <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal" style={{ maxWidth: 560 }}>
@@ -776,11 +954,9 @@ export function RequirementModal({ requirement, projectId, isClient, features, o
             </div>
             {!isClient && (
               <div style={{ display: 'flex', gap: '0.4rem' }}>
-                {requirement.linked_test_case_count === 0 && (
-                  <button className="btn btn-primary btn-sm" onClick={generateTestCase} disabled={generating}>
-                    {generating ? 'Generating...' : 'Generate test case'}
-                  </button>
-                )}
+                <button className="btn btn-primary btn-sm" onClick={generateTestCase} disabled={generating}>
+                  {generating ? 'Generating...' : 'Generate test case'}
+                </button>
                 <button className="btn btn-ghost btn-sm" onClick={() => setShowLinkModal(true)}>+ Link test cases</button>
               </div>
             )}
@@ -825,6 +1001,7 @@ export default function RequirementsPage() {
   const [selected, setSelected] = useState(null)
   const [generatingIds, setGeneratingIds] = useState(new Set())
   const [bulkGenerating, setBulkGenerating] = useState(false)
+  const [pendingTcDiff, setPendingTcDiff] = useState(null)
   const [platform, setPlatform] = useState('all')
   const [reviewingFlows, setReviewingFlows] = useState(false)
   const [pendingFlowsDiff, setPendingFlowsDiff] = useState(null)
@@ -905,13 +1082,39 @@ export default function RequirementsPage() {
     addToast(`Updated feature for ${ids.length} requirement${ids.length === 1 ? '' : 's'}`)
   }
 
+  // Shared by generateOne/generateAll below: reviews, and either applies
+  // immediately (pure net-new — nothing existing touched, safe to skip the
+  // review step, preserving today's fast one-click UX for the common "first
+  // time covering this requirement" case) or opens the review modal (a
+  // diff that would modify or archive something existing always needs a
+  // human look first, same principle as critical flows/requirements upload).
+  const reviewTestCases = async (requirementIds) => {
+    const result = await apiFetch(`/projects/${id}/requirements/generate-test-cases/review`, {
+      method: 'POST',
+      body: JSON.stringify(requirementIds ? { requirementIds } : {}),
+    })
+    const { diff } = result
+    if (diff.modified.length === 0 && diff.removed.length === 0 && diff.new.length === 0) {
+      addToast('Test cases already up to date')
+      return
+    }
+    if (diff.modified.length === 0 && diff.removed.length === 0) {
+      const applied = await apiFetch(`/projects/${id}/requirements/generate-test-cases/apply`, {
+        method: 'POST',
+        body: JSON.stringify({ modified: [], removed: [], new: diff.new }),
+      })
+      addToast(`Generated ${applied.inserted.length} test case${applied.inserted.length === 1 ? '' : 's'}`)
+      apiFetch(`/projects/${id}/requirements`).then(setRequirements).catch(console.error)
+      return
+    }
+    setPendingTcDiff(result)
+  }
+
   const generateOne = async (reqId, e) => {
     e?.stopPropagation()
     setGeneratingIds(s => new Set(s).add(reqId))
     try {
-      const result = await apiFetch(`/projects/${id}/requirements/${reqId}/generate-test-case`, { method: 'POST' })
-      addToast(`Generated ${result.testCases.length} test case${result.testCases.length === 1 ? '' : 's'}`)
-      setRequirements(rs => rs.map(r => r.id === reqId ? { ...r, linked_test_case_count: result.linked_test_case_count } : r))
+      await reviewTestCases([reqId])
     } catch (err) {
       addToast(err.message, 'error')
     } finally {
@@ -922,10 +1125,7 @@ export default function RequirementsPage() {
   const generateAll = async () => {
     setBulkGenerating(true)
     try {
-      const result = await apiFetch(`/projects/${id}/requirements/generate-test-cases`, { method: 'POST' })
-      addToast(`Generated ${result.totalTestCases} test case${result.totalTestCases === 1 ? '' : 's'} across ${result.generated.length} requirement${result.generated.length === 1 ? '' : 's'}`)
-      const counts = Object.fromEntries(result.generated.map(g => [g.requirementId, g.testCases.length]))
-      setRequirements(rs => rs.map(r => counts[r.id] ? { ...r, linked_test_case_count: counts[r.id] } : r))
+      await reviewTestCases(null)
     } catch (err) {
       addToast(err.message, 'error')
     } finally {
@@ -977,8 +1177,8 @@ export default function RequirementsPage() {
               <button className="btn btn-ghost btn-sm" onClick={() => setConfirmingFlows(true)} disabled={reviewingFlows || requirements.length === 0} title="Identify the small set of critical end-to-end flows worth automating first">
                 {reviewingFlows ? 'Generating...' : 'Generate critical flows'}
               </button>
-              <button className="btn btn-primary btn-sm" onClick={generateAll} disabled={bulkGenerating || uncoveredCount === 0}>
-                {bulkGenerating ? 'Generating...' : `Generate all test cases${uncoveredCount > 0 ? ` (${uncoveredCount})` : ''}`}
+              <button className="btn btn-primary btn-sm" onClick={generateAll} disabled={bulkGenerating || requirements.length === 0}>
+                {bulkGenerating ? 'Generating...' : 'Generate test cases'}
               </button>
               <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>+ New requirement</button>
             </>
@@ -1088,19 +1288,22 @@ export default function RequirementsPage() {
                           </td>
                           <td><span className={`badge badge-${r.platform || 'web'}`}>{r.platform === 'mobile' ? 'Mobile' : 'Web'}</span></td>
                           <td>
-                            {r.linked_test_case_count > 0 ? (
-                              <span style={{ fontSize: '0.82rem', color: 'var(--light)' }}>{r.linked_test_case_count}</span>
-                            ) : isClient ? (
-                              <span style={{ fontSize: '0.78rem', color: 'var(--danger)' }}>No coverage</span>
-                            ) : (
-                              <button
-                                className="btn btn-ghost btn-sm"
-                                onClick={e => generateOne(r.id, e)}
-                                disabled={generatingIds.has(r.id)}
-                              >
-                                {generatingIds.has(r.id) ? 'Generating...' : 'Generate'}
-                              </button>
-                            )}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                              {r.linked_test_case_count > 0 ? (
+                                <span style={{ fontSize: '0.82rem', color: 'var(--light)' }}>{r.linked_test_case_count}</span>
+                              ) : (
+                                <span style={{ fontSize: '0.78rem', color: 'var(--danger)' }}>No coverage</span>
+                              )}
+                              {!isClient && (
+                                <button
+                                  className="btn btn-ghost btn-sm"
+                                  onClick={e => generateOne(r.id, e)}
+                                  disabled={generatingIds.has(r.id)}
+                                >
+                                  {generatingIds.has(r.id) ? 'Generating...' : 'Generate'}
+                                </button>
+                              )}
+                            </div>
                           </td>
                           <td style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>{new Date(r.created_at).toLocaleDateString()}</td>
                         </tr>
@@ -1206,6 +1409,19 @@ export default function RequirementsPage() {
             // shifts linked_test_case_count on the affected requirements —
             // simplest correct thing is a refetch rather than trying to
             // recompute counts client-side from a diff response.
+            apiFetch(`/projects/${id}/requirements`).then(setRequirements).catch(console.error)
+          }}
+        />
+      )}
+
+      {pendingTcDiff && (
+        <TestCaseDiffReviewModal
+          projectId={id}
+          diff={pendingTcDiff.diff}
+          unchangedCount={pendingTcDiff.unchangedCount}
+          requirementTitleById={pendingTcDiff.requirementTitleById}
+          onClose={() => setPendingTcDiff(null)}
+          onApplied={() => {
             apiFetch(`/projects/${id}/requirements`).then(setRequirements).catch(console.error)
           }}
         />

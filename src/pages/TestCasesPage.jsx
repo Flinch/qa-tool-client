@@ -300,11 +300,12 @@ export function LogBugModal({ projectId, testCase, executionRunId, features, onC
   )
 }
 
-function TestCaseModal({ tc, projectId, isClient, features, onClose, onBugLogged, onTestCaseUpdated, onDeleted }) {
+function TestCaseModal({ tc, projectId, isClient, features, onClose, onBugLogged, onTestCaseUpdated, onDeleted, onArchiveToggled }) {
   const { addToast } = useToastStore()
   const [linkedBugs, setLinkedBugs] = useState([])
   const [loadingBugs, setLoadingBugs] = useState(true)
   const [showLogBug, setShowLogBug] = useState(false)
+  const [archiving, setArchiving] = useState(false)
 
   const [isEditing, setIsEditing] = useState(false)
   const [editForm, setEditForm] = useState({
@@ -330,6 +331,28 @@ function TestCaseModal({ tc, projectId, isClient, features, onClose, onBugLogged
     } catch (e) {
       addToast(e.message, 'error')
       setDeleting(false)
+    }
+  }
+
+  // Toggles archived_at — restoring from the Archived tab, same PATCH the
+  // diff-apply route's archiveIfOrphaned sets automatically. Either
+  // direction moves the test case out of whichever list is currently
+  // showing (active <-> archived are mutually exclusive views), so it's
+  // removed from the local list rather than merge-updated in place.
+  const toggleArchive = async () => {
+    setArchiving(true)
+    try {
+      await apiFetch(`/projects/${projectId}/test-cases/${tc.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ archived: !tc.archived_at }),
+      })
+      addToast(tc.archived_at ? 'Test case restored' : 'Test case archived')
+      onArchiveToggled(tc.id)
+      onClose()
+    } catch (e) {
+      addToast(e.message, 'error')
+    } finally {
+      setArchiving(false)
     }
   }
 
@@ -490,6 +513,7 @@ function TestCaseModal({ tc, projectId, isClient, features, onClose, onBugLogged
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem', flexWrap: 'wrap' }}>
               <span className={`badge badge-${tc.type}`}>{TYPE_LABELS[tc.type]}</span>
               <span className={`badge badge-${tc.platform || 'web'}`}>{tc.platform === 'mobile' ? 'Mobile' : 'Web'}</span>
+              {tc.archived_at && <span className="badge" style={{ color: 'var(--muted)' }}>Archived</span>}
               {tc.is_automated ? (
                 <span className="badge badge-tc-automated" title="Has real generated automation">
                   <Icon name="check" size={11} /> Automated
@@ -503,8 +527,16 @@ function TestCaseModal({ tc, projectId, isClient, features, onClose, onBugLogged
             <h2 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '1rem', fontWeight: 700, color: 'var(--white)', lineHeight: 1.3 }}>{tc.title}</h2>
           </div>
           <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
-            {!isClient && <button className="btn btn-ghost btn-sm" onClick={() => setIsEditing(true)}>Edit</button>}
-            {!isClient && <button className="btn btn-danger btn-sm" onClick={() => setConfirmingDelete(true)}>Delete</button>}
+            {!isClient && tc.archived_at ? (
+              <button className="btn btn-primary btn-sm" onClick={toggleArchive} disabled={archiving}>
+                {archiving ? 'Restoring...' : 'Restore'}
+              </button>
+            ) : !isClient && (
+              <>
+                <button className="btn btn-ghost btn-sm" onClick={() => setIsEditing(true)}>Edit</button>
+                <button className="btn btn-danger btn-sm" onClick={() => setConfirmingDelete(true)}>Delete</button>
+              </>
+            )}
             <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', display: 'flex' }}><Icon name="x" size={16} /></button>
           </div>
         </div>
@@ -575,6 +607,7 @@ export default function TestCasesPage() {
   const [selectedTc, setSelectedTc] = useState(null)
   const [filter, setFilter] = useState('all')
   const [platform, setPlatform] = useState('all')
+  const [showArchived, setShowArchived] = useState(false)
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [showCombine, setShowCombine] = useState(false)
   const [showAssignFeature, setShowAssignFeature] = useState(false)
@@ -600,11 +633,12 @@ export default function TestCasesPage() {
   }, [testCases, searchParams])
 
   useEffect(() => {
-    apiFetch(`/projects/${id}/test-cases`)
+    setLoading(true)
+    apiFetch(`/projects/${id}/test-cases${showArchived ? '?archived=true' : ''}`)
       .then(setTestCases)
       .catch(console.error)
       .finally(() => setLoading(false))
-  }, [id])
+  }, [id, showArchived])
 
   const handleBugLogged = (bug) => {
     setTestCases(tcs => tcs.map(tc => tc.id === bug.test_case_id ? { ...tc, bug_count: (tc.bug_count || 0) + 1 } : tc))
@@ -730,6 +764,11 @@ export default function TestCasesPage() {
               </button>
             )}
             {!isClient && <button className="btn btn-ghost btn-sm" onClick={() => setShowManageFeatures(true)}>Manage features</button>}
+            {!isClient && (
+              <button className={`btn btn-sm ${showArchived ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setShowArchived(v => !v)}>
+                {showArchived ? 'Back to active' : 'Archived'}
+              </button>
+            )}
           </div>
         </div>
 
@@ -745,9 +784,11 @@ export default function TestCasesPage() {
           <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}><div className="spinner" /></div>
         ) : filtered.length === 0 ? (
           <div className="empty-state">
-            <h3>{testCases.length === 0 ? 'No test cases yet' : 'No results for this filter'}</h3>
+            <h3>{showArchived ? 'No archived test cases' : testCases.length === 0 ? 'No test cases yet' : 'No results for this filter'}</h3>
             <p>
-              {testCases.length === 0
+              {showArchived
+                ? 'Test cases land here once they lose their last linked requirement.'
+                : testCases.length === 0
                 ? isClient
                   ? 'No test cases have been added for this project yet.'
                   : <>Generate test cases from the <Link to={`/projects/${id}/requirements`} style={{ color: 'var(--accent)' }}>Requirements</Link> page, or add one manually here.</>
@@ -920,6 +961,7 @@ export default function TestCasesPage() {
             setSelectedTc(prev => ({ ...prev, ...updated }))
           }}
           onDeleted={(tcId) => setTestCases(tcs => tcs.filter(t => t.id !== tcId))}
+          onArchiveToggled={(tcId) => setTestCases(tcs => tcs.filter(t => t.id !== tcId))}
         />
       )}
     </>

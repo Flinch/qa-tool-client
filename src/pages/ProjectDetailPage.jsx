@@ -169,6 +169,7 @@ export default function ProjectDetailPage() {
   const [savingField, setSavingField] = useState(false)
   const [testConfig, setTestConfig] = useState(null)
   const [showTestConfigModal, setShowTestConfigModal] = useState(false)
+  const [generatingAuthSetup, setGeneratingAuthSetup] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -199,6 +200,28 @@ export default function ProjectDetailPage() {
   }
 
   useEffect(loadTestConfig, [id, user?.role])
+
+  // In-flight auth-setup runs have no SSE hookup here (unlike AutomationPage's
+  // generation runs) — a simple poll while it's actually running is enough
+  // for this one status line, and stops as soon as it leaves 'in_progress'.
+  useEffect(() => {
+    if (testConfig?.authSetupStatus?.status !== 'in_progress') return
+    const interval = setInterval(loadTestConfig, 5000)
+    return () => clearInterval(interval)
+  }, [testConfig?.authSetupStatus?.status, id, user?.role])
+
+  const generateAuthSetup = async () => {
+    setGeneratingAuthSetup(true)
+    try {
+      await apiFetch(`/projects/${id}/automation/auth-setup/generate`, { method: 'POST' })
+      addToast('Generating login flow…')
+      loadTestConfig()
+    } catch (e) {
+      addToast(e.message, 'error')
+    } finally {
+      setGeneratingAuthSetup(false)
+    }
+  }
 
   const startEditField = (field) => {
     setEditingField(field)
@@ -407,6 +430,40 @@ export default function ProjectDetailPage() {
                   )}
                   <div>Login: {testConfig.hasCredentials ? `${testConfig.credentialUsername} (password saved)` : <span style={{ color: 'var(--muted)' }}>Using default demo account</span>}</div>
                 </div>
+                {testConfig.authSetupStatus?.needed && (
+                  <div style={{ marginTop: '0.75rem', paddingTop: '0.6rem', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                    {testConfig.authSetupStatus.status === 'not_generated' && (
+                      <>
+                        <span style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>Login flow: not generated yet</span>
+                        <button className="btn btn-primary btn-sm" onClick={generateAuthSetup} disabled={generatingAuthSetup}>
+                          {generatingAuthSetup ? 'Starting…' : 'Generate login flow'}
+                        </button>
+                      </>
+                    )}
+                    {testConfig.authSetupStatus.status === 'in_progress' && (
+                      <span style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>Login flow: generating…</span>
+                    )}
+                    {testConfig.authSetupStatus.status === 'pending_review' && (
+                      <>
+                        <span style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>Login flow: PR open, awaiting merge</span>
+                        {testConfig.authSetupStatus.pr_url && (
+                          <a href={testConfig.authSetupStatus.pr_url} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm">View PR</a>
+                        )}
+                      </>
+                    )}
+                    {testConfig.authSetupStatus.status === 'failed' && (
+                      <>
+                        <span style={{ fontSize: '0.82rem', color: 'var(--danger, #e15656)' }}>Login flow: generation failed</span>
+                        <button className="btn btn-primary btn-sm" onClick={generateAuthSetup} disabled={generatingAuthSetup}>
+                          {generatingAuthSetup ? 'Starting…' : 'Retry'}
+                        </button>
+                      </>
+                    )}
+                    {testConfig.authSetupStatus.status === 'verified' && (
+                      <span style={{ fontSize: '0.82rem', color: 'var(--success, #4caf7d)' }}>Login flow: verified ✓</span>
+                    )}
+                  </div>
+                )}
               </div>
             )}
             {isAdmin && (
