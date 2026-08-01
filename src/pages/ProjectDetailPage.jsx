@@ -66,6 +66,93 @@ function EditableField({ field, value, editingField, editValue, onEditValueChang
   )
 }
 
+// The real target URL/credentials/mobile app ids CI dispatches against for
+// this project (see routes/projects.js's test-config endpoints). Password
+// is never round-tripped from the server — this form always starts blank
+// for it, with a note when one's already saved, same "leave blank to keep
+// the current secret" convention the backend PATCH already implements.
+function TestConfigModal({ projectId, config, onClose, onSaved }) {
+  const { addToast } = useToastStore()
+  const [targetUrl, setTargetUrl] = useState(config.target_url || '')
+  const [apiBaseUrl, setApiBaseUrl] = useState(config.api_base_url || '')
+  const [mobileAppIdIos, setMobileAppIdIos] = useState(config.mobile_app_id_ios || '')
+  const [mobileAppIdAndroid, setMobileAppIdAndroid] = useState(config.mobile_app_id_android || '')
+  const [username, setUsername] = useState(config.credentialUsername || '')
+  const [password, setPassword] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const submit = async () => {
+    setSaving(true)
+    try {
+      const body = {
+        target_url: targetUrl,
+        api_base_url: apiBaseUrl,
+        mobile_app_id_ios: mobileAppIdIos,
+        mobile_app_id_android: mobileAppIdAndroid,
+      }
+      // Only send credentials if the staffer actually typed a new password —
+      // an empty password field means "leave the saved one alone," not
+      // "clear it," matching the backend's own omit-to-keep semantics.
+      if (username.trim() && password) {
+        body.test_credentials = { username: username.trim(), password }
+      }
+      const updated = await apiFetch(`/projects/${projectId}/test-config`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      })
+      addToast('Test environment updated')
+      onSaved(updated)
+      onClose()
+    } catch (e) {
+      addToast(e.message, 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal" style={{ maxWidth: 480 }}>
+        <div className="modal-title">Test environment</div>
+        <div style={{ fontSize: '0.82rem', color: 'var(--muted)', marginBottom: '1rem' }}>
+          What CI actually tests against — the app link, an API base URL if
+          it's different, mobile app ids, and the login used to authenticate.
+        </div>
+        <div className="form-group">
+          <label className="form-label">Target URL (web app)</label>
+          <input className="form-input" value={targetUrl} onChange={e => setTargetUrl(e.target.value)} placeholder="https://app.example.com" />
+        </div>
+        <div className="form-group">
+          <label className="form-label">API base URL (optional)</label>
+          <input className="form-input" value={apiBaseUrl} onChange={e => setApiBaseUrl(e.target.value)} placeholder="Defaults to Target URL" />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Mobile app id — iOS (optional)</label>
+          <input className="form-input" value={mobileAppIdIos} onChange={e => setMobileAppIdIos(e.target.value)} placeholder="com.example.app" />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Mobile app id — Android (optional)</label>
+          <input className="form-input" value={mobileAppIdAndroid} onChange={e => setMobileAppIdAndroid(e.target.value)} placeholder="com.example.app" />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Test username</label>
+          <input className="form-input" value={username} onChange={e => setUsername(e.target.value)} placeholder="Test account username" />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Test password</label>
+          <input className="form-input" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder={config.hasCredentials ? 'Saved — leave blank to keep it' : 'Test account password'} />
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-ghost" onClick={onClose} disabled={saving}>Cancel</button>
+          <button className="btn btn-primary" onClick={submit} disabled={saving}>
+            {saving ? 'Saving...' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function ProjectDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -80,6 +167,8 @@ export default function ProjectDetailPage() {
   const [editingField, setEditingField] = useState(null) // 'name' | 'client_name' | 'description' | null
   const [editValue, setEditValue] = useState('')
   const [savingField, setSavingField] = useState(false)
+  const [testConfig, setTestConfig] = useState(null)
+  const [showTestConfigModal, setShowTestConfigModal] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -101,6 +190,15 @@ export default function ProjectDetailPage() {
   }
 
   useEffect(loadMembers, [id, user?.role])
+
+  // Staff-only (qa_engineer or admin), same as the backend route — the
+  // real target/credentials CI dispatches against, never client-visible.
+  const loadTestConfig = () => {
+    if (user?.role === 'client') return
+    apiFetch(`/projects/${id}/test-config`).then(setTestConfig).catch(console.error)
+  }
+
+  useEffect(loadTestConfig, [id, user?.role])
 
   const startEditField = (field) => {
     setEditingField(field)
@@ -290,6 +388,27 @@ export default function ProjectDetailPage() {
                   </div>
                 </Link>
             </div>
+            {testConfig && (
+              <div className="card" style={{ maxWidth: 420, marginBottom: '1.25rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                  <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)' }}>Test environment</div>
+                  <button className="btn btn-ghost btn-sm" onClick={() => setShowTestConfigModal(true)}>Edit</button>
+                </div>
+                <div style={{ fontSize: '0.82rem', color: 'var(--muted)', marginBottom: '0.6rem' }}>
+                  What CI actually tests against — never visible to clients.
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.85rem', color: 'var(--light)' }}>
+                  <div>Target: {testConfig.target_url || <span style={{ color: 'var(--muted)' }}>Using default demo app</span>}</div>
+                  {testConfig.api_base_url && <div>API base URL: {testConfig.api_base_url}</div>}
+                  {(testConfig.mobile_app_id_ios || testConfig.mobile_app_id_android) && (
+                    <div>
+                      Mobile app id: {[testConfig.mobile_app_id_ios && `iOS: ${testConfig.mobile_app_id_ios}`, testConfig.mobile_app_id_android && `Android: ${testConfig.mobile_app_id_android}`].filter(Boolean).join(' · ')}
+                    </div>
+                  )}
+                  <div>Login: {testConfig.hasCredentials ? `${testConfig.credentialUsername} (password saved)` : <span style={{ color: 'var(--muted)' }}>Using default demo account</span>}</div>
+                </div>
+              </div>
+            )}
             {isAdmin && (
               <div className="card" style={{ maxWidth: 420 }}>
                 <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)', marginBottom: '0.5rem' }}>Share with a client</div>
@@ -329,6 +448,14 @@ export default function ProjectDetailPage() {
           </>
         )}
       </div>
+      {showTestConfigModal && testConfig && (
+        <TestConfigModal
+          projectId={id}
+          config={testConfig}
+          onClose={() => setShowTestConfigModal(false)}
+          onSaved={setTestConfig}
+        />
+      )}
     </>
   )
 }
