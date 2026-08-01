@@ -338,6 +338,67 @@ function RunRow({ run, canRerun, onRerun }) {
   )
 }
 
+// Terminal-style view of a run's agent-step log (see webhooks.js's POST
+// /generation-logs, written by each CI script's printStreamEvent). Self-
+// contained rather than fed by a parent SSE subscription — GenerationRunRow
+// is used from GenerationHistoryPage.jsx, which has no live connection at
+// all, so this fetches on open and, while the run is still active, polls
+// the same persisted-log endpoint every 2s (matching the CI-side flush
+// cadence) instead. Works identically regardless of which page opens it.
+function GenerationLogModal({ run, projectId, onClose }) {
+  const [lines, setLines] = useState([])
+  const [loading, setLoading] = useState(true)
+  const isRunning = GENERATION_PHASES.includes(run.status)
+  const bottomRef = useRef(null)
+
+  useEffect(() => {
+    let cancelled = false
+    const fetchLines = () => apiFetch(`/projects/${projectId}/automation/generation-runs/${run.id}/log`)
+      .then(data => { if (!cancelled) setLines(data.lines) })
+      .catch(console.error)
+      .finally(() => { if (!cancelled) setLoading(false) })
+
+    fetchLines()
+    const interval = isRunning ? setInterval(fetchLines, 2000) : null
+    return () => { cancelled = true; if (interval) clearInterval(interval) }
+  }, [projectId, run.id, isRunning])
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ block: 'end' })
+  }, [lines])
+
+  return (
+    <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal" style={{ maxWidth: 720, width: '90vw' }}>
+        <div className="modal-title">Agent log — {run.suite_name}{run.kind === 'heal' ? ' (heal)' : ''}</div>
+        <div
+          style={{
+            background: '#0a0a0a', border: '1px solid var(--border)', borderRadius: 4,
+            padding: '0.75rem 1rem', height: 420, overflowY: 'auto',
+            fontFamily: "'JetBrains Mono', 'Menlo', monospace", fontSize: '0.76rem',
+            lineHeight: 1.6, color: '#d4d4d4', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+          }}
+        >
+          {loading ? (
+            <div style={{ color: 'var(--muted)' }}>Loading…</div>
+          ) : lines.length === 0 ? (
+            <div style={{ color: 'var(--muted)' }}>No agent output yet.</div>
+          ) : (
+            lines.map((line, i) => <div key={i}>{line}</div>)
+          )}
+          <div ref={bottomRef} />
+        </div>
+        {isRunning && (
+          <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: '0.5rem' }}>Live — updating every few seconds…</div>
+        )}
+        <div className="modal-footer">
+          <button className="btn btn-ghost" onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // One row per AI test-generation attempt — the "where's my PR" answer.
 // Completed rows resolve to either a live "review this PR" link (still
 // open) or direct links to the generated file(s) at HEAD (already merged,
@@ -348,6 +409,7 @@ export function GenerationRunRow({ run, projectId }) {
   const tcCount = run.test_case_ids?.length || 0
   const failedCount = run.failed_test_case_ids?.length || 0
   const [rerunning, setRerunning] = useState(false)
+  const [showLog, setShowLog] = useState(false)
 
   const rerunFailed = async () => {
     setRerunning(true)
@@ -380,7 +442,10 @@ export function GenerationRunRow({ run, projectId }) {
             {run.kind === 'heal' ? `Healing: ${run.target_title}` : `${tcCount} test case${tcCount === 1 ? '' : 's'}`} · {formatWhen(run.started_at)}
           </div>
         </div>
-        <StatusPill status={isRunning ? 'running' : run.status} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <StatusPill status={isRunning ? 'running' : run.status} />
+          <button className="btn btn-ghost btn-sm" onClick={() => setShowLog(true)}>View log</button>
+        </div>
       </div>
       {isRunning && (
         <div style={{ fontSize: '0.74rem', color: 'var(--muted)', marginTop: '0.4rem' }}>{describeGenerationPhase(run.status)}</div>
@@ -410,6 +475,7 @@ export function GenerationRunRow({ run, projectId }) {
           </button>
         </div>
       )}
+      {showLog && <GenerationLogModal run={run} projectId={projectId} onClose={() => setShowLog(false)} />}
     </div>
   )
 }
