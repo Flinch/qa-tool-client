@@ -24,6 +24,7 @@ function StatusPill({ status }) {
     pending: { label: 'Pending', color: 'var(--warning)' },
     running: { label: 'Running', color: 'var(--warning)' },
     failed: { label: 'Failed', color: 'var(--danger)' },
+    cancelled: { label: 'Cancelled', color: 'var(--muted)' },
   }
   const s = map[status] || { label: status || 'Unknown', color: 'var(--muted)' }
   return (
@@ -282,7 +283,7 @@ function SuiteCard({ suite, onRun, running, readOnly }) {
   )
 }
 
-function RunRow({ run, canRerun, onRerun }) {
+function RunRow({ run, canRerun, onRerun, onCancel }) {
   const isRunning = run.status === 'pending' || run.status === 'running'
   const phase = isRunning ? describeRunPhase(run.status, run.started_at) : null
   // A diagnostic re-run of specific tests is itself scope='test_cases' — its
@@ -322,6 +323,15 @@ function RunRow({ run, canRerun, onRerun }) {
           <div style={{ fontSize: '0.82rem', color: run.failed > 0 ? 'var(--danger)' : 'var(--muted)' }}>{run.failed ?? '—'} failed</div>
         )}
         <div style={{ display: 'flex', gap: '0.5rem' }}>
+          {isRunning && canRerun && (
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => onCancel(run)}
+              style={{ color: 'var(--danger)', borderColor: 'rgba(193,68,58,0.4)' }}
+            >
+              Cancel
+            </button>
+          )}
           {run.report_url && (
             <a href={run.report_url} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm">Report</a>
           )}
@@ -957,6 +967,22 @@ export default function AutomationPage() {
     }
   }
 
+  // App-side only for now — the GH workflow keeps running (server refuses
+  // its late report for a cancelled run); actually stopping the workflow is
+  // a known later fix. The reload puts the suite card/run row straight back
+  // to a settled state without waiting for the SSE echo.
+  const cancelRun = async (run) => {
+    try {
+      await apiFetch(`/projects/${id}/automation/runs/${run.id}/cancel`, { method: 'POST' })
+      addToast('Run cancelled')
+      setTriggeringSuiteId(null)
+      stopPolling()
+      await load().catch(e => addToast(e.message, 'error'))
+    } catch (e) {
+      addToast(e.message, 'error')
+    }
+  }
+
   const nightlyRuns = runs.filter(r => r.trigger_type === 'nightly').slice(0, 10)
 
   return (
@@ -1086,7 +1112,7 @@ export default function AutomationPage() {
                 <div className="empty-state"><h3>No runs yet</h3><p>{isClient ? 'No suite runs have happened yet.' : 'Trigger a suite above to see results here.'}</p></div>
               ) : (
                 <div className="card" style={{ padding: '0 1rem' }}>
-                  {runs.map(r => <RunRow key={r.id} run={r} canRerun={!isClient} onRerun={setRerunRun} />)}
+                  {runs.map(r => <RunRow key={r.id} run={r} canRerun={!isClient} onRerun={setRerunRun} onCancel={cancelRun} />)}
                 </div>
               )}
             </div>
@@ -1097,7 +1123,7 @@ export default function AutomationPage() {
                 <div className="empty-state"><h3>No nightly runs yet</h3><p>These populate automatically once the scheduled workflow runs.</p></div>
               ) : (
                 <div className="card" style={{ padding: '0 1rem' }}>
-                  {nightlyRuns.map(r => <RunRow key={r.id} run={r} canRerun={!isClient} onRerun={setRerunRun} />)}
+                  {nightlyRuns.map(r => <RunRow key={r.id} run={r} canRerun={!isClient} onRerun={setRerunRun} onCancel={cancelRun} />)}
                 </div>
               )}
             </div>
