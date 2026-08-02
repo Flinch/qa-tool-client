@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import Icon from './Icon.jsx'
 
 // Shared confirm-before-heal step — same select-then-confirm shape
@@ -5,7 +6,14 @@ import Icon from './Icon.jsx'
 // native window.confirm(). Used both from RerunFailedTestsModal (healing a
 // result from within a specific run's failed list) and The Lab (healing a
 // generated test case directly from its last-known-failed status).
+//
+// The context textarea is free text appended verbatim to the healer agent's
+// prompt (see heal-test.js/heal-mobile-test.js) — it's how a human tells the
+// agent something it can't infer from the failure alone, e.g. "this test is
+// flaky, run it more than 10 times before considering it fixed."
 export default function HealConfirmModal({ testTitle, suiteName, onConfirm, onCancel, healing }) {
+  const [context, setContext] = useState('')
+
   return (
     <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onCancel()}>
       <div className="modal" style={{ maxWidth: 520 }}>
@@ -24,6 +32,20 @@ export default function HealConfirmModal({ testTitle, suiteName, onConfirm, onCa
           Suite: <strong>{suiteName}</strong>
         </div>
 
+        <div style={{ marginBottom: '1rem' }}>
+          <div style={{ fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '0.5rem' }}>
+            Context <span style={{ textTransform: 'none', letterSpacing: 'normal', fontWeight: 400 }}>(optional)</span>
+          </div>
+          <textarea
+            value={context}
+            onChange={e => setContext(e.target.value)}
+            placeholder='e.g. "This test is flaky — please run it more than 10 times before considering it fixed"'
+            rows={3}
+            style={{ width: '100%', resize: 'vertical', fontSize: '0.85rem', fontFamily: 'inherit', color: 'var(--light)', background: 'var(--bg2)', border: '1px solid var(--border)', padding: '0.5rem 0.7rem' }}
+            disabled={healing}
+          />
+        </div>
+
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', fontSize: '0.8rem', color: 'var(--muted)', marginBottom: '1rem', lineHeight: 1.6, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 0, padding: '0.6rem 0.85rem' }}>
           <Icon name="zap" size={14} style={{ color: 'var(--accent)', marginTop: '0.1rem', flexShrink: 0 }} />
           <span>
@@ -34,7 +56,7 @@ export default function HealConfirmModal({ testTitle, suiteName, onConfirm, onCa
 
         <div className="modal-footer">
           <button className="btn btn-ghost" onClick={onCancel} disabled={healing}>Back</button>
-          <button className="btn btn-primary" onClick={onConfirm} disabled={healing}>
+          <button className="btn btn-primary" onClick={() => onConfirm(context.trim())} disabled={healing}>
             {healing ? 'Starting...' : 'Confirm & Heal'}
           </button>
         </div>

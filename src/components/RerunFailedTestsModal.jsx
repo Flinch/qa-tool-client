@@ -54,13 +54,13 @@ export default function RerunFailedTestsModal({ projectId, run, onClose, onRerun
   // below (enabled only when exactly one result is checked).
   const selectedForHeal = failedResults.find(r => selectedIds.has(r.id))
 
-  const heal = async () => {
+  const heal = async (context) => {
     if (!selectedForHeal) return
     setHealing(true)
     try {
       const healRun = await apiFetch(`/projects/${projectId}/automation/runs/${run.id}/heal`, {
         method: 'POST',
-        body: JSON.stringify({ result_id: selectedForHeal.id }),
+        body: JSON.stringify({ result_id: selectedForHeal.id, context: context || undefined }),
       })
       addToast(`Healing started for "${selectedForHeal.test_title}"`)
       onHealTriggered(healRun)

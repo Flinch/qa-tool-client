@@ -141,13 +141,13 @@ export default function SuiteTestCasesPage() {
     }
   }
 
-  const confirmHeal = async () => {
+  const confirmHeal = async (context) => {
     if (!healConfirm) return
     setHealing(true)
     try {
       await apiFetch(`/projects/${id}/automation/runs/${healConfirm.runId}/heal`, {
         method: 'POST',
-        body: JSON.stringify({ result_id: healConfirm.resultId }),
+        body: JSON.stringify({ result_id: healConfirm.resultId, context: context || undefined }),
       })
       addToast(`Healing started for "${healConfirm.title}"`)
       setHealConfirm(null)
