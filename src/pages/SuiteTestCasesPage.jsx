@@ -30,12 +30,12 @@ function LastRunBadge({ status }) {
 // which suite it's in is already obvious from the breadcrumb and this stays
 // a plain browsing list. Exported so EngineeringDashboardPage.jsx can reuse
 // it for that section instead of duplicating this row layout.
-export function TestCaseRow({ tc, isLab, onRerun, onDiagnose, onRequestHeal, busy }) {
+export function TestCaseRow({ tc, isLab, onRerun, onDiagnose, onRequestHeal, onView, busy }) {
   const reviewLabel = REVIEW_STATUS_LABEL[tc.review_status]
   return (
     <div style={{ padding: '0.85rem 0', borderBottom: '1px solid var(--border)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
-        <div>
+        <div style={onView ? { cursor: 'pointer' } : undefined} onClick={onView ? () => onView(tc) : undefined}>
           <div style={{ color: 'var(--white)', fontSize: '0.88rem', fontWeight: 600, marginBottom: '0.15rem' }}>
             {tc.linked_test_case_title || tc.title}
           </div>

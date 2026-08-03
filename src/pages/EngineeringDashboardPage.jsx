@@ -3,7 +3,6 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { apiFetch } from '../lib/api.js'
 import { useToastStore } from '../store/toastStore.jsx'
 import { timeAgo } from '../lib/timeAgo.js'
-import { summarizeError } from '../lib/summarizeError.js'
 import { formatStep } from '../lib/steps.js'
 import { describeRunPhase } from '../lib/runPhase.js'
 import Icon from '../components/Icon.jsx'
@@ -28,16 +27,17 @@ const REVIEW_STATUS_COLOR = {
 const PRIORITY_COLOR = { high: 'var(--danger)', medium: 'var(--warning)', low: 'var(--muted)' }
 const RUN_GROUPS_POLL_MS = 4000
 
-// Read-only summary of a failing test — steps/expected/error plus a link
-// through to the full Test Cases page for anyone who wants to edit it.
-// Deliberately not the full editable test-case modal: this is a quick "what
-// actually broke" look from a diagnostic context, not a place to manage the
-// test case itself.
-function FailingTestDetailModal({ test, projectId, onClose }) {
+// Read-only summary of a test case — steps/expected, and its last error if
+// it has one, plus a link through to the full Test Cases page for anyone
+// who wants to edit it. Deliberately not the full editable test-case modal:
+// this is a quick "what does this test actually do" look from The Lab, not
+// a place to manage the test case itself.
+function TestCaseDetailModal({ test, projectId, onClose }) {
+  const errorMessage = test.last_error_message || test.error_message
   return (
     <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal" style={{ maxWidth: 560 }}>
-        <div className="modal-title">{test.tc_title || test.test_title}</div>
+        <div className="modal-title">{test.linked_test_case_title || test.tc_title || test.title || test.test_title}</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', fontSize: '0.8rem', color: 'var(--accent2)' }}>
           {test.suite_name}
           {test.type && <span style={{ color: 'var(--muted)' }}>· {test.type}</span>}
@@ -61,12 +61,14 @@ function FailingTestDetailModal({ test, projectId, onClose }) {
           </div>
         )}
 
-        <div style={{ marginBottom: '1.25rem' }}>
-          <div style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '0.35rem' }}>Failure</div>
-          <div style={{ fontSize: '0.82rem', color: 'var(--danger)', background: 'rgba(193,68,58,0.08)', border: '1px solid rgba(193,68,58,0.25)', padding: '0.6rem 0.75rem', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 220, overflowY: 'auto' }}>
-            {test.error_message}
+        {errorMessage && (
+          <div style={{ marginBottom: '1.25rem' }}>
+            <div style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '0.35rem' }}>Last failure</div>
+            <div style={{ fontSize: '0.82rem', color: 'var(--danger)', background: 'rgba(193,68,58,0.08)', border: '1px solid rgba(193,68,58,0.25)', padding: '0.6rem 0.75rem', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 220, overflowY: 'auto' }}>
+              {errorMessage}
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="modal-footer">
           {test.test_case_id && (
@@ -167,10 +169,6 @@ export default function EngineeringDashboardPage() {
   const [advisorRecs, setAdvisorRecs] = useState(null)
   const [advisorLoading, setAdvisorLoading] = useState(false)
 
-  const [selectedFailing, setSelectedFailing] = useState(new Set())
-  const [runningSelected, setRunningSelected] = useState(false)
-  const [detailTest, setDetailTest] = useState(null)
-
   const [runGroups, setRunGroups] = useState([])
   const [runGroupsLoading, setRunGroupsLoading] = useState(true)
   const [rerunChildRun, setRerunChildRun] = useState(null)
@@ -179,6 +177,7 @@ export default function EngineeringDashboardPage() {
   const [labTestCases, setLabTestCases] = useState([])
   const [labLoading, setLabLoading] = useState(true)
   const [labBusyId, setLabBusyId] = useState(null)
+  const [labDetail, setLabDetail] = useState(null)
   const [labDiagnose, setLabDiagnose] = useState(null)
   const [labHealConfirm, setLabHealConfirm] = useState(null)
   const [labHealing, setLabHealing] = useState(false)
@@ -232,33 +231,6 @@ export default function EngineeringDashboardPage() {
       addToast(e.message, 'error')
     } finally {
       setAdvisorLoading(false)
-    }
-  }
-
-  const toggleFailing = (resultId) => setSelectedFailing(ids => {
-    const next = new Set(ids)
-    next.has(resultId) ? next.delete(resultId) : next.add(resultId)
-    return next
-  })
-
-  const runSelected = async () => {
-    const items = (data?.failingTests || [])
-      .filter(t => selectedFailing.has(t.result_id))
-      .map(t => ({ run_id: t.run_id, result_id: t.result_id }))
-    if (items.length === 0) return
-    setRunningSelected(true)
-    try {
-      await apiFetch(`/projects/${id}/automation/runs/group-rerun`, {
-        method: 'POST',
-        body: JSON.stringify({ items }),
-      })
-      addToast(`Re-run started for ${items.length} test case${items.length === 1 ? '' : 's'}`)
-      setSelectedFailing(new Set())
-      loadRunGroups()
-    } catch (e) {
-      addToast(e.message, 'error')
-    } finally {
-      setRunningSelected(false)
     }
   }
 
@@ -343,6 +315,7 @@ export default function EngineeringDashboardPage() {
                 tc={tc}
                 isLab
                 busy={labBusyId === tc.id}
+                onView={setLabDetail}
                 onRerun={labRerun}
                 onDiagnose={(t) => setLabDiagnose({ runId: t.last_run_id, resultId: t.last_result_id, title: t.title, suiteName: t.suite_name })}
                 onRequestHeal={(t) => setLabHealConfirm({ runId: t.last_run_id, resultId: t.last_result_id, title: t.title, suiteName: t.suite_name })}
@@ -356,50 +329,6 @@ export default function EngineeringDashboardPage() {
         ) : (
           <div className="health-body-grid">
             <div>
-              <div className="health-panel">
-                <div className="health-panel-head">
-                  <div className="health-panel-title">Failing tests</div>
-                  {selectedFailing.size > 0 && (
-                    <button className="btn btn-primary btn-sm" onClick={runSelected} disabled={runningSelected}>
-                      {runningSelected ? 'Starting…' : `Run selected (${selectedFailing.size})`}
-                    </button>
-                  )}
-                </div>
-                {data.failingTests.length === 0 ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', color: 'var(--success)' }}>
-                    <Icon name="check" size={15} /> Nothing failing right now.
-                  </div>
-                ) : (
-                  data.failingTests.map((t, i) => (
-                    <div
-                      key={`${t.suite_id}-${t.test_title}`}
-                      style={{ display: 'flex', gap: '0.65rem', padding: '0.6rem 0', borderBottom: i < data.failingTests.length - 1 ? '1px solid var(--border)' : 'none' }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedFailing.has(t.result_id)}
-                        onChange={() => toggleFailing(t.result_id)}
-                        style={{ marginTop: '0.25rem', cursor: 'pointer', flexShrink: 0 }}
-                      />
-                      <div style={{ minWidth: 0, flex: 1, cursor: 'pointer' }} onClick={() => setDetailTest(t)}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
-                          <span style={{ fontSize: '0.85rem', color: 'var(--light)', fontWeight: 600, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {t.tc_title || t.test_title}
-                          </span>
-                          <span style={{ fontSize: '0.72rem', color: 'var(--faint)', flexShrink: 0 }}>{timeAgo(t.completed_at)}</span>
-                        </div>
-                        <div style={{ fontSize: '0.76rem', color: 'var(--accent2)', marginTop: '0.1rem' }}>{t.suite_name}</div>
-                        {t.error_message && (
-                          <div style={{ fontSize: '0.74rem', color: 'var(--danger)', marginTop: '0.25rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {summarizeError(t.error_message)}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-
               <div className="health-panel">
                 <div className="health-panel-head">
                   <div className="health-panel-title">Runs</div>
@@ -546,8 +475,8 @@ export default function EngineeringDashboardPage() {
         )}
       </div>
 
-      {detailTest && (
-        <FailingTestDetailModal test={detailTest} projectId={id} onClose={() => setDetailTest(null)} />
+      {labDetail && (
+        <TestCaseDetailModal test={labDetail} projectId={id} onClose={() => setLabDetail(null)} />
       )}
 
       {rerunChildRun && (
