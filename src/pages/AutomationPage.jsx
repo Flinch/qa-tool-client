@@ -364,9 +364,15 @@ function GenerationLogModal({ run, projectId, onClose }) {
     return () => { cancelled = true; if (interval) clearInterval(interval) }
   }, [projectId, run.id, isRunning])
 
+  // Only the agent's own narration (💬 text, 🤔 thinking) — not the 🔧 tool
+  // calls or ↳ tool-result/code output printStreamEvent also logs. Those
+  // are the useful "what is it doing and why" story; the raw tool traffic
+  // is high-volume and low-signal for a human watching this modal live.
+  const narrationLines = lines.filter(line => line.startsWith('💬') || line.startsWith('🤔'))
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: 'end' })
-  }, [lines])
+  }, [narrationLines.length])
 
   return (
     <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
@@ -382,10 +388,10 @@ function GenerationLogModal({ run, projectId, onClose }) {
         >
           {loading ? (
             <div style={{ color: 'var(--muted)' }}>Loading…</div>
-          ) : lines.length === 0 ? (
+          ) : narrationLines.length === 0 ? (
             <div style={{ color: 'var(--muted)' }}>No agent output yet.</div>
           ) : (
-            lines.map((line, i) => <div key={i}>{line}</div>)
+            narrationLines.map((line, i) => <div key={i}>{line}</div>)
           )}
           <div ref={bottomRef} />
         </div>

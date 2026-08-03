@@ -10,7 +10,7 @@ import Icon from '../components/Icon.jsx'
 import RerunFailedTestsModal from '../components/RerunFailedTestsModal.jsx'
 import HealConfirmModal from '../components/HealConfirmModal.jsx'
 import DiagnosisModal from '../components/DiagnosisModal.jsx'
-import { StatusPill, formatWhen } from './AutomationPage.jsx'
+import { StatusPill, formatWhen, GenerationRunRow } from './AutomationPage.jsx'
 import { TestCaseRow } from './SuiteTestCasesPage.jsx'
 
 const REVIEW_STATUS_LABEL = {
@@ -183,6 +183,9 @@ export default function EngineeringDashboardPage() {
   const [labHealConfirm, setLabHealConfirm] = useState(null)
   const [labHealing, setLabHealing] = useState(false)
 
+  const [generationRuns, setGenerationRuns] = useState([])
+  const [generationRunsLoading, setGenerationRunsLoading] = useState(true)
+
   useEffect(() => { apiFetch(`/projects/${id}`).then(setProject).catch(console.error) }, [id])
 
   useEffect(() => {
@@ -201,6 +204,13 @@ export default function EngineeringDashboardPage() {
   ), [id])
 
   useEffect(() => { loadRunGroups() }, [loadRunGroups])
+
+  useEffect(() => {
+    apiFetch(`/projects/${id}/automation/generation-runs`)
+      .then(setGenerationRuns)
+      .catch(console.error)
+      .finally(() => setGenerationRunsLoading(false))
+  }, [id])
 
   // Simple polling fallback while anything in the Runs panel is in flight —
   // this is a secondary diagnostic view, not the primary suite-trigger UX
@@ -418,7 +428,7 @@ export default function EngineeringDashboardPage() {
               <div className="health-panel">
                 <div className="health-panel-head">
                   <div className="health-panel-title">PR validation</div>
-                  <Link to={`/projects/${id}/automation/history`} className="health-panel-link">Generation history <Icon name="arrowRight" size={11} /></Link>
+                  <a href="#generation-history" className="health-panel-link">Generation history <Icon name="arrowRight" size={11} /></a>
                 </div>
                 {data.prValidation.length === 0 ? (
                   <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>No pull requests opened yet.</div>
@@ -512,6 +522,19 @@ export default function EngineeringDashboardPage() {
             </div>
           </div>
         )}
+
+        <div className="health-panel" id="generation-history">
+          <div className="health-panel-head">
+            <div className="health-panel-title">Generation history</div>
+          </div>
+          {generationRunsLoading ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '1rem' }}><div className="spinner" /></div>
+          ) : generationRuns.length === 0 ? (
+            <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>No generation runs yet — use "Generate automated tests" on the Automation page to write a test case with AI.</div>
+          ) : (
+            generationRuns.map(run => <GenerationRunRow key={run.id} run={run} projectId={id} />)
+          )}
+        </div>
 
         {!loading && (
           <div className="health-panel">
