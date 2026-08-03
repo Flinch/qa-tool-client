@@ -184,13 +184,14 @@ export default function EngineeringDashboardPage() {
 
   useEffect(() => { apiFetch(`/projects/${id}`).then(setProject).catch(console.error) }, [id])
 
-  useEffect(() => {
-    setLoading(true)
+  const loadEngineeringHealth = useCallback(() => (
     apiFetch(`/projects/${id}/engineering-health`)
       .then(setData)
       .catch(console.error)
       .finally(() => setLoading(false))
-  }, [id])
+  ), [id])
+
+  useEffect(() => { setLoading(true); loadEngineeringHealth() }, [loadEngineeringHealth])
 
   const loadRunGroups = useCallback(() => (
     apiFetch(`/projects/${id}/automation/run-groups`)
@@ -205,12 +206,22 @@ export default function EngineeringDashboardPage() {
   // this is a secondary diagnostic view, not the primary suite-trigger UX
   // (which already has its own SSE connection on the Automation page), so
   // plain polling is enough rather than duplicating that whole setup here.
+  const wasRunningRef = useRef(false)
   useEffect(() => {
     const anyRunning = runGroups.some(g => g.runs?.some(r => r.status === 'pending' || r.status === 'running'))
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
     if (anyRunning) pollRef.current = setInterval(loadRunGroups, RUN_GROUPS_POLL_MS)
+    // Failing tests / flaky-test pass rates only change once a run actually
+    // finishes (they're computed from completed test_run_results, not
+    // in-flight ones) — refetch engineering-health once here, on the
+    // running->not-running edge, rather than polling it on the same fast
+    // 4s cadence as run-groups. It does a live GitHub PR-status check per
+    // row, so polling it that often would be wasteful for data that can't
+    // have changed yet anyway.
+    if (wasRunningRef.current && !anyRunning) loadEngineeringHealth()
+    wasRunningRef.current = anyRunning
     return () => { if (pollRef.current) clearInterval(pollRef.current) }
-  }, [runGroups, loadRunGroups])
+  }, [runGroups, loadRunGroups, loadEngineeringHealth])
 
   const loadLab = useCallback(() => {
     setLabLoading(true)
