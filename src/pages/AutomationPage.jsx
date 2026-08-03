@@ -460,6 +460,13 @@ export function GenerationRunRow({ run, projectId }) {
       {run.status === 'failed' && run.error_message && (
         <div style={{ fontSize: '0.76rem', color: 'var(--danger)', marginTop: '0.4rem' }}>{run.error_message}</div>
       )}
+      {run.status === 'failed' && run.branch_url && (
+        <div style={{ marginTop: '0.5rem' }}>
+          <a href={run.branch_url} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm">
+            <Icon name="link" size={12} /> View checkpointed progress
+          </a>
+        </div>
+      )}
       {run.status === 'completed' && (
         <div style={{ marginTop: '0.5rem', display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
           {run.pr_status?.merged ? (
