@@ -9,6 +9,7 @@ import { describeRunPhase } from '../lib/runPhase.js'
 import Icon from '../components/Icon.jsx'
 import RerunFailedTestsModal from '../components/RerunFailedTestsModal.jsx'
 import HealConfirmModal from '../components/HealConfirmModal.jsx'
+import DiagnosisModal from '../components/DiagnosisModal.jsx'
 import { StatusPill, formatWhen } from './AutomationPage.jsx'
 import { TestCaseRow } from './SuiteTestCasesPage.jsx'
 
@@ -178,6 +179,7 @@ export default function EngineeringDashboardPage() {
   const [labTestCases, setLabTestCases] = useState([])
   const [labLoading, setLabLoading] = useState(true)
   const [labBusyId, setLabBusyId] = useState(null)
+  const [labDiagnose, setLabDiagnose] = useState(null)
   const [labHealConfirm, setLabHealConfirm] = useState(null)
   const [labHealing, setLabHealing] = useState(false)
 
@@ -342,6 +344,7 @@ export default function EngineeringDashboardPage() {
                 isLab
                 busy={labBusyId === tc.id}
                 onRerun={labRerun}
+                onDiagnose={(t) => setLabDiagnose({ runId: t.last_run_id, resultId: t.last_result_id, title: t.title, suiteName: t.suite_name })}
                 onRequestHeal={(t) => setLabHealConfirm({ runId: t.last_run_id, resultId: t.last_result_id, title: t.title, suiteName: t.suite_name })}
               />
             ))
@@ -554,6 +557,18 @@ export default function EngineeringDashboardPage() {
           onClose={() => setRerunChildRun(null)}
           onRerunTriggered={() => { setRerunChildRun(null); loadRunGroups() }}
           onHealTriggered={() => { setRerunChildRun(null); loadRunGroups() }}
+        />
+      )}
+
+      {labDiagnose && (
+        <DiagnosisModal
+          projectId={id}
+          runId={labDiagnose.runId}
+          resultId={labDiagnose.resultId}
+          testTitle={labDiagnose.title}
+          suiteName={labDiagnose.suiteName}
+          onClose={() => setLabDiagnose(null)}
+          onRequestHeal={() => { setLabHealConfirm(labDiagnose); setLabDiagnose(null) }}
         />
       )}
 

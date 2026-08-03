@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { apiFetch } from '../lib/api.js'
 import { useToastStore } from '../store/toastStore.jsx'
 import HealConfirmModal from './HealConfirmModal.jsx'
+import DiagnosisModal from './DiagnosisModal.jsx'
 
 export default function RerunFailedTestsModal({ projectId, run, onClose, onRerunTriggered, onHealTriggered }) {
   const { addToast } = useToastStore()
@@ -14,6 +15,10 @@ export default function RerunFailedTestsModal({ projectId, run, onClose, onRerun
   // select-then-confirm shape GenerateTestsModal already uses for its own
   // real-cost CI dispatch — not a native window.confirm().
   const [confirmingHeal, setConfirmingHeal] = useState(false)
+  // Diagnose has no confirm step of its own (read-only, no CI spend) — it
+  // just swaps in the DiagnosisModal directly, same swap-panel shape as
+  // confirmingHeal above.
+  const [diagnosing, setDiagnosing] = useState(false)
 
   useEffect(() => {
     apiFetch(`/projects/${projectId}/automation/runs/${run.id}`)
@@ -48,10 +53,12 @@ export default function RerunFailedTestsModal({ projectId, run, onClose, onRerun
     }
   }
 
-  // Heal acts on the current selection, same as Re-run — but only ever ONE
-  // test at a time, since the healer dispatches a real CI job + AI agent
-  // spend + a PR per file. Enforced via the button's own disabled state
-  // below (enabled only when exactly one result is checked).
+  // Heal (and Diagnose) act on the current selection, same as Re-run — but
+  // only ever ONE test at a time: heal because it dispatches a real CI job +
+  // AI agent spend + a PR per file, diagnose because an explanation only
+  // makes sense for one specific failure at a time. Enforced via each
+  // button's own disabled state below (enabled only when exactly one result
+  // is checked).
   const selectedForHeal = failedResults.find(r => selectedIds.has(r.id))
 
   const heal = async (context) => {
@@ -69,6 +76,20 @@ export default function RerunFailedTestsModal({ projectId, run, onClose, onRerun
       addToast(e.message, 'error')
       setHealing(false)
     }
+  }
+
+  if (diagnosing && selectedForHeal) {
+    return (
+      <DiagnosisModal
+        projectId={projectId}
+        runId={run.id}
+        resultId={selectedForHeal.id}
+        testTitle={selectedForHeal.test_title}
+        suiteName={run.suite_name}
+        onClose={() => setDiagnosing(false)}
+        onRequestHeal={() => { setDiagnosing(false); setConfirmingHeal(true) }}
+      />
+    )
   }
 
   if (confirmingHeal && selectedForHeal) {
@@ -126,11 +147,19 @@ export default function RerunFailedTestsModal({ projectId, run, onClose, onRerun
           <button className="btn btn-ghost" onClick={onClose} disabled={rerunning || healing}>Cancel</button>
           <button
             className="btn btn-ghost"
+            onClick={() => setDiagnosing(true)}
+            disabled={healing || rerunning || selectedIds.size !== 1}
+            title={selectedIds.size !== 1 ? 'Select exactly one test case to diagnose' : undefined}
+          >
+            Diagnose selected
+          </button>
+          <button
+            className="btn btn-ghost"
             onClick={() => setConfirmingHeal(true)}
             disabled={healing || rerunning || selectedIds.size !== 1}
             title={selectedIds.size !== 1 ? 'Select exactly one test case to heal' : undefined}
           >
-            Diagnose &amp; heal selected
+            Heal selected
           </button>
           <button className="btn btn-primary" onClick={rerun} disabled={rerunning || healing || selectedIds.size === 0}>
             {rerunning ? 'Starting...' : `Re-run selected (${selectedIds.size})`}
