@@ -315,12 +315,39 @@ export default function EngineeringDashboardPage() {
           </div>
         </div>
         <div className="topbar-actions">
+          <Link to={`/projects/${id}/automation`} className="btn btn-ghost btn-sm"><Icon name="gear" size={13} /> Automation</Link>
           <Link to={`/projects/${id}/bugs`} className="btn btn-ghost btn-sm"><Icon name="bug" size={13} /> Bugs</Link>
           <Link to={`/projects/${id}/tests`} className="btn btn-ghost btn-sm"><Icon name="check" size={13} /> Test cases</Link>
           <Link to={`/projects/${id}/requirements`} className="btn btn-ghost btn-sm"><Icon name="link" size={13} /> Requirements</Link>
         </div>
       </div>
       <div className="page-content fade-in">
+        {/* The Lab sits above everything else, full width — independent of
+            the engineering-health fetch below (its own loading state), so it
+            shows up first regardless of how long that call takes. */}
+        <div className="health-panel" id="the-lab">
+          <div className="health-panel-head">
+            <div className="health-panel-title">The Lab</div>
+            <span style={{ fontSize: '0.76rem', color: 'var(--muted)' }}>Every AI-generated test, its last run, and the option to re-run or heal it</span>
+          </div>
+          {labLoading ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '1rem' }}><div className="spinner" /></div>
+          ) : labTestCases.length === 0 ? (
+            <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>No AI-generated test cases found yet across any suite in this project.</div>
+          ) : (
+            labTestCases.map(tc => (
+              <TestCaseRow
+                key={tc.id}
+                tc={tc}
+                isLab
+                busy={labBusyId === tc.id}
+                onRerun={labRerun}
+                onRequestHeal={(t) => setLabHealConfirm({ runId: t.last_run_id, resultId: t.last_result_id, title: t.title, suiteName: t.suite_name })}
+              />
+            ))
+          )}
+        </div>
+
         {loading || !data ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}><div className="spinner" /></div>
         ) : (
@@ -480,31 +507,6 @@ export default function EngineeringDashboardPage() {
                 )}
               </div>
             </div>
-          </div>
-        )}
-
-        {!loading && (
-          <div className="health-panel" id="the-lab">
-            <div className="health-panel-head">
-              <div className="health-panel-title">The Lab</div>
-              <span style={{ fontSize: '0.76rem', color: 'var(--muted)' }}>Every AI-generated test, its last run, and the option to re-run or heal it</span>
-            </div>
-            {labLoading ? (
-              <div style={{ display: 'flex', justifyContent: 'center', padding: '1rem' }}><div className="spinner" /></div>
-            ) : labTestCases.length === 0 ? (
-              <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>No AI-generated test cases found yet across any suite in this project.</div>
-            ) : (
-              labTestCases.map(tc => (
-                <TestCaseRow
-                  key={tc.id}
-                  tc={tc}
-                  isLab
-                  busy={labBusyId === tc.id}
-                  onRerun={labRerun}
-                  onRequestHeal={(t) => setLabHealConfirm({ runId: t.last_run_id, resultId: t.last_result_id, title: t.title, suiteName: t.suite_name })}
-                />
-              ))
-            )}
           </div>
         )}
 
