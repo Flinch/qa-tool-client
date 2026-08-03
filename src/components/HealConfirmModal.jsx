@@ -4,8 +4,9 @@ import Icon from './Icon.jsx'
 // Shared confirm-before-heal step — same select-then-confirm shape
 // GenerateTestsModal already uses for its own real-cost CI dispatch, not a
 // native window.confirm(). Used both from RerunFailedTestsModal (healing a
-// result from within a specific run's failed list) and The Lab (healing a
-// generated test case directly from its last-known-failed status).
+// result from within a specific run's failed list) and the Engineering
+// page's Lab section (healing a generated test case directly from its
+// last-known-failed status).
 //
 // The context textarea is free text appended verbatim to the healer agent's
 // prompt (see heal-test.js/heal-mobile-test.js) — it's how a human tells the

@@ -100,8 +100,8 @@ function ProjectGate() {
 }
 
 // Wraps routes that must never be reached by the client role (AI generation/
-// healing internals — Generation History, The Lab) — same "redirect instead
-// of letting the page mount and 403" idea as ProjectGate above, just
+// healing internals — Generation History, Engineering) — same "redirect
+// instead of letting the page mount and 403" idea as ProjectGate above, just
 // synchronous since role is already known from useAuth.
 function StaffOnlyRoute() {
   const { id } = useParams()
@@ -165,7 +165,6 @@ function Gate() {
           <Route path="automation/suites/:suiteId/test-cases" element={<SuiteTestCasesPage />} />
           <Route element={<StaffOnlyRoute />}>
             <Route path="automation/history" element={<GenerationHistoryPage />} />
-            <Route path="automation/generated-test-cases" element={<SuiteTestCasesPage />} />
             <Route path="engineering" element={<EngineeringDashboardPage />} />
           </Route>
           <Route path="executions" element={<ExecutionRunsPage />} />

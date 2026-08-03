@@ -18,7 +18,7 @@ const MAX_BATCH_SIZE = 3
 // polling and to render a phase label/index.
 const GENERATION_PHASES = ['pending', 'exploring', 'generating', 'healing', 'opening_pr']
 
-function StatusPill({ status }) {
+export function StatusPill({ status }) {
   const map = {
     completed: { label: 'Completed', color: 'var(--success)' },
     pending: { label: 'Pending', color: 'var(--warning)' },
@@ -63,7 +63,7 @@ function describeGenerationPhase(status) {
   return null
 }
 
-function formatWhen(dateStr) {
+export function formatWhen(dateStr) {
   const date = new Date(dateStr)
   const now = new Date()
   const diffMs = now - date
@@ -286,26 +286,17 @@ function SuiteCard({ suite, onRun, running, readOnly }) {
 function RunRow({ run, canRerun, onRerun, onCancel }) {
   const isRunning = run.status === 'pending' || run.status === 'running'
   const phase = isRunning ? describeRunPhase(run.status, run.started_at) : null
-  // A diagnostic re-run of specific tests is itself scope='test_cases' — its
-  // own failures re-run the same way, but there's no point re-re-running a
-  // re-run's re-run indefinitely from this same row once it's already scoped
-  // down, so the button only appears on scope='suite' rows.
-  const canRerunThis = canRerun && run.scope !== 'test_cases' && run.status === 'completed' && run.failed > 0
+  // Every run this page ever sees is scope='suite' now — diagnostic/grouped
+  // re-runs live exclusively on the Engineering page's Runs panel (see
+  // GET /automation/runs's unconditional scope filter).
+  const canRerunThis = canRerun && run.status === 'completed' && run.failed > 0
 
   return (
     <div style={{ padding: '0.85rem 0', borderBottom: '1px solid var(--border)' }}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto auto', gap: '1rem', alignItems: 'center' }}>
         <div>
-          <div style={{ color: 'var(--white)', fontSize: '0.88rem', fontWeight: 600 }}>
-            {run.scope === 'test_cases' ? (run.target_titles?.join(', ') || 'Re-run') : run.suite_name}
-            {run.scope === 'test_cases' && (
-              <span style={{ marginLeft: '0.5rem', fontSize: '0.68rem', fontWeight: 600, color: 'var(--muted)', border: '1px solid var(--border)', padding: '0.1rem 0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Re-run
-              </span>
-            )}
-          </div>
+          <div style={{ color: 'var(--white)', fontSize: '0.88rem', fontWeight: 600 }}>{run.suite_name}</div>
           <div style={{ color: 'var(--muted)', fontSize: '0.76rem' }}>
-            {run.scope === 'test_cases' && `${run.suite_name} · `}
             {run.trigger_type === 'nightly' ? 'Nightly' : 'Manual'} · {new Date(run.started_at).toLocaleString()}
           </div>
         </div>
@@ -746,7 +737,6 @@ export default function AutomationPage() {
   const [project, setProject] = useState(null)
   const [suites, setSuites] = useState([])
   const [runs, setRuns] = useState([])
-  const [generatedCount, setGeneratedCount] = useState(null)
   const [loading, setLoading] = useState(true)
   const [triggeringSuiteId, setTriggeringSuiteId] = useState(null)
   const [showGenerateTests, setShowGenerateTests] = useState(false)
@@ -789,15 +779,6 @@ export default function AutomationPage() {
   }, [id])
 
   useEffect(() => { load().catch(e => addToast(e.message, 'error')) }, [load])
-
-  // The Lab (AI-generated tests, review status, heal/re-run) is staff-only —
-  // clients never see this route at all, not even the count.
-  useEffect(() => {
-    if (isClient) return
-    apiFetch(`/projects/${id}/automation/generated-test-cases`)
-      .then(data => setGeneratedCount(data.testCases.length))
-      .catch(() => setGeneratedCount(null))
-  }, [id, isClient])
 
   // Live updates via SSE — native EventSource can't send Authorization headers,
   // so the token is passed as a query param and verified server-side instead.
@@ -1063,24 +1044,6 @@ export default function AutomationPage() {
                 </div>
               ) : (
                 <>
-                  {/* Not a real suite (automation_suites row) — it's a
-                      cross-cutting view over every suite's generated tests,
-                      so it sits above the web/mobile tabs rather than inside
-                      one platform's grid. Staff-only — see the fetch guard
-                      above. */}
-                  {!isClient && generatedCount !== null && (
-                    <Link to={`/projects/${id}/automation/generated-test-cases`} style={{ textDecoration: 'none', display: 'block', marginBottom: '1rem' }}>
-                      <div className="card suite-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <div>
-                          <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '0.95rem', color: 'var(--white)' }}>The Lab</div>
-                          <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: '0.2rem' }}>
-                            Every AI-generated test, its last run, and the option to re-run or heal it — {generatedCount} test case{generatedCount === 1 ? '' : 's'}
-                          </div>
-                        </div>
-                        <Icon name="arrowRight" size={16} style={{ color: 'var(--muted)' }} />
-                      </div>
-                    </Link>
-                  )}
                   <div className="platform-tabs">
                     <button
                       className="platform-tab" aria-selected={platformTab === 'web'}

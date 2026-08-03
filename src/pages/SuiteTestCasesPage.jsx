@@ -1,10 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { apiFetch } from '../lib/api.js'
-import { useAuth } from '../store/AuthContext.jsx'
-import { useToastStore } from '../store/toastStore.jsx'
 import Icon from '../components/Icon.jsx'
-import HealConfirmModal from '../components/HealConfirmModal.jsx'
 
 const REVIEW_STATUS_LABEL = {
   pending_review: 'Pending review',
@@ -26,12 +23,14 @@ function LastRunBadge({ status }) {
   return <span style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>{status}</span>
 }
 
-// One row per automated_test_cases roster entry. `isLab` is only true on
-// the cross-suite "The Lab" view (the old "Generated test cases" page,
-// renamed) — that's the only place last-run status + re-run/heal actions
-// apply; on a single suite's own roster page, which suite it's in is
-// already obvious from the breadcrumb and this stays a plain browsing list.
-function TestCaseRow({ tc, isLab, onRerun, onRequestHeal, busy }) {
+// One row per automated_test_cases roster entry. `isLab` is true when
+// rendered inside the Engineering page's "The Lab" section (the cross-suite
+// view over every suite's generated tests) — that's the only place last-run
+// status + re-run/heal actions apply; on a single suite's own roster page,
+// which suite it's in is already obvious from the breadcrumb and this stays
+// a plain browsing list. Exported so EngineeringDashboardPage.jsx can reuse
+// it for that section instead of duplicating this row layout.
+export function TestCaseRow({ tc, isLab, onRerun, onRequestHeal, busy }) {
   const reviewLabel = REVIEW_STATUS_LABEL[tc.review_status]
   return (
     <div style={{ padding: '0.85rem 0', borderBottom: '1px solid var(--border)' }}>
@@ -83,82 +82,29 @@ function TestCaseRow({ tc, isLab, onRerun, onRequestHeal, busy }) {
   )
 }
 
+// Single suite's own test-case roster — client-visible, plain browsing list.
+// The cross-suite "Lab" view now lives inline on the Engineering page
+// instead of as its own route (see EngineeringDashboardPage.jsx).
 export default function SuiteTestCasesPage() {
   const { id, suiteId } = useParams()
   const navigate = useNavigate()
-  const { user } = useAuth()
-  const isClient = user?.role === 'client'
-  const { addToast } = useToastStore()
   const [project, setProject] = useState(null)
   const [suite, setSuite] = useState(null)
   const [testCases, setTestCases] = useState([])
   const [loading, setLoading] = useState(true)
-  const [busyId, setBusyId] = useState(null)
-  const [healConfirm, setHealConfirm] = useState(null) // { runId, resultId, title, suiteName }
-  const [healing, setHealing] = useState(false)
-
-  const isLab = !suiteId
 
   useEffect(() => { apiFetch(`/projects/${id}`).then(setProject).catch(console.error) }, [id])
 
-  // The Lab is staff-only (AI generation/healing internals) — a client who
-  // lands here (bookmarked/typed URL) is bounced back to Automation instead
-  // of mounting a page whose data now 403s. The single-suite roster below
-  // stays client-visible.
   useEffect(() => {
-    if (isLab && isClient) navigate(`/projects/${id}/automation`, { replace: true })
-  }, [isLab, isClient, id, navigate])
-
-  const load = () => {
-    if (isLab && isClient) { setLoading(false); return Promise.resolve() }
     setLoading(true)
-    const path = suiteId
-      ? `/projects/${id}/automation/suites/${suiteId}/test-cases`
-      : `/projects/${id}/automation/generated-test-cases`
-    return apiFetch(path)
+    apiFetch(`/projects/${id}/automation/suites/${suiteId}/test-cases`)
       .then(data => {
         setSuite(data.suite || null)
         setTestCases(data.testCases)
       })
       .catch(console.error)
       .finally(() => setLoading(false))
-  }
-
-  useEffect(() => { load() }, [id, suiteId])
-
-  const rerun = async (tc) => {
-    setBusyId(tc.id)
-    try {
-      await apiFetch(`/projects/${id}/automation/runs/${tc.last_run_id}/rerun`, {
-        method: 'POST',
-        body: JSON.stringify({ result_ids: [tc.last_result_id] }),
-      })
-      addToast(`Re-run started for "${tc.title}"`)
-    } catch (e) {
-      addToast(e.message, 'error')
-    } finally {
-      setBusyId(null)
-    }
-  }
-
-  const confirmHeal = async (context) => {
-    if (!healConfirm) return
-    setHealing(true)
-    try {
-      await apiFetch(`/projects/${id}/automation/runs/${healConfirm.runId}/heal`, {
-        method: 'POST',
-        body: JSON.stringify({ result_id: healConfirm.resultId, context: context || undefined }),
-      })
-      addToast(`Healing started for "${healConfirm.title}"`)
-      setHealConfirm(null)
-    } catch (e) {
-      addToast(e.message, 'error')
-    } finally {
-      setHealing(false)
-    }
-  }
-
-  const pageTitle = suiteId ? (suite?.name || 'Suite') : 'The Lab'
+  }, [id, suiteId])
 
   return (
     <>
@@ -172,7 +118,7 @@ export default function SuiteTestCasesPage() {
             <span style={{ color: 'var(--muted)' }}>/</span>
             <Link to={`/projects/${id}/automation`} style={{ color: 'var(--muted)', textDecoration: 'none' }}>Automation</Link>
             <span style={{ color: 'var(--muted)' }}>/</span>
-            <span className="topbar-title">{pageTitle}</span>
+            <span className="topbar-title">{suite?.name || 'Suite'}</span>
           </div>
         </div>
       </div>
@@ -182,37 +128,14 @@ export default function SuiteTestCasesPage() {
         ) : testCases.length === 0 ? (
           <div className="empty-state">
             <h3>No test cases yet</h3>
-            <p>
-              {suiteId
-                ? 'This suite has no automated test cases in its roster yet — it picks them up automatically the first time it runs.'
-                : 'No AI-generated test cases found yet across any suite in this project.'}
-            </p>
+            <p>This suite has no automated test cases in its roster yet — it picks them up automatically the first time it runs.</p>
           </div>
         ) : (
           <div className="card" style={{ padding: '0 1rem' }}>
-            {testCases.map(tc => (
-              <TestCaseRow
-                key={tc.id}
-                tc={tc}
-                isLab={isLab}
-                busy={busyId === tc.id}
-                onRerun={rerun}
-                onRequestHeal={(t) => setHealConfirm({ runId: t.last_run_id, resultId: t.last_result_id, title: t.title, suiteName: t.suite_name })}
-              />
-            ))}
+            {testCases.map(tc => <TestCaseRow key={tc.id} tc={tc} isLab={false} />)}
           </div>
         )}
       </div>
-
-      {healConfirm && (
-        <HealConfirmModal
-          testTitle={healConfirm.title}
-          suiteName={healConfirm.suiteName}
-          healing={healing}
-          onCancel={() => setHealConfirm(null)}
-          onConfirm={confirmHeal}
-        />
-      )}
     </>
   )
 }

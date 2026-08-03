@@ -34,6 +34,12 @@ const CUSTOM = {
   alertTriangle: <><path d={PATHS.alertTriangle} /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></>,
   medic: <><circle cx="12" cy="12" r="9" /><path d={PATHS.medic} /></>,
   clock: <><circle cx="12" cy="12" r="9" /><path d={PATHS.clock} /></>,
+  hammer: (
+    <g transform="rotate(45 12 12)">
+      <rect x="5" y="3" width="8" height="5" rx="1" />
+      <line x1="9" y1="8" x2="9" y2="21" />
+    </g>
+  ),
 }
 
 export default function Icon({ name, size = 16, style, ...rest }) {

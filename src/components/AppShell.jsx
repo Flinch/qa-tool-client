@@ -2,7 +2,7 @@ import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import { useToastStore } from '../store/toastStore.jsx'
 import { useAuth } from '../store/AuthContext.jsx'
 import Icon from './Icon.jsx'
-import AutomationLink from './AutomationLink.jsx'
+import EngineeringLink from './EngineeringLink.jsx'
 
 const roleLabel = { admin: 'Admin', qa_engineer: 'QA Engineer', client: 'Client' }
 
@@ -13,7 +13,7 @@ export default function AppShell() {
 
   // Which project (if any) the current URL is inside — used both for the
   // client's sidebar Overview/Reports links (client-only) and for staff's
-  // global Automation shortcut (staff-only) below.
+  // global Engineering shortcut (staff-only) below.
   const projectMatch = pathname.match(/^\/projects\/(\d+)/)
   const projectId = projectMatch?.[1]
 
@@ -74,8 +74,8 @@ export default function AppShell() {
         <Outlet />
       </main>
       {user?.role !== 'client' && (
-        <div className="global-automation-shortcut">
-          <AutomationLink projectId={projectId} className="btn btn-ghost btn-sm" />
+        <div className="global-engineering-shortcut">
+          <EngineeringLink projectId={projectId} className="btn btn-ghost btn-sm" />
         </div>
       )}
       <div className="toast-wrap">
