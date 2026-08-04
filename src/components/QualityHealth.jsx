@@ -245,6 +245,17 @@ export default function QualityHealth({ projectId, projectName }) {
   const summary = buildSummary(data, projectName || 'This project')
   const firstName = user?.name?.split(' ')[0]
 
+  // "New bugs reported" — bugs filed in the last 7 days, regardless of
+  // current status (a bug that's already been resolved same-day is still
+  // real news worth seeing, not just currently-open ones — that's what the
+  // KPI strip and bug hotspots already cover). Distinct from the activity
+  // bell: this is a dedicated, always-visible panel for "what did QA just
+  // find," not a dismiss-once notification feed.
+  const RECENT_BUGS_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
+  const recentBugs = bugs
+    .filter(b => Date.now() - new Date(b.created_at).getTime() < RECENT_BUGS_WINDOW_MS)
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+
   const activity = buildActivity(bugs, runs, requirements)
   const activityForBell = activity.map((ev, i) => ({
     ...ev,
@@ -375,6 +386,32 @@ export default function QualityHealth({ projectId, projectName }) {
               overlapping questions with the same underlying bug data; this
               gives "where" (feature) and "how urgent" (worst severity
               present) in one place instead of two redundant lists. */}
+          <div className="health-panel">
+            <div className="health-panel-head">
+              <div className="health-panel-title">New bugs reported{recentBugs.length > 0 ? ` (${recentBugs.length})` : ''}</div>
+              <Link to={`/projects/${projectId}/bugs`} className="health-panel-link">Bugs <Icon name="arrowRight" size={11} /></Link>
+            </div>
+            {recentBugs.length === 0 ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', color: 'var(--success)' }}>
+                <Icon name="check" size={15} /> No new bugs in the last 7 days.
+              </div>
+            ) : (
+              recentBugs.slice(0, 5).map((b, i, arr) => (
+                <div
+                  key={b.id}
+                  onClick={() => navigate(`/projects/${projectId}/bugs?bugId=${b.id}`)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.45rem 0', cursor: 'pointer', borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none' }}
+                >
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: `var(--severity-${b.severity})`, flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0, fontSize: '0.83rem', color: 'var(--light)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {b.title}
+                  </div>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--faint)', flexShrink: 0 }}>{timeAgo(b.created_at)}</span>
+                </div>
+              ))
+            )}
+          </div>
+
           <div className="health-panel">
             <div className="health-panel-head">
               <div className="health-panel-title">Bug hotspots</div>

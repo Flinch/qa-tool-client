@@ -199,6 +199,28 @@ export default function EngineeringDashboardPage() {
   const genPollStartedAt = useRef(null)
   const sseErrorCount = useRef(0)
 
+  // Dismissed generation-history chips — per-project, persisted client-side
+  // only (no server-side "seen" concept for these, same as the notification
+  // bell's own localStorage-backed approach). Dismissing just hides the chip
+  // from this list; the underlying generation_runs row and its real history
+  // are untouched.
+  const dismissedGenRunsKey = `qa_tool_dismissed_gen_runs_project_${id}`
+  const [dismissedGenRunIds, setDismissedGenRunIds] = useState(() => {
+    try {
+      return new Set(JSON.parse(localStorage.getItem(dismissedGenRunsKey) || '[]'))
+    } catch {
+      return new Set()
+    }
+  })
+  const dismissGenRun = (runId) => {
+    setDismissedGenRunIds(prev => {
+      const next = new Set(prev)
+      next.add(runId)
+      try { localStorage.setItem(dismissedGenRunsKey, JSON.stringify([...next])) } catch { /* ignore */ }
+      return next
+    })
+  }
+
   useEffect(() => { apiFetch(`/projects/${id}`).then(setProject).catch(console.error) }, [id])
 
   const loadEngineeringHealth = useCallback(() => (
@@ -457,34 +479,51 @@ export default function EngineeringDashboardPage() {
           <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '0.68rem', letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--faint)', flexShrink: 0 }}>
             Generation history
           </span>
-          {generationRuns.length === 0 ? (
-            <span style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>No generation runs yet.</span>
-          ) : (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', flex: 1 }}>
-              {generationRuns.slice(0, 4).map(r => {
-                const isRunning = GENERATION_PHASES.includes(r.status)
-                const color = isRunning ? 'var(--warning)' : r.status === 'failed' ? 'var(--danger)' : 'var(--success)'
-                const label = r.kind === 'heal' ? `Heal: ${r.target_title || r.suite_name}` : r.suite_name
-                const linkUrl = r.github_run_url || r.pr_url
-                const content = (
-                  <>
-                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: color, flexShrink: 0 }} />
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180 }}>{label}</span>
-                    <span style={{ color: 'var(--faint)' }}>· {isRunning ? describeGenerationPhase(r.status) : timeAgo(r.completed_at || r.started_at)}</span>
-                  </>
-                )
-                const chipStyle = { display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.3rem 0.6rem', fontSize: '0.76rem', color: 'var(--light)', border: '1px solid var(--border2)', background: 'var(--card2)' }
-                return linkUrl ? (
-                  <a key={r.id} href={linkUrl} target="_blank" rel="noreferrer" style={{ ...chipStyle, textDecoration: 'none' }} title="Opens the GitHub Actions run">
-                    {content}
-                    <Icon name="link" size={10} style={{ color: 'var(--faint)' }} />
-                  </a>
-                ) : (
-                  <span key={r.id} style={chipStyle}>{content}</span>
-                )
-              })}
-            </div>
-          )}
+          {(() => {
+            const visibleRuns = generationRuns.filter(r => !dismissedGenRunIds.has(r.id))
+            return visibleRuns.length === 0 ? (
+              <span style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>
+                {generationRuns.length === 0 ? 'No generation runs yet.' : 'No generation runs to show.'}
+              </span>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', flex: 1 }}>
+                {visibleRuns.slice(0, 4).map(r => {
+                  const isRunning = GENERATION_PHASES.includes(r.status)
+                  const color = isRunning ? 'var(--warning)' : r.status === 'failed' ? 'var(--danger)' : 'var(--success)'
+                  const label = r.kind === 'heal' ? `Heal: ${r.target_title || r.suite_name}` : r.suite_name
+                  const linkUrl = r.github_run_url || r.pr_url
+                  const content = (
+                    <>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: color, flexShrink: 0 }} />
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180 }}>{label}</span>
+                      <span style={{ color: 'var(--faint)' }}>· {isRunning ? describeGenerationPhase(r.status) : timeAgo(r.completed_at || r.started_at)}</span>
+                    </>
+                  )
+                  const chipStyle = { display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.3rem 0.4rem 0.3rem 0.6rem', fontSize: '0.76rem', color: 'var(--light)', border: '1px solid var(--border2)', background: 'var(--card2)' }
+                  return (
+                    <div key={r.id} style={chipStyle}>
+                      {linkUrl ? (
+                        <a href={linkUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', textDecoration: 'none', color: 'inherit' }} title="Opens the GitHub Actions run">
+                          {content}
+                          <Icon name="link" size={10} style={{ color: 'var(--faint)' }} />
+                        </a>
+                      ) : (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>{content}</span>
+                      )}
+                      <button
+                        onClick={() => dismissGenRun(r.id)}
+                        title="Dismiss"
+                        aria-label={`Dismiss ${label}`}
+                        style={{ display: 'inline-flex', alignItems: 'center', background: 'none', border: 'none', padding: '0.15rem', marginLeft: '0.15rem', cursor: 'pointer', color: 'var(--faint)' }}
+                      >
+                        <Icon name="x" size={10} />
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })()}
           <Link to={`/projects/${id}/automation/history`} style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '0.7rem', color: 'var(--muted)', textDecoration: 'none', flexShrink: 0 }}>
             View all →
           </Link>
