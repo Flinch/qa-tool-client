@@ -58,7 +58,7 @@ function NavCardLarge({ to, icon, title, sub }) {
 
 function NavCardSmall({ to, icon, title, sub }) {
   return (
-    <Link to={to} style={{ textDecoration: 'none', flex: '0 1 220px' }}>
+    <Link to={to} style={{ textDecoration: 'none', display: 'block' }}>
       <div
         className="card"
         style={{ cursor: 'pointer', transition: 'border-color 0.2s', padding: '0.75rem 0.95rem', display: 'flex', alignItems: 'center', gap: '0.7rem' }}
@@ -426,12 +426,21 @@ export default function ProjectDetailPage() {
     const summary = buildEngineerSummary(project.name, {
       failingCount, flakyCount, brokenEnvCount, passRate: passRateLast5, hasRunHistory: automationRuns.length > 0,
     })
-    const needsAttention = failingCount > 0 || flakyCount > 0 || brokenEnvCount > 0
-    const status = needsAttention
-      ? { label: 'Needs attention', color: (failingCount > 0 || brokenEnvCount > 0) ? 'var(--danger)' : 'var(--warning)' }
-      : automationRuns.length === 0
-        ? { label: 'Not enough data yet', color: 'var(--muted)' }
-        : { label: 'Excellent', color: 'var(--success)' }
+    // Status pill is driven by pass rate + flaky count only — the two
+    // signals that actually describe how healthy the automated suite is
+    // right now. Same tiering QualityHealth's client-facing score already
+    // uses (< 70 needs attention, < 90 good, else excellent), with flaky
+    // tests as an added trigger since a high pass rate propped up by
+    // inconsistent tests isn't actually "excellent." Failing-test count and
+    // broken environments are real and still shown (KPI strip, Engineering
+    // card), just not what decides this specific badge.
+    const status = (automationRuns.length === 0 || passRateLast5 === null)
+      ? { label: 'Not enough data yet', color: 'var(--muted)' }
+      : (passRateLast5 < 70 || flakyCount >= 3)
+        ? { label: 'Needs attention', color: 'var(--danger)' }
+        : (passRateLast5 < 90 || flakyCount > 0)
+          ? { label: 'Good', color: 'var(--warning)' }
+          : { label: 'Excellent', color: 'var(--success)' }
 
     const engDescParts = []
     if (failingCount > 0) engDescParts.push(`${failingCount} test${failingCount === 1 ? '' : 's'} failing`)
@@ -497,39 +506,103 @@ export default function ProjectDetailPage() {
               <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}><div className="spinner" /></div>
             ) : (
               <>
-                <div className="health-hero">
-                  <div className="health-hero-top">
-                    <div>
-                      <h1 className="health-greeting-h1" style={{ marginBottom: '0.3rem' }}>{overview.summary.headline}</h1>
-                      <div className="health-greeting-sub">{overview.summary.sub}</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', gap: '1.1rem', marginBottom: '1.1rem', alignItems: 'start' }}>
+                  <div className="health-hero" style={{ marginBottom: 0 }}>
+                    <div className="health-hero-top">
+                      <div>
+                        <h1 className="health-greeting-h1" style={{ marginBottom: '0.3rem' }}>{overview.summary.headline}</h1>
+                        <div className="health-greeting-sub">{overview.summary.sub}</div>
+                      </div>
+                      <div className="health-status-pill" style={{ borderColor: overview.status.color, color: overview.status.color }}>
+                        <span className="health-status-dot" style={{ background: overview.status.color }} />
+                        {overview.status.label}
+                      </div>
                     </div>
-                    <div className="health-status-pill" style={{ borderColor: overview.status.color, color: overview.status.color }}>
-                      <span className="health-status-dot" style={{ background: overview.status.color }} />
-                      {overview.status.label}
+                    <div className="health-kpi-strip" style={{ marginTop: '1.35rem' }}>
+                      <div className="health-kpi">
+                        <div className="health-kpi-label">Pass rate</div>
+                        <div className="health-kpi-num" style={{ color: overview.passRateLast5 === null ? 'var(--white)' : featureHealthColor(overview.passRateLast5) }}>
+                          {overview.passRateLast5 === null ? '—' : `${overview.passRateLast5}%`}
+                        </div>
+                        <div className="health-kpi-sub">last 5 runs</div>
+                      </div>
+                      <div className="health-kpi">
+                        <div className="health-kpi-label">Failing now</div>
+                        <div className="health-kpi-num" style={{ color: overview.failingCount > 0 ? 'var(--danger)' : 'var(--white)' }}>{overview.failingCount}</div>
+                        <div className="health-kpi-sub">{overview.failingCount > 0 ? 'in the latest run' : 'nothing failing'}</div>
+                      </div>
+                      <div className="health-kpi">
+                        <div className="health-kpi-label">Flaky tests</div>
+                        <div className="health-kpi-num" style={{ color: overview.flakyCount > 0 ? 'var(--warning)' : 'var(--white)' }}>{overview.flakyCount}</div>
+                        <div className="health-kpi-sub">flipped pass/fail</div>
+                      </div>
+                      <div className="health-kpi">
+                        <div className="health-kpi-label">Automated</div>
+                        <div className="health-kpi-num">{health.automationCoverage !== null ? `${health.automationCoverage}%` : '—'}</div>
+                        <div className="health-kpi-sub">{health.totalTestCases > 0 ? `${health.automatedTestCases} of ${health.totalTestCases} cases` : 'No test cases yet'}</div>
+                      </div>
                     </div>
                   </div>
-                  <div className="health-kpi-strip" style={{ marginTop: '1.35rem' }}>
-                    <div className="health-kpi">
-                      <div className="health-kpi-label">Pass rate</div>
-                      <div className="health-kpi-num" style={{ color: overview.passRateLast5 === null ? 'var(--white)' : featureHealthColor(overview.passRateLast5) }}>
-                        {overview.passRateLast5 === null ? '—' : `${overview.passRateLast5}%`}
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
+                    {isAdmin && (
+                      <div className="card">
+                        <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)', marginBottom: '0.5rem' }}>Share with a client</div>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginBottom: '0.75rem' }}>
+                          They need to have already signed up. This gives them read-only access to this project's stats.
+                        </div>
+                        {members.length > 0 && (
+                          <div style={{ marginBottom: '0.9rem' }}>
+                            {members.map(m => (
+                              <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.4rem 0', borderBottom: '1px solid var(--border)' }}>
+                                <div style={{ fontSize: '0.83rem', color: 'var(--light)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name || m.email}</div>
+                                <button
+                                  className="btn btn-danger btn-sm"
+                                  onClick={() => removeClient(m)}
+                                  disabled={removingId === m.id}
+                                  style={{ flexShrink: 0 }}
+                                >
+                                  {removingId === m.id ? 'Removing…' : 'Unshare'}
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <input
+                            className="form-input"
+                            placeholder="client@company.com"
+                            value={clientEmail}
+                            onChange={e => setClientEmail(e.target.value)}
+                            style={{ flex: 1, minWidth: 0 }}
+                          />
+                          <button className="btn btn-primary btn-sm" onClick={addClient} disabled={adding || !clientEmail.trim()}>
+                            {adding ? 'Adding…' : 'Add'}
+                          </button>
+                        </div>
                       </div>
-                      <div className="health-kpi-sub">last 5 runs</div>
-                    </div>
-                    <div className="health-kpi">
-                      <div className="health-kpi-label">Failing now</div>
-                      <div className="health-kpi-num" style={{ color: overview.failingCount > 0 ? 'var(--danger)' : 'var(--white)' }}>{overview.failingCount}</div>
-                      <div className="health-kpi-sub">{overview.failingCount > 0 ? 'across recent runs' : 'nothing failing'}</div>
-                    </div>
-                    <div className="health-kpi">
-                      <div className="health-kpi-label">Flaky tests</div>
-                      <div className="health-kpi-num" style={{ color: overview.flakyCount > 0 ? 'var(--warning)' : 'var(--white)' }}>{overview.flakyCount}</div>
-                      <div className="health-kpi-sub">flipped pass/fail</div>
-                    </div>
-                    <div className="health-kpi">
-                      <div className="health-kpi-label">Automated</div>
-                      <div className="health-kpi-num">{health.automationCoverage !== null ? `${health.automationCoverage}%` : '—'}</div>
-                      <div className="health-kpi-sub">{health.totalTestCases > 0 ? `${health.automatedTestCases} of ${health.totalTestCases} cases` : 'No test cases yet'}</div>
+                    )}
+
+                    <div className="health-panel" style={{ flex: 1 }}>
+                      <div className="health-panel-head">
+                        <div className="health-panel-title">Flaky tests</div>
+                        <Link to={`/projects/${id}/engineering`} className="health-panel-link">Engineering <Icon name="arrowRight" size={11} /></Link>
+                      </div>
+                      {engHealth.flakyTests.length === 0 ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', color: 'var(--success)' }}>
+                          <Icon name="check" size={15} /> No flaky tests detected.
+                        </div>
+                      ) : (
+                        engHealth.flakyTests.map((t, i) => (
+                          <div key={`${t.suite_name}-${t.test_title}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', padding: '0.5rem 0', borderBottom: i < engHealth.flakyTests.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ fontSize: '0.85rem', color: 'var(--light)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.test_title}</div>
+                              <div style={{ fontSize: '0.72rem', color: 'var(--accent2)' }}>{t.suite_name}</div>
+                            </div>
+                            <span style={{ fontSize: '0.78rem', color: 'var(--warning)', fontWeight: 600, flexShrink: 0 }}>{t.passed_count}/{t.runs_considered} passed</span>
+                          </div>
+                        ))
+                      )}
                     </div>
                   </div>
                 </div>
@@ -543,7 +616,7 @@ export default function ProjectDetailPage() {
                   }}
                 >
                   <div style={{ width: 50, height: 50, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--accent)', color: 'var(--white)' }}>
-                    <Icon name="alertTriangle" size={22} />
+                    <Icon name="hammer" size={22} />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.6rem', marginBottom: '0.35rem' }}>
@@ -568,7 +641,7 @@ export default function ProjectDetailPage() {
                     sub={executionRuns.length > 0 ? `${executionRuns.length} session${executionRuns.length === 1 ? '' : 's'} logged` : 'No sessions logged yet'}
                   />
                 </div>
-                <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.4rem', flexWrap: 'wrap' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.75rem', marginBottom: '1.4rem' }}>
                   <NavCardSmall
                     to={`/projects/${id}/tests`} icon="check" title="Test cases"
                     sub={`${health.testCases.total} cases · ${health.automatedTestCases} automated`}
@@ -579,104 +652,76 @@ export default function ProjectDetailPage() {
                   />
                 </div>
 
-                <div className="health-body-grid">
-                  <div className="health-panel">
-                    <div className="health-panel-head">
-                      <div className="health-panel-title">Pass rate — last 10 runs</div>
-                      <Link to={`/projects/${id}/automation`} className="health-panel-link">Automation <Icon name="arrowRight" size={11} /></Link>
-                    </div>
-                    {overview.trendPoints.length >= 2 ? (
-                      <TrendChart points={overview.trendPoints} />
-                    ) : (
-                      <div style={{ fontSize: '0.85rem', color: 'var(--muted)', padding: '0.75rem 0' }}>Run a suite a few more times to start tracking a trend here.</div>
-                    )}
+                <div className="health-panel" style={{ marginBottom: '1.1rem' }}>
+                  <div className="health-panel-head">
+                    <div className="health-panel-title">Pass rate — last 10 runs</div>
+                    <Link to={`/projects/${id}/automation`} className="health-panel-link">Automation <Icon name="arrowRight" size={11} /></Link>
                   </div>
-                  <div className="health-panel">
-                    <div className="health-panel-head">
-                      <div className="health-panel-title">Flaky tests</div>
-                      <Link to={`/projects/${id}/engineering`} className="health-panel-link">Engineering <Icon name="arrowRight" size={11} /></Link>
-                    </div>
-                    {engHealth.flakyTests.length === 0 ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', color: 'var(--success)' }}>
-                        <Icon name="check" size={15} /> No flaky tests detected.
-                      </div>
-                    ) : (
-                      engHealth.flakyTests.map((t, i) => (
-                        <div key={`${t.suite_name}-${t.test_title}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', padding: '0.5rem 0', borderBottom: i < engHealth.flakyTests.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                          <div style={{ minWidth: 0 }}>
-                            <div style={{ fontSize: '0.85rem', color: 'var(--light)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.test_title}</div>
-                            <div style={{ fontSize: '0.72rem', color: 'var(--accent2)' }}>{t.suite_name}</div>
-                          </div>
-                          <span style={{ fontSize: '0.78rem', color: 'var(--warning)', fontWeight: 600, flexShrink: 0 }}>{t.passed_count}/{t.runs_considered} passed</span>
-                        </div>
-                      ))
-                    )}
-                  </div>
+                  {overview.trendPoints.length >= 2 ? (
+                    <TrendChart points={overview.trendPoints} />
+                  ) : (
+                    <div style={{ fontSize: '0.85rem', color: 'var(--muted)', padding: '0.75rem 0' }}>Run a suite a few more times to start tracking a trend here.</div>
+                  )}
                 </div>
               </>
             )}
             {testConfig && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap', background: 'var(--card2)', border: '1px solid var(--border)', padding: '0.8rem 1.4rem', fontSize: '0.78rem', color: 'var(--muted)', marginBottom: '1.25rem' }}>
-                <span>Target: <b style={{ color: 'var(--light)', fontWeight: 600 }}>{testConfig.target_url || 'Using default demo app'}</b></span>
-                <span>Login: <b style={{ color: 'var(--light)', fontWeight: 600 }}>{testConfig.hasCredentials ? testConfig.credentialUsername : 'Using default demo account'}</b></span>
-                {testConfig.authSetupStatus?.needed && testConfig.authSetupStatus.status === 'verified' && (
-                  <span style={{ color: 'var(--success)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                    <Icon name="check" size={13} /> Login flow verified
-                  </span>
-                )}
-                {testConfig.authSetupStatus?.needed && testConfig.authSetupStatus.status === 'not_generated' && (
-                  <button className="btn btn-primary btn-sm" onClick={generateAuthSetup} disabled={generatingAuthSetup} style={{ marginLeft: 'auto' }}>
-                    {generatingAuthSetup ? 'Starting…' : 'Generate login flow'}
-                  </button>
-                )}
-                {testConfig.authSetupStatus?.needed && testConfig.authSetupStatus.status === 'in_progress' && (
-                  <span style={{ marginLeft: 'auto' }}>Login flow: generating…</span>
-                )}
-                {testConfig.authSetupStatus?.needed && testConfig.authSetupStatus.status === 'pending_review' && testConfig.authSetupStatus.pr_url && (
-                  <a href={testConfig.authSetupStatus.pr_url} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }}>Login flow: PR awaiting merge</a>
-                )}
-                {testConfig.authSetupStatus?.needed && testConfig.authSetupStatus.status === 'failed' && (
-                  <button className="btn btn-primary btn-sm" onClick={generateAuthSetup} disabled={generatingAuthSetup} style={{ marginLeft: 'auto', color: 'var(--danger)' }}>
-                    {generatingAuthSetup ? 'Starting…' : 'Login flow failed — retry'}
-                  </button>
-                )}
-                <button className="btn btn-ghost btn-sm" onClick={() => setShowTestConfigModal(true)} style={testConfig.authSetupStatus?.needed ? undefined : { marginLeft: 'auto' }}>Edit</button>
-              </div>
-            )}
-            {isAdmin && (
-              <div className="card" style={{ maxWidth: 420 }}>
-                <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)', marginBottom: '0.5rem' }}>Share with a client</div>
-                <div style={{ fontSize: '0.82rem', color: 'var(--muted)', marginBottom: '0.75rem' }}>
-                  They need to have already signed up. This gives them read-only access to this project's stats.
+              <div className="health-panel" style={{ marginBottom: '1.25rem' }}>
+                <div className="health-panel-head">
+                  <div className="health-panel-title">Test environment</div>
+                  <button className="btn btn-ghost btn-sm" onClick={() => setShowTestConfigModal(true)}>Edit</button>
                 </div>
-                {members.length > 0 && (
-                  <div style={{ marginBottom: '0.9rem' }}>
-                    {members.map(m => (
-                      <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.4rem 0', borderBottom: '1px solid var(--border)' }}>
-                        <div style={{ fontSize: '0.85rem', color: 'var(--light)' }}>{m.name || m.email}</div>
-                        <button
-                          className="btn btn-danger btn-sm"
-                          onClick={() => removeClient(m)}
-                          disabled={removingId === m.id}
-                        >
-                          {removingId === m.id ? 'Removing…' : 'Unshare'}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.9rem 2rem' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '0.64rem', letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--faint)', marginBottom: '0.3rem' }}>Target</div>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--light)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {testConfig.target_url || 'Using default demo app'}
+                    </div>
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '0.64rem', letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--faint)', marginBottom: '0.3rem' }}>Login</div>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--light)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {testConfig.hasCredentials ? testConfig.credentialUsername : 'Using default demo account'}
+                    </div>
+                  </div>
+                </div>
+
+                {testConfig.authSetupStatus?.needed && (
+                  <div style={{ marginTop: '1rem', paddingTop: '0.85rem', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+                    {testConfig.authSetupStatus.status === 'verified' && (
+                      <span style={{ fontSize: '0.83rem', color: 'var(--success)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <Icon name="check" size={14} /> Login flow verified
+                      </span>
+                    )}
+                    {testConfig.authSetupStatus.status === 'not_generated' && (
+                      <>
+                        <span style={{ fontSize: '0.83rem', color: 'var(--muted)' }}>Login flow not generated yet</span>
+                        <button className="btn btn-primary btn-sm" onClick={generateAuthSetup} disabled={generatingAuthSetup}>
+                          {generatingAuthSetup ? 'Starting…' : 'Generate login flow'}
                         </button>
-                      </div>
-                    ))}
+                      </>
+                    )}
+                    {testConfig.authSetupStatus.status === 'in_progress' && (
+                      <span style={{ fontSize: '0.83rem', color: 'var(--warning)' }}>Login flow generating…</span>
+                    )}
+                    {testConfig.authSetupStatus.status === 'pending_review' && (
+                      <>
+                        <span style={{ fontSize: '0.83rem', color: 'var(--warning)' }}>Login flow PR awaiting merge</span>
+                        {testConfig.authSetupStatus.pr_url && (
+                          <a href={testConfig.authSetupStatus.pr_url} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm">View PR</a>
+                        )}
+                      </>
+                    )}
+                    {testConfig.authSetupStatus.status === 'failed' && (
+                      <>
+                        <span style={{ fontSize: '0.83rem', color: 'var(--danger)' }}>Login flow generation failed</span>
+                        <button className="btn btn-primary btn-sm" onClick={generateAuthSetup} disabled={generatingAuthSetup}>
+                          {generatingAuthSetup ? 'Starting…' : 'Retry'}
+                        </button>
+                      </>
+                    )}
                   </div>
                 )}
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <input
-                    className="form-input"
-                    placeholder="client@company.com"
-                    value={clientEmail}
-                    onChange={e => setClientEmail(e.target.value)}
-                    style={{ flex: 1 }}
-                  />
-                  <button className="btn btn-primary btn-sm" onClick={addClient} disabled={adding || !clientEmail.trim()}>
-                    {adding ? 'Adding…' : 'Add'}
-                  </button>
-                </div>
               </div>
             )}
           </>

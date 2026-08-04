@@ -468,7 +468,7 @@ export default function EngineeringDashboardPage() {
           <Link to={`/projects/${id}/automation`} className="btn btn-ghost btn-sm"><Icon name="gear" size={13} /> Automation</Link>
           <Link to={`/projects/${id}/bugs`} className="btn btn-ghost btn-sm"><Icon name="bug" size={13} /> Bugs</Link>
           <Link to={`/projects/${id}/tests`} className="btn btn-ghost btn-sm"><Icon name="check" size={13} /> Test cases</Link>
-          <Link to={`/projects/${id}/requirements`} className="btn btn-ghost btn-sm"><Icon name="link" size={13} /> Requirements</Link>
+          <Link to={`/projects/${id}/requirements`} className="btn btn-ghost btn-sm"><Icon name="target" size={13} /> Requirements</Link>
         </div>
       </div>
       <div className="page-content fade-in">
