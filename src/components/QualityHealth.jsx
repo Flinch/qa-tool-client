@@ -154,7 +154,7 @@ function Gauge({ value, color, breakdown }) {
   )
 }
 
-function TrendChart({ points }) {
+export function TrendChart({ points }) {
   const w = 600, h = 140, pad = 6
   const xs = points.map((_, i) => points.length > 1 ? pad + (i / (points.length - 1)) * (w - pad * 2) : w / 2)
   const ys = points.map(p => pad + (1 - p.passRate / 100) * (h - pad * 2))
@@ -182,7 +182,7 @@ function TrendChart({ points }) {
 
 // Same tiering as the pass-rate color used elsewhere (e.g. DashboardPage's
 // recent-runs column) — kept consistent rather than inventing new thresholds.
-function featureHealthColor(rate) {
+export function featureHealthColor(rate) {
   if (rate >= 90) return 'var(--success)'
   if (rate >= 70) return 'var(--warning)'
   return 'var(--danger)'

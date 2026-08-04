@@ -4,13 +4,76 @@ import { apiFetch } from '../lib/api.js'
 import { useAuth } from '../store/AuthContext.jsx'
 import { useToastStore } from '../store/toastStore.jsx'
 import Icon from '../components/Icon.jsx'
-import QualityHealth from '../components/QualityHealth.jsx'
+import QualityHealth, { TrendChart, featureHealthColor } from '../components/QualityHealth.jsx'
 
-function NavIcon({ name }) {
+const SEVERITY_ORDER = ['critical', 'high', 'medium', 'low']
+
+// Engineer-toned counterpart to QualityHealth's buildSummary — same idea
+// (plain-English headline derived from real numbers, no invented deltas)
+// but weighted toward CI/pipeline signals a client never sees, not bug
+// counts alone.
+function buildEngineerSummary(projectName, { failingCount, flakyCount, brokenEnvCount, passRate, hasRunHistory }) {
+  if (!hasRunHistory) {
+    return {
+      headline: `${projectName} is just getting started.`,
+      sub: 'Once automated suites have run a few times, a pass-rate snapshot shows up here.',
+    }
+  }
+  const issues = []
+  if (failingCount > 0) issues.push(`${failingCount} test${failingCount === 1 ? '' : 's'} failing`)
+  if (flakyCount > 0) issues.push(`${flakyCount} test${flakyCount === 1 ? '' : 's'} flaky`)
+  if (brokenEnvCount > 0) issues.push(`${brokenEnvCount} environment${brokenEnvCount === 1 ? '' : 's'} unstable`)
+  if (issues.length === 0) {
+    return {
+      headline: `${projectName} is in good shape.`,
+      sub: passRate !== null ? `${passRate}% of automated tests are passing and nothing needs attention.` : 'Nothing needs attention right now.',
+    }
+  }
+  return {
+    headline: `${projectName} needs a look.`,
+    sub: passRate !== null
+      ? `${issues.join(', ')}, and the pass rate has slipped to ${passRate}% over the last 5 runs.`
+      : `${issues.join(', ')}.`,
+  }
+}
+
+function NavCardLarge({ to, icon, title, sub }) {
   return (
-    <div style={{ width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--accent)', background: 'var(--bg)', color: 'var(--accent)', marginBottom: '0.85rem' }}>
-      <Icon name={name} size={18} />
-    </div>
+    <Link to={to} style={{ textDecoration: 'none', display: 'block', height: '100%' }}>
+      <div
+        className="card"
+        style={{ cursor: 'pointer', transition: 'border-color 0.2s', height: '100%', padding: '1.35rem 1.5rem' }}
+        onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--border2)'}
+        onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+      >
+        <div style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border2)', color: 'var(--muted)', marginBottom: '0.85rem' }}>
+          <Icon name={icon} size={18} />
+        </div>
+        <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '1.02rem', color: 'var(--white)', marginBottom: '0.35rem' }}>{title}</div>
+        <div style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>{sub}</div>
+      </div>
+    </Link>
+  )
+}
+
+function NavCardSmall({ to, icon, title, sub }) {
+  return (
+    <Link to={to} style={{ textDecoration: 'none', flex: '0 1 220px' }}>
+      <div
+        className="card"
+        style={{ cursor: 'pointer', transition: 'border-color 0.2s', padding: '0.75rem 0.95rem', display: 'flex', alignItems: 'center', gap: '0.7rem' }}
+        onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--border2)'}
+        onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+      >
+        <div style={{ width: 24, height: 24, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border2)', color: 'var(--muted)' }}>
+          <Icon name={icon} size={13} />
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '0.8rem', color: 'var(--white)', marginBottom: '0.15rem' }}>{title}</div>
+          <div style={{ fontSize: '0.68rem', color: 'var(--muted)' }}>{sub}</div>
+        </div>
+      </div>
+    </Link>
   )
 }
 
@@ -171,6 +234,18 @@ export default function ProjectDetailPage() {
   const [showTestConfigModal, setShowTestConfigModal] = useState(false)
   const [generatingAuthSetup, setGeneratingAuthSetup] = useState(false)
 
+  // Staff-only overview data — the hero/Engineering-card/nav-card stats and
+  // snapshot panels. All reused from existing endpoints (health,
+  // engineering-health, suites, runs, execution-runs) rather than one new
+  // aggregating route, same multi-fetch-and-compose pattern QualityHealth
+  // already uses for the client-facing view.
+  const [health, setHealth] = useState(null)
+  const [engHealth, setEngHealth] = useState(null)
+  const [suites, setSuites] = useState([])
+  const [automationRuns, setAutomationRuns] = useState([])
+  const [executionRuns, setExecutionRuns] = useState([])
+  const [overviewLoading, setOverviewLoading] = useState(true)
+
   useEffect(() => {
     async function load() {
       try {
@@ -191,6 +266,30 @@ export default function ProjectDetailPage() {
   }
 
   useEffect(loadMembers, [id, user?.role])
+
+  useEffect(() => {
+    if (user?.role === 'client') return
+    let cancelled = false
+    setOverviewLoading(true)
+    Promise.all([
+      apiFetch(`/projects/${id}/health`),
+      apiFetch(`/projects/${id}/engineering-health`),
+      apiFetch(`/projects/${id}/automation/suites`).catch(() => []),
+      apiFetch(`/projects/${id}/automation/runs`).catch(() => []),
+      apiFetch(`/projects/${id}/execution-runs`).catch(() => []),
+    ])
+      .then(([h, eh, suiteRows, runRows, execRows]) => {
+        if (cancelled) return
+        setHealth(h)
+        setEngHealth(eh)
+        setSuites(suiteRows)
+        setAutomationRuns(runRows)
+        setExecutionRuns(execRows)
+      })
+      .catch(console.error)
+      .finally(() => { if (!cancelled) setOverviewLoading(false) })
+    return () => { cancelled = true }
+  }, [id, user?.role])
 
   // Staff-only (qa_engineer or admin), same as the backend route — the
   // real target/credentials CI dispatches against, never client-visible.
@@ -300,6 +399,51 @@ export default function ProjectDetailPage() {
   const isClient = user?.role === 'client'
   const isAdmin = user?.role === 'admin'
 
+  // Staff-only derived values for the redesigned overview — computed at
+  // render time from the health/engHealth/automationRuns state rather than
+  // stashed in their own effect, so they never drift a render behind.
+  let overview = null
+  if (!isClient && health && engHealth) {
+    const failingCount = engHealth.failingTests.length
+    const flakyCount = engHealth.flakyTests.length
+    const brokenEnvCount = engHealth.brokenEnvironments.length
+    const prPendingCount = engHealth.prValidation.filter(r => !r.pr_status?.merged).length
+
+    const completedRuns = automationRuns.filter(r => r.status === 'completed' && r.total > 0)
+    const last5 = completedRuns.slice(0, 5)
+    const passRateLast5 = last5.length > 0
+      ? Math.round((last5.reduce((s, r) => s + r.passed, 0) / last5.reduce((s, r) => s + r.total, 0)) * 100)
+      : null
+    const trendPoints = completedRuns.slice(0, 10).map(r => ({ date: r.completed_at, passRate: Math.round((r.passed / r.total) * 100) })).reverse()
+
+    const openBugsTotal = SEVERITY_ORDER.reduce((sum, s) => sum + health.bugsBySeverity[s], 0)
+    const bugsSub = health.bugsBySeverity.critical > 0
+      ? `${openBugsTotal} open · ${health.bugsBySeverity.critical} critical`
+      : health.bugsBySeverity.high > 0
+        ? `${openBugsTotal} open · ${health.bugsBySeverity.high} high priority`
+        : openBugsTotal > 0 ? `${openBugsTotal} open` : 'All clear'
+
+    const summary = buildEngineerSummary(project.name, {
+      failingCount, flakyCount, brokenEnvCount, passRate: passRateLast5, hasRunHistory: automationRuns.length > 0,
+    })
+    const needsAttention = failingCount > 0 || flakyCount > 0 || brokenEnvCount > 0
+    const status = needsAttention
+      ? { label: 'Needs attention', color: (failingCount > 0 || brokenEnvCount > 0) ? 'var(--danger)' : 'var(--warning)' }
+      : automationRuns.length === 0
+        ? { label: 'Not enough data yet', color: 'var(--muted)' }
+        : { label: 'Excellent', color: 'var(--success)' }
+
+    const engDescParts = []
+    if (failingCount > 0) engDescParts.push(`${failingCount} test${failingCount === 1 ? '' : 's'} failing`)
+    if (brokenEnvCount > 0) engDescParts.push(`${brokenEnvCount} environment${brokenEnvCount === 1 ? '' : 's'} down`)
+    if (prPendingCount > 0) engDescParts.push(`${prPendingCount} PR${prPendingCount === 1 ? '' : 's'} waiting on review`)
+    const engDesc = engDescParts.length > 0
+      ? `${engDescParts.join(', ')} — triage and fix it all from here.`
+      : 'Nothing urgent right now — browse failing tests, flaky history, and PR review from here.'
+
+    overview = { failingCount, flakyCount, brokenEnvCount, passRateLast5, trendPoints, openBugsTotal, bugsSub, summary, status, engDesc }
+  }
+
   return (
     <>
       <div className="topbar">
@@ -349,121 +493,154 @@ export default function ProjectDetailPage() {
           <QualityHealth projectId={id} projectName={project.name} />
         ) : (
           <>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: isAdmin ? '2rem' : 0 }}>
-                <Link to={`/projects/${id}/requirements`} style={{ textDecoration: 'none', display: 'block', height: '100%' }}>
-                  <div className="card" style={{ cursor: 'pointer', transition: 'border-color 0.2s', height: '100%', display: 'flex', flexDirection: 'column' }}
-                    onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,70,31,0.3)'}
-                    onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
-                  >
-                    <NavIcon name="target" />
-                    <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)', marginBottom: '0.3rem' }}>Requirements</div>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>Track requirements and which test cases actually cover them.</div>
-                  </div>
-                </Link>
-                <Link to={`/projects/${id}/tests`} style={{ textDecoration: 'none', display: 'block', height: '100%' }}>
-                  <div className="card" style={{ cursor: 'pointer', transition: 'border-color 0.2s', height: '100%', display: 'flex', flexDirection: 'column' }}
-                    onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,70,31,0.3)'}
-                    onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
-                  >
-                    <NavIcon name="check" />
-                    <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)', marginBottom: '0.3rem' }}>Test cases</div>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>View, generate, and execute test cases against this project.</div>
-                  </div>
-                </Link>
-                <Link to={`/projects/${id}/executions`} style={{ textDecoration: 'none', display: 'block', height: '100%' }}>
-                  <div className="card" style={{ cursor: 'pointer', transition: 'border-color 0.2s', height: '100%', display: 'flex', flexDirection: 'column' }}
-                    onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,70,31,0.3)'}
-                    onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
-                  >
-                    <NavIcon name="play" />
-                    <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)', marginBottom: '0.3rem' }}>Executions</div>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>Run a session of manual and automated tests and export a report.</div>
-                  </div>
-                </Link>
-                <Link to={`/projects/${id}/bugs`} style={{ textDecoration: 'none', display: 'block', height: '100%' }}>
-                  <div className="card" style={{ cursor: 'pointer', transition: 'border-color 0.2s', height: '100%', display: 'flex', flexDirection: 'column' }}
-                    onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,70,31,0.3)'}
-                    onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
-                  >
-                    <NavIcon name="bug" />
-                    <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)', marginBottom: '0.3rem' }}>Bugs</div>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>Log, track, and resolve bugs found during testing.</div>
-                  </div>
-                </Link>
-                <Link to={`/projects/${id}/automation`} style={{ textDecoration: 'none', display: 'block', height: '100%' }}>
-                  <div className="card" style={{ cursor: 'pointer', transition: 'border-color 0.2s', height: '100%', display: 'flex', flexDirection: 'column' }}
-                    onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,70,31,0.3)'}
-                    onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
-                  >
-                    <NavIcon name="gear" />
-                    <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)', marginBottom: '0.3rem' }}>Automation</div>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>Run automated suites and view CI results, including nightly builds.</div>
-                  </div>
-                </Link>
-                <Link to={`/projects/${id}/engineering`} style={{ textDecoration: 'none', display: 'block', height: '100%' }}>
-                  <div className="card" style={{ cursor: 'pointer', transition: 'border-color 0.2s', height: '100%', display: 'flex', flexDirection: 'column' }}
-                    onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,70,31,0.3)'}
-                    onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
-                  >
-                    <NavIcon name="alertTriangle" />
-                    <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)', marginBottom: '0.3rem' }}>Engineering</div>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>Failing tests, broken environments, PR validation, and automation review backlog.</div>
-                  </div>
-                </Link>
-            </div>
-            {testConfig && (
-              <div className="card" style={{ maxWidth: 420, marginBottom: '1.25rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                  <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)' }}>Test environment</div>
-                  <button className="btn btn-ghost btn-sm" onClick={() => setShowTestConfigModal(true)}>Edit</button>
-                </div>
-                <div style={{ fontSize: '0.82rem', color: 'var(--muted)', marginBottom: '0.6rem' }}>
-                  What CI actually tests against — never visible to clients.
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.85rem', color: 'var(--light)' }}>
-                  <div>Target: {testConfig.target_url || <span style={{ color: 'var(--muted)' }}>Using default demo app</span>}</div>
-                  {testConfig.api_base_url && <div>API base URL: {testConfig.api_base_url}</div>}
-                  {(testConfig.mobile_app_id_ios || testConfig.mobile_app_id_android) && (
+            {overviewLoading || !overview ? (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}><div className="spinner" /></div>
+            ) : (
+              <>
+                <div className="health-hero">
+                  <div className="health-hero-top">
                     <div>
-                      Mobile app id: {[testConfig.mobile_app_id_ios && `iOS: ${testConfig.mobile_app_id_ios}`, testConfig.mobile_app_id_android && `Android: ${testConfig.mobile_app_id_android}`].filter(Boolean).join(' · ')}
+                      <h1 className="health-greeting-h1" style={{ marginBottom: '0.3rem' }}>{overview.summary.headline}</h1>
+                      <div className="health-greeting-sub">{overview.summary.sub}</div>
                     </div>
-                  )}
-                  <div>Login: {testConfig.hasCredentials ? `${testConfig.credentialUsername} (password saved)` : <span style={{ color: 'var(--muted)' }}>Using default demo account</span>}</div>
+                    <div className="health-status-pill" style={{ borderColor: overview.status.color, color: overview.status.color }}>
+                      <span className="health-status-dot" style={{ background: overview.status.color }} />
+                      {overview.status.label}
+                    </div>
+                  </div>
+                  <div className="health-kpi-strip" style={{ marginTop: '1.35rem' }}>
+                    <div className="health-kpi">
+                      <div className="health-kpi-label">Pass rate</div>
+                      <div className="health-kpi-num" style={{ color: overview.passRateLast5 === null ? 'var(--white)' : featureHealthColor(overview.passRateLast5) }}>
+                        {overview.passRateLast5 === null ? '—' : `${overview.passRateLast5}%`}
+                      </div>
+                      <div className="health-kpi-sub">last 5 runs</div>
+                    </div>
+                    <div className="health-kpi">
+                      <div className="health-kpi-label">Failing now</div>
+                      <div className="health-kpi-num" style={{ color: overview.failingCount > 0 ? 'var(--danger)' : 'var(--white)' }}>{overview.failingCount}</div>
+                      <div className="health-kpi-sub">{overview.failingCount > 0 ? 'across recent runs' : 'nothing failing'}</div>
+                    </div>
+                    <div className="health-kpi">
+                      <div className="health-kpi-label">Flaky tests</div>
+                      <div className="health-kpi-num" style={{ color: overview.flakyCount > 0 ? 'var(--warning)' : 'var(--white)' }}>{overview.flakyCount}</div>
+                      <div className="health-kpi-sub">flipped pass/fail</div>
+                    </div>
+                    <div className="health-kpi">
+                      <div className="health-kpi-label">Automated</div>
+                      <div className="health-kpi-num">{health.automationCoverage !== null ? `${health.automationCoverage}%` : '—'}</div>
+                      <div className="health-kpi-sub">{health.totalTestCases > 0 ? `${health.automatedTestCases} of ${health.totalTestCases} cases` : 'No test cases yet'}</div>
+                    </div>
+                  </div>
                 </div>
-                {testConfig.authSetupStatus?.needed && (
-                  <div style={{ marginTop: '0.75rem', paddingTop: '0.6rem', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
-                    {testConfig.authSetupStatus.status === 'not_generated' && (
-                      <>
-                        <span style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>Login flow: not generated yet</span>
-                        <button className="btn btn-primary btn-sm" onClick={generateAuthSetup} disabled={generatingAuthSetup}>
-                          {generatingAuthSetup ? 'Starting…' : 'Generate login flow'}
-                        </button>
-                      </>
-                    )}
-                    {testConfig.authSetupStatus.status === 'in_progress' && (
-                      <span style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>Login flow: generating…</span>
-                    )}
-                    {testConfig.authSetupStatus.status === 'pending_review' && (
-                      <>
-                        <span style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>Login flow: PR open, awaiting merge</span>
-                        {testConfig.authSetupStatus.pr_url && (
-                          <a href={testConfig.authSetupStatus.pr_url} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm">View PR</a>
-                        )}
-                      </>
-                    )}
-                    {testConfig.authSetupStatus.status === 'failed' && (
-                      <>
-                        <span style={{ fontSize: '0.82rem', color: 'var(--danger, #e15656)' }}>Login flow: generation failed</span>
-                        <button className="btn btn-primary btn-sm" onClick={generateAuthSetup} disabled={generatingAuthSetup}>
-                          {generatingAuthSetup ? 'Starting…' : 'Retry'}
-                        </button>
-                      </>
-                    )}
-                    {testConfig.authSetupStatus.status === 'verified' && (
-                      <span style={{ fontSize: '0.82rem', color: 'var(--success, #4caf7d)' }}>Login flow: verified ✓</span>
+
+                <Link
+                  to={`/projects/${id}/engineering`}
+                  style={{
+                    textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '1.4rem',
+                    background: 'linear-gradient(180deg, var(--accent-tint), var(--accent-glow-soft))',
+                    border: '1px solid var(--accent-border)', padding: '1.4rem 1.75rem', marginBottom: '1.1rem',
+                  }}
+                >
+                  <div style={{ width: 50, height: 50, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--accent)', color: 'var(--white)' }}>
+                    <Icon name="alertTriangle" size={22} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.6rem', marginBottom: '0.35rem' }}>
+                      <span style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '1.25rem', fontWeight: 700, color: 'var(--white)' }}>Engineering</span>
+                      <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '0.64rem', letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--accent2)' }}>Most visited</span>
+                    </div>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--light)', maxWidth: '62ch', lineHeight: 1.5 }}>{overview.engDesc}</div>
+                  </div>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', background: 'var(--accent)', color: 'var(--white)', fontWeight: 700, fontSize: '0.88rem', padding: '0.7rem 1.3rem', flexShrink: 0 }}>
+                    Open Engineering <Icon name="arrowRight" size={14} />
+                  </span>
+                </Link>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '0.9rem', marginBottom: '0.8rem' }}>
+                  <NavCardLarge
+                    to={`/projects/${id}/automation`} icon="gear" title="Automation"
+                    sub={`${suites.length} suite${suites.length === 1 ? '' : 's'} · nightly + on-demand runs`}
+                  />
+                  <NavCardLarge to={`/projects/${id}/bugs`} icon="bug" title="Bugs" sub={overview.bugsSub} />
+                  <NavCardLarge
+                    to={`/projects/${id}/executions`} icon="play" title="Executions"
+                    sub={executionRuns.length > 0 ? `${executionRuns.length} session${executionRuns.length === 1 ? '' : 's'} logged` : 'No sessions logged yet'}
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.4rem', flexWrap: 'wrap' }}>
+                  <NavCardSmall
+                    to={`/projects/${id}/tests`} icon="check" title="Test cases"
+                    sub={`${health.testCases.total} cases · ${health.automatedTestCases} automated`}
+                  />
+                  <NavCardSmall
+                    to={`/projects/${id}/requirements`} icon="target" title="Requirements"
+                    sub={health.totalRequirements > 0 ? `${health.totalRequirements} requirements · ${health.requirementCoverage}% covered` : 'No requirements tracked yet'}
+                  />
+                </div>
+
+                <div className="health-body-grid">
+                  <div className="health-panel">
+                    <div className="health-panel-head">
+                      <div className="health-panel-title">Pass rate — last 10 runs</div>
+                      <Link to={`/projects/${id}/automation`} className="health-panel-link">Automation <Icon name="arrowRight" size={11} /></Link>
+                    </div>
+                    {overview.trendPoints.length >= 2 ? (
+                      <TrendChart points={overview.trendPoints} />
+                    ) : (
+                      <div style={{ fontSize: '0.85rem', color: 'var(--muted)', padding: '0.75rem 0' }}>Run a suite a few more times to start tracking a trend here.</div>
                     )}
                   </div>
+                  <div className="health-panel">
+                    <div className="health-panel-head">
+                      <div className="health-panel-title">Flaky tests</div>
+                      <Link to={`/projects/${id}/engineering`} className="health-panel-link">Engineering <Icon name="arrowRight" size={11} /></Link>
+                    </div>
+                    {engHealth.flakyTests.length === 0 ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', color: 'var(--success)' }}>
+                        <Icon name="check" size={15} /> No flaky tests detected.
+                      </div>
+                    ) : (
+                      engHealth.flakyTests.map((t, i) => (
+                        <div key={`${t.suite_name}-${t.test_title}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', padding: '0.5rem 0', borderBottom: i < engHealth.flakyTests.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: '0.85rem', color: 'var(--light)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.test_title}</div>
+                            <div style={{ fontSize: '0.72rem', color: 'var(--accent2)' }}>{t.suite_name}</div>
+                          </div>
+                          <span style={{ fontSize: '0.78rem', color: 'var(--warning)', fontWeight: 600, flexShrink: 0 }}>{t.passed_count}/{t.runs_considered} passed</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+            {testConfig && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap', background: 'var(--card2)', border: '1px solid var(--border)', padding: '0.8rem 1.4rem', fontSize: '0.78rem', color: 'var(--muted)', marginBottom: '1.25rem' }}>
+                <span>Target: <b style={{ color: 'var(--light)', fontWeight: 600 }}>{testConfig.target_url || 'Using default demo app'}</b></span>
+                <span>Login: <b style={{ color: 'var(--light)', fontWeight: 600 }}>{testConfig.hasCredentials ? testConfig.credentialUsername : 'Using default demo account'}</b></span>
+                {testConfig.authSetupStatus?.needed && testConfig.authSetupStatus.status === 'verified' && (
+                  <span style={{ color: 'var(--success)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                    <Icon name="check" size={13} /> Login flow verified
+                  </span>
                 )}
+                {testConfig.authSetupStatus?.needed && testConfig.authSetupStatus.status === 'not_generated' && (
+                  <button className="btn btn-primary btn-sm" onClick={generateAuthSetup} disabled={generatingAuthSetup} style={{ marginLeft: 'auto' }}>
+                    {generatingAuthSetup ? 'Starting…' : 'Generate login flow'}
+                  </button>
+                )}
+                {testConfig.authSetupStatus?.needed && testConfig.authSetupStatus.status === 'in_progress' && (
+                  <span style={{ marginLeft: 'auto' }}>Login flow: generating…</span>
+                )}
+                {testConfig.authSetupStatus?.needed && testConfig.authSetupStatus.status === 'pending_review' && testConfig.authSetupStatus.pr_url && (
+                  <a href={testConfig.authSetupStatus.pr_url} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }}>Login flow: PR awaiting merge</a>
+                )}
+                {testConfig.authSetupStatus?.needed && testConfig.authSetupStatus.status === 'failed' && (
+                  <button className="btn btn-primary btn-sm" onClick={generateAuthSetup} disabled={generatingAuthSetup} style={{ marginLeft: 'auto', color: 'var(--danger)' }}>
+                    {generatingAuthSetup ? 'Starting…' : 'Login flow failed — retry'}
+                  </button>
+                )}
+                <button className="btn btn-ghost btn-sm" onClick={() => setShowTestConfigModal(true)} style={testConfig.authSetupStatus?.needed ? undefined : { marginLeft: 'auto' }}>Edit</button>
               </div>
             )}
             {isAdmin && (

@@ -16,7 +16,7 @@ const MAX_BATCH_SIZE = 3
 // The five non-terminal statuses generation_runs.status can be in, per the
 // server's CHECK constraint (migrate.js) — used both to know when to keep
 // polling and to render a phase label/index.
-const GENERATION_PHASES = ['pending', 'exploring', 'generating', 'healing', 'opening_pr']
+export const GENERATION_PHASES = ['pending', 'exploring', 'generating', 'healing', 'opening_pr']
 
 export function StatusPill({ status }) {
   const map = {
@@ -54,7 +54,7 @@ function PlatformBadge({ platform }) {
   )
 }
 
-function describeGenerationPhase(status) {
+export function describeGenerationPhase(status) {
   if (status === 'pending') return 'Starting…'
   if (status === 'exploring') return 'Exploring the app…'
   if (status === 'generating') return 'Writing tests…'
@@ -494,7 +494,7 @@ export function GenerationRunRow({ run, projectId }) {
   )
 }
 
-function GenerateTestsModal({ projectId, suites, onClose, onDispatched }) {
+export function GenerateTestsModal({ projectId, suites, onClose, onDispatched }) {
   const { addToast } = useToastStore()
   const [notAutomated, setNotAutomated] = useState([])
   const [alreadyAutomatedCount, setAlreadyAutomatedCount] = useState(0)
@@ -752,9 +752,7 @@ export default function AutomationPage() {
   const [runs, setRuns] = useState([])
   const [loading, setLoading] = useState(true)
   const [triggeringSuiteId, setTriggeringSuiteId] = useState(null)
-  const [showGenerateTests, setShowGenerateTests] = useState(false)
   const [showCreateSuite, setShowCreateSuite] = useState(false)
-  const [activeGenerationRun, setActiveGenerationRun] = useState(null)
   const [rerunRun, setRerunRun] = useState(null)
   // null until suites load once, then set to whichever category actually has
   // suites (defaults to 'web' if both do) — the `prev ??` guard in the setter
@@ -765,8 +763,6 @@ export default function AutomationPage() {
   const pollStartedAt = useRef(null)
   const sseErrorCount = useRef(0)
   const triggeredSuiteId = useRef(null)
-  const genPollRef = useRef(null)
-  const genPollStartedAt = useRef(null)
 
   useEffect(() => { apiFetch(`/projects/${id}`).then(setProject).catch(console.error) }, [id])
 
@@ -809,35 +805,6 @@ export default function AutomationPage() {
       load().catch(e => addToast(e.message, 'error'))
       setTriggeringSuiteId(null)
       stopPolling()
-    })
-
-    // Broadcast/subscribe are keyed only by project id, not event name or
-    // route (see sse.js) — this same connection already receives these two
-    // events, no separate stream needed.
-    es.addEventListener('generation_progress', (e) => {
-      sseErrorCount.current = 0
-      const data = JSON.parse(e.data)
-      setActiveGenerationRun(run => run && run.id === data.generation_run_id ? { ...run, status: data.status } : run)
-    })
-
-    es.addEventListener('generation_completed', (e) => {
-      sseErrorCount.current = 0
-      const data = JSON.parse(e.data)
-      setActiveGenerationRun(run => (run && run.id === data.generation_run_id) ? null : run)
-      stopGenPolling()
-      // The event only carries the run id, not the final status/pr_url — go
-      // get the real row rather than guess at what to toast.
-      apiFetch(`/projects/${id}/automation/generation-runs`)
-        .then(runs => {
-          const finished = runs.find(r => r.id === data.generation_run_id)
-          if (!finished) return
-          if (finished.status === 'completed') {
-            addToast(finished.pr_url ? 'Test generation complete — PR is ready for review' : 'Test generation complete')
-          } else if (finished.status === 'failed') {
-            addToast(finished.error_message || 'Test generation failed', 'error')
-          }
-        })
-        .catch(e => addToast(e.message, 'error'))
     })
 
     es.onerror = () => {
@@ -896,53 +863,6 @@ export default function AutomationPage() {
   }, [load, addToast])
 
   useEffect(() => () => stopPolling(), [])
-
-  const stopGenPolling = () => {
-    if (genPollRef.current) {
-      clearInterval(genPollRef.current)
-      genPollRef.current = null
-    }
-  }
-
-  // Same bounded-polling-fallback shape as suite runs (startPolling above),
-  // against GET /generation-runs instead, in case SSE never connects or drops.
-  const startGenPolling = useCallback((runId) => {
-    stopGenPolling()
-    genPollStartedAt.current = Date.now()
-    genPollRef.current = setInterval(async () => {
-      if (Date.now() - genPollStartedAt.current > POLL_TIMEOUT_MS) {
-        stopGenPolling()
-        setActiveGenerationRun(null)
-        addToast('Still waiting on generation results — check GitHub Actions directly if this persists', 'error')
-        return
-      }
-      let latest
-      try {
-        latest = await apiFetch(`/projects/${id}/automation/generation-runs`)
-      } catch (e) {
-        stopGenPolling()
-        setActiveGenerationRun(null)
-        addToast(`Lost connection while watching test generation: ${e.message}`, 'error')
-        return
-      }
-      const run = latest.find(r => r.id === runId)
-      if (!run || !GENERATION_PHASES.includes(run.status)) {
-        stopGenPolling()
-        setActiveGenerationRun(null)
-        if (run?.status === 'completed') addToast(run.pr_url ? 'Test generation complete — PR is ready for review' : 'Test generation complete')
-        else if (run?.status === 'failed') addToast(run.error_message || 'Test generation failed', 'error')
-        return
-      }
-      setActiveGenerationRun(r => (r && r.id === runId) ? { ...r, status: run.status } : r)
-    }, POLL_INTERVAL_MS)
-  }, [id, addToast])
-
-  useEffect(() => () => stopGenPolling(), [])
-
-  const handleGenerationDispatched = (run) => {
-    setActiveGenerationRun({ id: run.id, status: run.status })
-    startGenPolling(run.id)
-  }
 
   const runSuite = async (suite) => {
     setTriggeringSuiteId(suite.id)
@@ -1008,32 +928,6 @@ export default function AutomationPage() {
             <span className="topbar-title">Automation</span>
           </div>
         </div>
-        {!isClient && (
-          <div className="topbar-actions" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            {activeGenerationRun && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', minWidth: 140 }}>
-                <div className="progress-bar">
-                  <div
-                    className="progress-fill"
-                    style={{ width: `${((GENERATION_PHASES.indexOf(activeGenerationRun.status) + 1) / GENERATION_PHASES.length) * 100}%` }}
-                  />
-                </div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--muted)', textAlign: 'right' }}>
-                  {describeGenerationPhase(activeGenerationRun.status)}
-                </div>
-              </div>
-            )}
-            <Link to={`/projects/${id}/automation/history`} className="btn btn-ghost btn-sm">Generation history</Link>
-            <button
-              className="btn btn-primary btn-sm"
-              onClick={() => setShowGenerateTests(true)}
-              disabled={!!activeGenerationRun || suites.length === 0}
-              title={suites.length === 0 ? 'Create a suite first — see "+ New suite" below' : undefined}
-            >
-              <Icon name="zap" size={13} /> Generate automated tests
-            </button>
-          </div>
-        )}
       </div>
       <div className="page-content fade-in">
         {loading ? (
@@ -1050,7 +944,7 @@ export default function AutomationPage() {
                   <h3>No automation suites yet</h3>
                   {!isClient && (
                     <>
-                      <p>Create a suite to have somewhere for "Generate automated tests" to target.</p>
+                      <p>Create a suite to have somewhere for generated tests to target.</p>
                       <button className="btn btn-primary" onClick={() => setShowCreateSuite(true)}>+ New suite</button>
                     </>
                   )}
@@ -1107,15 +1001,6 @@ export default function AutomationPage() {
         )}
       </div>
 
-      {showGenerateTests && (
-        <GenerateTestsModal
-          projectId={id}
-          suites={suites}
-          onClose={() => setShowGenerateTests(false)}
-          onDispatched={handleGenerationDispatched}
-        />
-      )}
-
       {showCreateSuite && (
         <CreateSuiteModal
           projectId={id}
@@ -1136,7 +1021,7 @@ export default function AutomationPage() {
           run={rerunRun}
           onClose={() => setRerunRun(null)}
           onRerunTriggered={() => { setRerunRun(null); load() }}
-          onHealTriggered={handleGenerationDispatched}
+          onHealTriggered={() => { setRerunRun(null); addToast('Healing started — track progress on the Engineering page') }}
         />
       )}
     </>
