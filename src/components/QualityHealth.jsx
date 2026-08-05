@@ -7,6 +7,7 @@ import { timeAgo } from '../lib/timeAgo.js'
 import { buildActivity } from '../lib/buildActivity.js'
 import Icon from './Icon.jsx'
 import NotificationBell from './NotificationBell.jsx'
+import { ProjectLogoPlaceholder, ProjectLinksList } from './ProjectBrandBox.jsx'
 
 const STATUS_META = {
   excellent:        { label: 'Excellent',          color: 'var(--success)' },
@@ -94,7 +95,7 @@ function FeatureBreakdownRow({ f }) {
 // absolutely positioned in place) because `.health-hero` clips overflow for
 // its background glow effect, which would otherwise cut the popover off.
 function Gauge({ value, color, breakdown }) {
-  const r = 58, c = 2 * Math.PI * r
+  const r = 52, c = 2 * Math.PI * r
   const offset = value === null ? 0 : c * (1 - value / 100)
   const [hover, setHover] = useState(false)
   const [pos, setPos] = useState(null)
@@ -113,30 +114,28 @@ function Gauge({ value, color, breakdown }) {
   return (
     <div
       ref={wrapRef}
-      style={{ position: 'relative', flexShrink: 0, marginTop: '-30px', cursor: hasBreakdown ? 'default' : undefined }}
+      style={{ position: 'relative', flexShrink: 0, cursor: hasBreakdown ? 'default' : undefined }}
       onMouseEnter={hasBreakdown ? onEnter : undefined}
       onMouseLeave={() => setHover(false)}
     >
-      {/* cy is shifted above the viewBox's vertical center (66 vs 70) so the
-          ring's visible stroke sits almost flush with the top of its own
-          bounding box — confirmed via getBoundingClientRect that the box
-          itself already lines up exactly with .health-kpi-strip under
-          align-items:flex-start, so the perceived misalignment was the
-          circle's own internal padding versus the KPI boxes' flush top
-          border, not a real layout offset. */}
-      <svg width={140} height={140} viewBox="0 0 140 140" style={{ display: 'block' }}>
-        <circle cx="70" cy="66" r={r} fill="none" stroke="var(--border)" strokeWidth="10" />
+      {/* cy is shifted above the viewBox's vertical center so the ring's
+          visible stroke sits almost flush with the top of its own bounding
+          box. Shrunk further so the gauge+badge column stays close in
+          height to the heading text beside it, keeping the hero compact
+          instead of leaving dead space above the rows underneath. */}
+      <svg width={125} height={125} viewBox="0 0 125 125" style={{ display: 'block' }}>
+        <circle cx="63" cy="59" r={r} fill="none" stroke="var(--border)" strokeWidth="8" />
         {value !== null && (
           <circle
-            cx="70" cy="66" r={r} fill="none" stroke={color} strokeWidth="10" strokeLinecap="round"
-            strokeDasharray={c} strokeDashoffset={offset} transform="rotate(-90 70 66)"
+            cx="63" cy="59" r={r} fill="none" stroke={color} strokeWidth="8" strokeLinecap="round"
+            strokeDasharray={c} strokeDashoffset={offset} transform="rotate(-90 63 59)"
             style={{ transition: 'stroke-dashoffset 0.6s ease' }}
           />
         )}
-        <text x="70" y="60" textAnchor="middle" style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: 30, fill: 'var(--white)' }}>
+        <text x="63" y="53" textAnchor="middle" style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: 27, fill: 'var(--white)' }}>
           {value !== null ? value : '—'}
         </text>
-        <text x="70" y="82" textAnchor="middle" style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, letterSpacing: '0.05em', fill: 'var(--muted)' }}>
+        <text x="63" y="73" textAnchor="middle" style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 9, letterSpacing: '0.05em', fill: 'var(--muted)' }}>
           QUALITY SCORE
         </text>
       </svg>
@@ -188,7 +187,7 @@ export function featureHealthColor(rate) {
   return 'var(--danger)'
 }
 
-export default function QualityHealth({ projectId, projectName }) {
+export default function QualityHealth({ projectId, projectName, logo, links = [] }) {
   const { user } = useAuth()
   const navigate = useNavigate()
   const [data, setData] = useState(null)
@@ -271,25 +270,42 @@ export default function QualityHealth({ projectId, projectName }) {
         <NotificationBell activity={activityForBell} storageKey={`qa_tool_activity_seen_project_${projectId}`} />,
         bellMount
       )}
-      <div className="health-hero">
+      <div className="health-hero" style={{ padding: '1.5rem 1.75rem 1.5rem' }}>
         <div className="health-hero-top">
-          <div>
-            <div className="health-greeting-eyebrow">{greetingWord()}{firstName ? `, ${firstName}` : ''}</div>
-            <h1 className="health-greeting-h1">{summary.headline}</h1>
-            <div className="health-greeting-sub">{summary.sub}</div>
+          {/* Logo + greeting centered as their own unit — a 140px box next
+              to 3 lines of text needs its own vertical centering or it
+              just hangs off the bottom of the text block. Links sit right
+              under the logo itself now, not under the heading. */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flex: 1, minWidth: 0 }}>
+            <div>
+              <ProjectLogoPlaceholder inline logo={logo} />
+              <div style={{ marginTop: '0.5rem' }}>
+                <ProjectLinksList projectId={projectId} links={links} canEdit={false} />
+              </div>
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div className="health-greeting-eyebrow">{greetingWord()}{firstName ? `, ${firstName}` : ''}</div>
+              <h1 className="health-greeting-h1">{summary.headline}</h1>
+              <div className="health-greeting-sub">{summary.sub}</div>
+            </div>
           </div>
-          <div className="health-status-pill" style={{ borderColor: status.color, color: status.color }}>
-            <span className="health-status-dot" style={{ background: status.color }} />
-            {status.label}
+
+          {/* Right column: status badge on top, quality score stacked
+              directly underneath it. */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+            <div className="health-status-pill" style={{ borderColor: status.color, color: status.color }}>
+              <span className="health-status-dot" style={{ background: status.color }} />
+              {status.label}
+            </div>
+            <Gauge value={data.qualityScore} color={status.color} breakdown={features} />
           </div>
         </div>
 
-        {/* Quick-access links, filling the empty space between the
-            headline and the gauge row instead of living in their own panel
-            further down the page. Its own row, not grouped with the status
-            pill above — kept independent so the pill stays a standalone
-            top-right badge like before. */}
-        <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', justifyContent: 'flex-end', marginTop: '1rem' }}>
+        {/* Full-width now (not squeezed by the gauge/badge column above),
+            so all five quicklinks stay on one line, in line with the KPI
+            strip below. marginLeft matches the logo placeholder's width +
+            gap so this row starts under the HEADING text, not the logo. */}
+        <div style={{ display: 'flex', gap: '0.6rem', marginTop: '0.3rem', marginLeft: 'calc(140px + 1.25rem)' }}>
           <Link to={`/projects/${projectId}/requirements`} className="health-quicklink"><Icon name="target" size={14} /> Requirements</Link>
           <Link to={`/projects/${projectId}/executions`} className="health-quicklink"><Icon name="play" size={14} /> Executions</Link>
           <Link to={`/projects/${projectId}/bugs`} className="health-quicklink"><Icon name="bug" size={14} /> Bug reports</Link>
@@ -297,41 +313,37 @@ export default function QualityHealth({ projectId, projectName }) {
           <Link to={`/projects/${projectId}/timeline`} className="health-quicklink"><Icon name="clock" size={14} /> Timeline</Link>
         </div>
 
-        <div className="health-gauge-row">
-          <Gauge value={data.qualityScore} color={status.color} breakdown={features} />
-
-          <div className="health-kpi-strip">
-            <div className="health-kpi">
-              <div className="health-kpi-label">Tests</div>
-              <div className="health-kpi-num">{tc.total}</div>
-              <div className="health-kpi-sub" style={{ color: tc.total > 0 ? 'var(--success)' : 'var(--muted)' }}>
-                {tc.total > 0 ? `${tc.passed} passing` : 'No test cases yet'}
-              </div>
+        <div className="health-kpi-strip" style={{ marginTop: '0.75rem' }}>
+          <div className="health-kpi">
+            <div className="health-kpi-label">Tests</div>
+            <div className="health-kpi-num">{tc.total}</div>
+            <div className="health-kpi-sub" style={{ color: tc.total > 0 ? 'var(--success)' : 'var(--muted)' }}>
+              {tc.total > 0 ? `${tc.passed} passing` : 'No test cases yet'}
             </div>
-            <div className="health-kpi">
-              <div className="health-kpi-label">Open bugs</div>
-              <div className="health-kpi-num">{openBugsTotal}</div>
-              <div className="health-kpi-sub" style={{ color: data.bugsBySeverity.critical > 0 ? 'var(--severity-critical)' : data.bugsBySeverity.high > 0 ? 'var(--severity-high)' : 'var(--muted)' }}>
-                {data.bugsBySeverity.critical > 0
-                  ? `${data.bugsBySeverity.critical} critical`
-                  : data.bugsBySeverity.high > 0
-                    ? `${data.bugsBySeverity.high} high priority`
-                    : openBugsTotal > 0 ? 'All minor' : 'All clear'}
-              </div>
+          </div>
+          <div className="health-kpi">
+            <div className="health-kpi-label">Open bugs</div>
+            <div className="health-kpi-num">{openBugsTotal}</div>
+            <div className="health-kpi-sub" style={{ color: data.bugsBySeverity.critical > 0 ? 'var(--severity-critical)' : data.bugsBySeverity.high > 0 ? 'var(--severity-high)' : 'var(--muted)' }}>
+              {data.bugsBySeverity.critical > 0
+                ? `${data.bugsBySeverity.critical} critical`
+                : data.bugsBySeverity.high > 0
+                  ? `${data.bugsBySeverity.high} high priority`
+                  : openBugsTotal > 0 ? 'All minor' : 'All clear'}
             </div>
-            <div className="health-kpi">
-              <div className="health-kpi-label">Automated</div>
-              <div className="health-kpi-num">{data.automationCoverage !== null ? `${data.automationCoverage}%` : '—'}</div>
-              <div className="health-kpi-sub">
-                {data.totalTestCases > 0 ? `${data.automatedTestCases} of ${data.totalTestCases} cases` : 'No test cases yet'}
-              </div>
+          </div>
+          <div className="health-kpi">
+            <div className="health-kpi-label">Automated</div>
+            <div className="health-kpi-num">{data.automationCoverage !== null ? `${data.automationCoverage}%` : '—'}</div>
+            <div className="health-kpi-sub">
+              {data.totalTestCases > 0 ? `${data.automatedTestCases} of ${data.totalTestCases} cases` : 'No test cases yet'}
             </div>
-            <div className="health-kpi">
-              <div className="health-kpi-label">Req. coverage</div>
-              <div className="health-kpi-num">{data.requirementCoverage !== null ? `${data.requirementCoverage}%` : '—'}</div>
-              <div className="health-kpi-sub">
-                {data.totalRequirements > 0 ? `${data.coveredRequirements} of ${data.totalRequirements} covered` : 'No requirements tracked yet'}
-              </div>
+          </div>
+          <div className="health-kpi">
+            <div className="health-kpi-label">Req. coverage</div>
+            <div className="health-kpi-num">{data.requirementCoverage !== null ? `${data.requirementCoverage}%` : '—'}</div>
+            <div className="health-kpi-sub">
+              {data.totalRequirements > 0 ? `${data.coveredRequirements} of ${data.totalRequirements} covered` : 'No requirements tracked yet'}
             </div>
           </div>
         </div>

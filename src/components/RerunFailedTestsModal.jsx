@@ -3,6 +3,7 @@ import { apiFetch } from '../lib/api.js'
 import { useToastStore } from '../store/toastStore.jsx'
 import HealConfirmModal from './HealConfirmModal.jsx'
 import DiagnosisModal from './DiagnosisModal.jsx'
+import ApiTraceModal from './ApiTraceModal.jsx'
 
 export default function RerunFailedTestsModal({ projectId, run, onClose, onRerunTriggered, onHealTriggered }) {
   const { addToast } = useToastStore()
@@ -19,6 +20,9 @@ export default function RerunFailedTestsModal({ projectId, run, onClose, onRerun
   // just swaps in the DiagnosisModal directly, same swap-panel shape as
   // confirmingHeal above.
   const [diagnosing, setDiagnosing] = useState(false)
+  // Same swap-panel shape again, per-row instead of selection-gated — the
+  // trace is read-only and instant, so no selection/confirm step needed.
+  const [viewingTrace, setViewingTrace] = useState(null)
 
   useEffect(() => {
     apiFetch(`/projects/${projectId}/automation/runs/${run.id}`)
@@ -76,6 +80,16 @@ export default function RerunFailedTestsModal({ projectId, run, onClose, onRerun
       addToast(e.message, 'error')
       setHealing(false)
     }
+  }
+
+  if (viewingTrace) {
+    return (
+      <ApiTraceModal
+        trace={JSON.parse(viewingTrace.api_trace)}
+        testTitle={viewingTrace.test_title}
+        onClose={() => setViewingTrace(null)}
+      />
+    )
   }
 
   if (diagnosing && selectedForHeal) {
@@ -136,6 +150,16 @@ export default function RerunFailedTestsModal({ projectId, run, onClose, onRerun
                   <div style={{ fontSize: '0.85rem', color: 'var(--light)' }}>{r.test_title}</div>
                   {r.error_message && (
                     <div style={{ fontSize: '0.74rem', color: 'var(--danger)', marginTop: '0.2rem' }}>{r.error_message}</div>
+                  )}
+                  {r.api_trace && (
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      style={{ marginTop: '0.35rem' }}
+                      onClick={() => setViewingTrace(r)}
+                    >
+                      View request/response
+                    </button>
                   )}
                 </div>
               </div>

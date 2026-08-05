@@ -5,6 +5,7 @@ import { useAuth } from '../store/AuthContext.jsx'
 import { useToastStore } from '../store/toastStore.jsx'
 import Icon from '../components/Icon.jsx'
 import QualityHealth, { TrendChart, featureHealthColor } from '../components/QualityHealth.jsx'
+import ProjectBrandBox from '../components/ProjectBrandBox.jsx'
 
 const SEVERITY_ORDER = ['critical', 'high', 'medium', 'low']
 
@@ -477,48 +478,62 @@ export default function ProjectDetailPage() {
         )}
       </div>
       <div className="page-content fade-in">
-        <div style={{ marginBottom: '2rem' }}>
-          <EditableField
-            as="h1" field="name" value={project.name} canEdit={!isClient}
-            editingField={editingField} editValue={editValue} onEditValueChange={setEditValue}
-            onStart={startEditField} onSave={saveEditField} onCancel={cancelEditField} saving={savingField}
-            textStyle={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '1.5rem', fontWeight: 700, color: 'var(--white)', marginBottom: '0.25rem' }}
-          />
-          <EditableField
-            field="client_name" value={project.client_name} canEdit={!isClient} placeholder="company name"
-            editingField={editingField} editValue={editValue} onEditValueChange={setEditValue}
-            onStart={startEditField} onSave={saveEditField} onCancel={cancelEditField} saving={savingField}
-            textStyle={{ color: 'var(--accent)', fontSize: '0.88rem', marginBottom: '0.5rem' }}
-          />
-          <EditableField
-            field="description" value={project.description} canEdit={!isClient} placeholder="description" multiline
-            editingField={editingField} editValue={editValue} onEditValueChange={setEditValue}
-            onStart={startEditField} onSave={saveEditField} onCancel={cancelEditField} saving={savingField}
-            textStyle={{ color: 'var(--muted)', fontSize: '0.9rem', maxWidth: 600 }}
-          />
-        </div>
+        {/* Redundant on the client view — the topbar already shows the
+            project name and the hero below greets by name — but this is
+            still the only UI staff have to edit name/client name/
+            description, so it stays for them. */}
+        {!isClient && (
+          <div style={{ marginBottom: '2rem' }}>
+            <EditableField
+              as="h1" field="name" value={project.name} canEdit={!isClient}
+              editingField={editingField} editValue={editValue} onEditValueChange={setEditValue}
+              onStart={startEditField} onSave={saveEditField} onCancel={cancelEditField} saving={savingField}
+              textStyle={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '1.5rem', fontWeight: 700, color: 'var(--white)', marginBottom: '0.25rem' }}
+            />
+            <EditableField
+              field="client_name" value={project.client_name} canEdit={!isClient} placeholder="company name"
+              editingField={editingField} editValue={editValue} onEditValueChange={setEditValue}
+              onStart={startEditField} onSave={saveEditField} onCancel={cancelEditField} saving={savingField}
+              textStyle={{ color: 'var(--accent)', fontSize: '0.88rem', marginBottom: '0.5rem' }}
+            />
+            <EditableField
+              field="description" value={project.description} canEdit={!isClient} placeholder="description" multiline
+              editingField={editingField} editValue={editValue} onEditValueChange={setEditValue}
+              onStart={startEditField} onSave={saveEditField} onCancel={cancelEditField} saving={savingField}
+              textStyle={{ color: 'var(--muted)', fontSize: '0.9rem', maxWidth: 600 }}
+            />
+          </div>
+        )}
 
         {isClient ? (
-          <QualityHealth projectId={id} projectName={project.name} />
+          <QualityHealth projectId={id} projectName={project.name} logo={project.logo} links={project.links || []} />
         ) : (
           <>
             {overviewLoading || !overview ? (
               <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}><div className="spinner" /></div>
             ) : (
               <>
-                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', gap: '1.1rem', marginBottom: '1.1rem', alignItems: 'start' }}>
-                  <div className="health-hero" style={{ marginBottom: 0 }}>
-                    <div className="health-hero-top">
-                      <div>
-                        <h1 className="health-greeting-h1" style={{ marginBottom: '0.3rem' }}>{overview.summary.headline}</h1>
-                        <div className="health-greeting-sub">{overview.summary.sub}</div>
-                      </div>
-                      <div className="health-status-pill" style={{ borderColor: overview.status.color, color: overview.status.color }}>
-                        <span className="health-status-dot" style={{ background: overview.status.color }} />
-                        {overview.status.label}
-                      </div>
+                {/* Hero is full-width on its own row now — pairing it in a
+                    grid against the sidebar column (Share-with-client +
+                    Flaky tests, taller once the sidebar grew to hold the
+                    logo/links editor) left a large empty gap under the
+                    shorter hero, since a CSS grid row's height is set by its
+                    tallest cell regardless of align-items. Share-with-client
+                    and Flaky tests are much closer to each other in height,
+                    so they're paired together in their own row instead. */}
+                <div className="health-hero" style={{ marginBottom: '1.1rem' }}>
+                  <div className="health-hero-top">
+                    <div>
+                      <h1 className="health-greeting-h1" style={{ marginBottom: '0.3rem' }}>{overview.summary.headline}</h1>
+                      <div className="health-greeting-sub">{overview.summary.sub}</div>
                     </div>
-                    <div className="health-kpi-strip" style={{ marginTop: '1.35rem' }}>
+                    <div className="health-status-pill" style={{ borderColor: overview.status.color, color: overview.status.color }}>
+                      <span className="health-status-dot" style={{ background: overview.status.color }} />
+                      {overview.status.label}
+                    </div>
+                  </div>
+                  <div className="health-gauge-row">
+                    <div className="health-kpi-strip" style={{ flex: 1 }}>
                       <div className="health-kpi">
                         <div className="health-kpi-label">Pass rate</div>
                         <div className="health-kpi-num" style={{ color: overview.passRateLast5 === null ? 'var(--white)' : featureHealthColor(overview.passRateLast5) }}>
@@ -541,68 +556,6 @@ export default function ProjectDetailPage() {
                         <div className="health-kpi-num">{health.automationCoverage !== null ? `${health.automationCoverage}%` : '—'}</div>
                         <div className="health-kpi-sub">{health.totalTestCases > 0 ? `${health.automatedTestCases} of ${health.totalTestCases} cases` : 'No test cases yet'}</div>
                       </div>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
-                    {isAdmin && (
-                      <div className="card">
-                        <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)', marginBottom: '0.5rem' }}>Share with a client</div>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginBottom: '0.75rem' }}>
-                          They need to have already signed up. This gives them read-only access to this project's stats.
-                        </div>
-                        {members.length > 0 && (
-                          <div style={{ marginBottom: '0.9rem' }}>
-                            {members.map(m => (
-                              <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.4rem 0', borderBottom: '1px solid var(--border)' }}>
-                                <div style={{ fontSize: '0.83rem', color: 'var(--light)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name || m.email}</div>
-                                <button
-                                  className="btn btn-danger btn-sm"
-                                  onClick={() => removeClient(m)}
-                                  disabled={removingId === m.id}
-                                  style={{ flexShrink: 0 }}
-                                >
-                                  {removingId === m.id ? 'Removing…' : 'Unshare'}
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                          <input
-                            className="form-input"
-                            placeholder="client@company.com"
-                            value={clientEmail}
-                            onChange={e => setClientEmail(e.target.value)}
-                            style={{ flex: 1, minWidth: 0 }}
-                          />
-                          <button className="btn btn-primary btn-sm" onClick={addClient} disabled={adding || !clientEmail.trim()}>
-                            {adding ? 'Adding…' : 'Add'}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="health-panel" style={{ flex: 1 }}>
-                      <div className="health-panel-head">
-                        <div className="health-panel-title">Flaky tests</div>
-                        <Link to={`/projects/${id}/engineering`} className="health-panel-link">Engineering <Icon name="arrowRight" size={11} /></Link>
-                      </div>
-                      {engHealth.flakyTests.length === 0 ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', color: 'var(--success)' }}>
-                          <Icon name="check" size={15} /> No flaky tests detected.
-                        </div>
-                      ) : (
-                        engHealth.flakyTests.map((t, i) => (
-                          <div key={`${t.suite_name}-${t.test_title}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', padding: '0.5rem 0', borderBottom: i < engHealth.flakyTests.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                            <div style={{ minWidth: 0 }}>
-                              <div style={{ fontSize: '0.85rem', color: 'var(--light)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.test_title}</div>
-                              <div style={{ fontSize: '0.72rem', color: 'var(--accent2)' }}>{t.suite_name}</div>
-                            </div>
-                            <span style={{ fontSize: '0.78rem', color: 'var(--warning)', fontWeight: 600, flexShrink: 0 }}>{t.passed_count}/{t.runs_considered} passed</span>
-                          </div>
-                        ))
-                      )}
                     </div>
                   </div>
                 </div>
@@ -663,66 +616,128 @@ export default function ProjectDetailPage() {
                     <div style={{ fontSize: '0.85rem', color: 'var(--muted)', padding: '0.75rem 0' }}>Run a suite a few more times to start tracking a trend here.</div>
                   )}
                 </div>
-              </>
-            )}
-            {testConfig && (
-              <div className="health-panel" style={{ marginBottom: '1.25rem' }}>
-                <div className="health-panel-head">
-                  <div className="health-panel-title">Test environment</div>
-                  <button className="btn btn-ghost btn-sm" onClick={() => setShowTestConfigModal(true)}>Edit</button>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.9rem 2rem' }}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '0.64rem', letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--faint)', marginBottom: '0.3rem' }}>Target</div>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--light)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {testConfig.target_url || 'Using default demo app'}
-                    </div>
-                  </div>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '0.64rem', letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--faint)', marginBottom: '0.3rem' }}>Login</div>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--light)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {testConfig.hasCredentials ? testConfig.credentialUsername : 'Using default demo account'}
-                    </div>
-                  </div>
-                </div>
 
-                {testConfig.authSetupStatus?.needed && (
-                  <div style={{ marginTop: '1rem', paddingTop: '0.85rem', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
-                    {testConfig.authSetupStatus.status === 'verified' && (
-                      <span style={{ fontSize: '0.83rem', color: 'var(--success)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <Icon name="check" size={14} /> Login flow verified
-                      </span>
-                    )}
-                    {testConfig.authSetupStatus.status === 'not_generated' && (
-                      <>
-                        <span style={{ fontSize: '0.83rem', color: 'var(--muted)' }}>Login flow not generated yet</span>
-                        <button className="btn btn-primary btn-sm" onClick={generateAuthSetup} disabled={generatingAuthSetup}>
-                          {generatingAuthSetup ? 'Starting…' : 'Generate login flow'}
+                {/* Bottom of the page, not competing with the hero/tiles up
+                    top for space — these are setup tasks done once in a
+                    while, not things that need prime real estate. Paired
+                    side by side since they're both compact, similarly-sized
+                    setup cards. */}
+                <div style={{ display: 'grid', gridTemplateColumns: (isAdmin && testConfig) ? 'minmax(0, 1fr) minmax(0, 1fr)' : 'minmax(0, 1fr)', gap: '1.1rem', alignItems: 'start' }}>
+                  {isAdmin && (
+                    <div className="card">
+                      <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)', marginBottom: '0.5rem' }}>Share with a client</div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginBottom: '0.75rem' }}>
+                        They need to have already signed up. This gives them read-only access to this project's stats.
+                      </div>
+
+                      {/* Profile pic + reference links a client sees on their
+                          dashboard — compact so it doesn't expand this card;
+                          read-only on the client side, editable only here. */}
+                      <div style={{ marginBottom: '0.9rem', paddingBottom: '0.9rem', borderBottom: '1px solid var(--border)' }}>
+                        <ProjectBrandBox
+                          projectId={id}
+                          logo={project.logo}
+                          onLogoChange={(logo) => setProject(p => ({ ...p, logo }))}
+                          links={project.links || []}
+                          canEdit
+                          onLinksChange={(links) => setProject(p => ({ ...p, links }))}
+                          compact
+                        />
+                      </div>
+
+                      {members.length > 0 && (
+                        <div style={{ marginBottom: '0.9rem' }}>
+                          {members.map(m => (
+                            <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.4rem 0', borderBottom: '1px solid var(--border)' }}>
+                              <div style={{ fontSize: '0.83rem', color: 'var(--light)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name || m.email}</div>
+                              <button
+                                className="btn btn-danger btn-sm"
+                                onClick={() => removeClient(m)}
+                                disabled={removingId === m.id}
+                                style={{ flexShrink: 0 }}
+                              >
+                                {removingId === m.id ? 'Removing…' : 'Unshare'}
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <input
+                          className="form-input"
+                          placeholder="client@company.com"
+                          value={clientEmail}
+                          onChange={e => setClientEmail(e.target.value)}
+                          style={{ flex: 1, minWidth: 0 }}
+                        />
+                        <button className="btn btn-primary btn-sm" onClick={addClient} disabled={adding || !clientEmail.trim()}>
+                          {adding ? 'Adding…' : 'Add'}
                         </button>
-                      </>
-                    )}
-                    {testConfig.authSetupStatus.status === 'in_progress' && (
-                      <span style={{ fontSize: '0.83rem', color: 'var(--warning)' }}>Login flow generating…</span>
-                    )}
-                    {testConfig.authSetupStatus.status === 'pending_review' && (
-                      <>
-                        <span style={{ fontSize: '0.83rem', color: 'var(--warning)' }}>Login flow PR awaiting merge</span>
-                        {testConfig.authSetupStatus.pr_url && (
-                          <a href={testConfig.authSetupStatus.pr_url} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm">View PR</a>
-                        )}
-                      </>
-                    )}
-                    {testConfig.authSetupStatus.status === 'failed' && (
-                      <>
-                        <span style={{ fontSize: '0.83rem', color: 'var(--danger)' }}>Login flow generation failed</span>
-                        <button className="btn btn-primary btn-sm" onClick={generateAuthSetup} disabled={generatingAuthSetup}>
-                          {generatingAuthSetup ? 'Starting…' : 'Retry'}
-                        </button>
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {testConfig && (
+                    <div className="health-panel" style={{ marginTop: 0 }}>
+                      <div className="health-panel-head">
+                        <div className="health-panel-title">Test environment</div>
+                        <button className="btn btn-ghost btn-sm" onClick={() => setShowTestConfigModal(true)}>Edit</button>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.9rem 2rem' }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '0.64rem', letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--faint)', marginBottom: '0.3rem' }}>Target</div>
+                          <div style={{ fontSize: '0.85rem', color: 'var(--light)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {testConfig.target_url || 'Using default demo app'}
+                          </div>
+                        </div>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '0.64rem', letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--faint)', marginBottom: '0.3rem' }}>Login</div>
+                          <div style={{ fontSize: '0.85rem', color: 'var(--light)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {testConfig.hasCredentials ? testConfig.credentialUsername : 'Using default demo account'}
+                          </div>
+                        </div>
+                      </div>
+
+                      {testConfig.authSetupStatus?.needed && (
+                        <div style={{ marginTop: '1rem', paddingTop: '0.85rem', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+                          {testConfig.authSetupStatus.status === 'verified' && (
+                            <span style={{ fontSize: '0.83rem', color: 'var(--success)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                              <Icon name="check" size={14} /> Login flow verified
+                            </span>
+                          )}
+                          {testConfig.authSetupStatus.status === 'not_generated' && (
+                            <>
+                              <span style={{ fontSize: '0.83rem', color: 'var(--muted)' }}>Login flow not generated yet</span>
+                              <button className="btn btn-primary btn-sm" onClick={generateAuthSetup} disabled={generatingAuthSetup}>
+                                {generatingAuthSetup ? 'Starting…' : 'Generate login flow'}
+                              </button>
+                            </>
+                          )}
+                          {testConfig.authSetupStatus.status === 'in_progress' && (
+                            <span style={{ fontSize: '0.83rem', color: 'var(--warning)' }}>Login flow generating…</span>
+                          )}
+                          {testConfig.authSetupStatus.status === 'pending_review' && (
+                            <>
+                              <span style={{ fontSize: '0.83rem', color: 'var(--warning)' }}>Login flow PR awaiting merge</span>
+                              {testConfig.authSetupStatus.pr_url && (
+                                <a href={testConfig.authSetupStatus.pr_url} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm">View PR</a>
+                              )}
+                            </>
+                          )}
+                          {testConfig.authSetupStatus.status === 'failed' && (
+                            <>
+                              <span style={{ fontSize: '0.83rem', color: 'var(--danger)' }}>Login flow generation failed</span>
+                              <button className="btn btn-primary btn-sm" onClick={generateAuthSetup} disabled={generatingAuthSetup}>
+                                {generatingAuthSetup ? 'Starting…' : 'Retry'}
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </>
             )}
           </>
         )}

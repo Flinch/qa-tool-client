@@ -605,6 +605,103 @@ tr:hover td { background: rgba(237,231,220,0.02); }
 .health-body-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 1.25rem; }
 @media (max-width: 900px) { .health-body-grid { grid-template-columns: minmax(0, 1fr); } }
 
+/* PROJECT BRAND BOX — logo placeholder + quick-reference external links
+   (client website, UAT env, socials). Staff hero: a single combined box
+   (logo above links), extending the hero's own height. Client hero: split
+   apart — a small inline logo beside the greeting heading, links under the
+   status pill (see .project-logo-placeholder-inline / .project-links-list-right). */
+.project-brand-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 168px;
+  flex-shrink: 0;
+}
+.project-brand-box-tall { width: 224px; }
+.project-brand-box-compact { width: auto; }
+.project-brand-box-compact .project-links-list { max-width: 220px; }
+.project-logo-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  width: 100%;
+  height: 100px;
+  border: 1px dashed var(--border2);
+  color: var(--faint);
+  background: var(--bg2);
+  font-size: 0.66rem;
+  font-family: 'IBM Plex Mono', monospace;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.project-brand-box-tall .project-logo-placeholder { height: 138px; }
+.project-logo-placeholder-inline {
+  width: 140px;
+  height: 140px;
+  flex-shrink: 0;
+}
+.project-logo-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* Small, square upload control for the "Share with a client" card — a
+   fraction of the hero display sizes above, so adding it doesn't expand
+   that card's footprint. */
+.project-logo-placeholder-editable {
+  width: 72px;
+  height: 72px;
+  flex-shrink: 0;
+  padding: 0;
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 0.18s ease, color 0.18s ease;
+}
+.project-logo-placeholder-editable:hover:not(:disabled) { border-color: var(--accent-border); color: var(--accent2); }
+.project-logo-placeholder-editable:disabled { cursor: default; opacity: 0.6; }
+.project-logo-edit-row { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.35rem; }
+.project-links-list { display: flex; flex-direction: column; gap: 0.4rem; }
+.project-links-list-right { align-items: flex-end; text-align: right; }
+.project-brand-link-row { display: flex; align-items: center; justify-content: space-between; gap: 0.4rem; }
+.project-brand-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--light);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.project-brand-link svg { color: var(--accent2); flex-shrink: 0; }
+.project-brand-link:hover { color: var(--white); }
+.project-brand-link-remove {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--faint);
+  cursor: pointer;
+  padding: 0.1rem;
+}
+.project-brand-link-remove:hover { color: var(--danger); }
+.project-brand-links-empty { font-size: 0.75rem; color: var(--faint); font-style: italic; }
+.project-brand-add-link {
+  background: none;
+  border: none;
+  color: var(--accent2);
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  padding: 0.15rem 0;
+}
+.project-brand-add-link:hover { color: var(--white); }
+.project-brand-add-form { display: flex; flex-direction: column; gap: 0.35rem; }
+.project-brand-add-form .form-input { font-size: 0.78rem; padding: 0.4rem 0.6rem; }
+
 .health-panel { background: var(--card); border: 1px solid var(--border); padding: 1.4rem 1.5rem; min-width: 0; }
 .health-panel + .health-panel { margin-top: 1.25rem; }
 .health-panel-head {
