@@ -90,13 +90,13 @@ function FeatureBreakdownRow({ f }) {
   )
 }
 
-// The gauge's percentage is a single blended number — hovering reveals the
-// per-feature breakdown behind it. Portaled to document.body (not just
-// absolutely positioned in place) because `.health-hero` clips overflow for
-// its background glow effect, which would otherwise cut the popover off.
-function Gauge({ value, color, breakdown }) {
-  const r = 52, c = 2 * Math.PI * r
-  const offset = value === null ? 0 : c * (1 - value / 100)
+// The score is a single blended number — hovering reveals the per-feature
+// breakdown behind it. Portaled to document.body (not just absolutely
+// positioned in place) because `.health-hero` clips overflow for its
+// background glow effect, which would otherwise cut the popover off. Lives
+// under the headline/sub text and fills that column's width, rather than a
+// fixed-footprint circular gauge off to the side.
+function ScoreBar({ value, color, breakdown }) {
   const [hover, setHover] = useState(false)
   const [pos, setPos] = useState(null)
   const wrapRef = useRef(null)
@@ -104,7 +104,7 @@ function Gauge({ value, color, breakdown }) {
   const onEnter = () => {
     if (wrapRef.current) {
       const rect = wrapRef.current.getBoundingClientRect()
-      setPos({ top: rect.bottom + 10, left: rect.left + rect.width / 2 })
+      setPos({ top: rect.bottom + 10, left: rect.left })
     }
     setHover(true)
   }
@@ -114,35 +114,27 @@ function Gauge({ value, color, breakdown }) {
   return (
     <div
       ref={wrapRef}
-      style={{ position: 'relative', flexShrink: 0, cursor: hasBreakdown ? 'default' : undefined }}
+      style={{ marginTop: '0.9rem', cursor: hasBreakdown ? 'default' : undefined }}
       onMouseEnter={hasBreakdown ? onEnter : undefined}
       onMouseLeave={() => setHover(false)}
     >
-      {/* cy is shifted above the viewBox's vertical center so the ring's
-          visible stroke sits almost flush with the top of its own bounding
-          box. Shrunk further so the gauge+badge column stays close in
-          height to the heading text beside it, keeping the hero compact
-          instead of leaving dead space above the rows underneath. */}
-      <svg width={125} height={125} viewBox="0 0 125 125" style={{ display: 'block' }}>
-        <circle cx="63" cy="59" r={r} fill="none" stroke="var(--border)" strokeWidth="8" />
-        {value !== null && (
-          <circle
-            cx="63" cy="59" r={r} fill="none" stroke={color} strokeWidth="8" strokeLinecap="round"
-            strokeDasharray={c} strokeDashoffset={offset} transform="rotate(-90 63 59)"
-            style={{ transition: 'stroke-dashoffset 0.6s ease' }}
-          />
-        )}
-        <text x="63" y="53" textAnchor="middle" style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: 27, fill: 'var(--white)' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+        <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '0.64rem', letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted)' }}>
+          Quality score
+        </span>
+        <span style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '1.05rem', color: 'var(--white)' }}>
           {value !== null ? value : '—'}
-        </text>
-        <text x="63" y="73" textAnchor="middle" style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 9, letterSpacing: '0.05em', fill: 'var(--muted)' }}>
-          QUALITY SCORE
-        </text>
-      </svg>
+        </span>
+      </div>
+      <div style={{ height: 8, background: 'var(--border)', borderRadius: 4, overflow: 'hidden' }}>
+        {value !== null && (
+          <div style={{ width: `${value}%`, height: '100%', background: color, borderRadius: 4, transition: 'width 0.6s ease' }} />
+        )}
+      </div>
       {hover && hasBreakdown && pos && createPortal(
         <div
           className="notif-bell-dropdown"
-          style={{ position: 'fixed', top: pos.top, left: pos.left, transform: 'translateX(-50%)', width: 260 }}
+          style={{ position: 'fixed', top: pos.top, left: pos.left, width: 260 }}
         >
           <div className="notif-bell-title">Pass rate by feature</div>
           {breakdown.map(f => <FeatureBreakdownRow key={f.id} f={f} />)}
@@ -283,21 +275,17 @@ export default function QualityHealth({ projectId, projectName, logo, links = []
                 <ProjectLinksList projectId={projectId} links={links} canEdit={false} />
               </div>
             </div>
-            <div style={{ minWidth: 0 }}>
+            <div style={{ minWidth: 0, flex: 1 }}>
               <div className="health-greeting-eyebrow">{greetingWord()}{firstName ? `, ${firstName}` : ''}</div>
               <h1 className="health-greeting-h1">{summary.headline}</h1>
               <div className="health-greeting-sub">{summary.sub}</div>
+              <ScoreBar value={data.qualityScore} color={status.color} breakdown={features} />
             </div>
           </div>
 
-          {/* Right column: status badge on top, quality score stacked
-              directly underneath it. */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
-            <div className="health-status-pill" style={{ borderColor: status.color, color: status.color }}>
-              <span className="health-status-dot" style={{ background: status.color }} />
-              {status.label}
-            </div>
-            <Gauge value={data.qualityScore} color={status.color} breakdown={features} />
+          <div className="health-status-pill" style={{ borderColor: status.color, color: status.color, flexShrink: 0 }}>
+            <span className="health-status-dot" style={{ background: status.color }} />
+            {status.label}
           </div>
         </div>
 
