@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { apiFetch } from '../lib/api.js'
 import Icon from '../components/Icon.jsx'
+import ApiTraceModal from '../components/ApiTraceModal.jsx'
 
 const REVIEW_STATUS_LABEL = {
   pending_review: 'Pending review',
@@ -32,6 +33,7 @@ function LastRunBadge({ status }) {
 // it for that section instead of duplicating this row layout.
 export function TestCaseRow({ tc, isLab, onRerun, onDiagnose, onRequestHeal, onView, busy }) {
   const reviewLabel = REVIEW_STATUS_LABEL[tc.review_status]
+  const [showTrace, setShowTrace] = useState(false)
   return (
     <div style={{ padding: '0.85rem 0', borderBottom: '1px solid var(--border)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
@@ -68,6 +70,11 @@ export function TestCaseRow({ tc, isLab, onRerun, onDiagnose, onRequestHeal, onV
             <Icon name="link" size={12} /> View on GitHub
           </a>
         )}
+        {isLab && tc.last_api_trace && (
+          <button className="btn btn-ghost btn-sm" onClick={() => setShowTrace(true)}>
+            View request/response
+          </button>
+        )}
         {isLab && tc.last_status === 'failed' && (
           <>
             <button className="btn btn-ghost btn-sm" onClick={() => onRerun(tc)} disabled={busy}>
@@ -82,6 +89,13 @@ export function TestCaseRow({ tc, isLab, onRerun, onDiagnose, onRequestHeal, onV
           </>
         )}
       </div>
+      {showTrace && (
+        <ApiTraceModal
+          trace={JSON.parse(tc.last_api_trace)}
+          testTitle={tc.linked_test_case_title || tc.title}
+          onClose={() => setShowTrace(false)}
+        />
+      )}
     </div>
   )
 }

@@ -1,6 +1,6 @@
-// Shows the captured request/response for a failed API-engine test result
-// (test_run_results.api_trace, written by helpers/apiTrace.ts on the server
-// side). Follows GenerationLogModal's dark-terminal styling precedent
+// Shows the captured request/response for an API-engine test result, pass or
+// fail (test_run_results.api_trace, written by helpers/apiTrace.ts on the
+// server side). Follows GenerationLogModal's dark-terminal styling precedent
 // (AutomationPage.jsx) since that's this codebase's one existing pattern
 // for "needs more room than a standard modal because it holds code-shaped
 // content" — no JSON-viewer library exists here, so this is hand-rolled.
