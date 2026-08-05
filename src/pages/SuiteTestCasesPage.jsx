@@ -45,6 +45,7 @@ export function TestCaseRow({ tc, isLab, onRerun, onDiagnose, onRequestHeal, onV
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexShrink: 0 }}>
+          {tc.type === 'api' && <span className="badge badge-api">API</span>}
           {isLab && <LastRunBadge status={tc.last_status} />}
           {reviewLabel && (
             <span style={{

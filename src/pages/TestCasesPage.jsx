@@ -11,7 +11,7 @@ import CombineTestCasesModal from '../components/CombineTestCasesModal.jsx'
 import AssignFeatureModal from '../components/AssignFeatureModal.jsx'
 import { RequirementModal } from './RequirementsPage.jsx'
 
-const TYPE_LABELS = { functional: 'Functional', integration: 'Integration', e2e: 'E2E' }
+const TYPE_LABELS = { functional: 'Functional', integration: 'Integration', e2e: 'E2E', api: 'API' }
 const SEVERITIES = ['critical', 'high', 'medium', 'low']
 
 function CreateTestCaseModal({ projectId, features, onClose, onCreated }) {
@@ -72,6 +72,7 @@ function CreateTestCaseModal({ projectId, features, onClose, onCreated }) {
             <option value="functional">Functional</option>
             <option value="integration">Integration</option>
             <option value="e2e">E2E</option>
+            <option value="api">API</option>
           </select>
         </div>
 
@@ -444,6 +445,7 @@ function TestCaseModal({ tc, projectId, isClient, features, onClose, onBugLogged
               <option value="functional">Functional</option>
               <option value="integration">Integration</option>
               <option value="e2e">E2E</option>
+              <option value="api">API</option>
             </select>
           </div>
 
@@ -773,9 +775,9 @@ export default function TestCasesPage() {
         </div>
 
         <div className="filters-row">
-          {['all', 'functional', 'integration', 'e2e', 'automation'].map(f => (
+          {['all', 'functional', 'integration', 'e2e', 'api', 'automation'].map(f => (
             <button key={f} className={`filter-btn${filter === f ? ' active' : ''}`} onClick={() => setFilter(f)}>
-              {f === 'all' ? 'All' : f === 'automation' ? 'Automation candidates' : f.charAt(0).toUpperCase() + f.slice(1)}
+              {f === 'all' ? 'All' : f === 'automation' ? 'Automation candidates' : f === 'api' ? 'API' : f.charAt(0).toUpperCase() + f.slice(1)}
             </button>
           ))}
         </div>

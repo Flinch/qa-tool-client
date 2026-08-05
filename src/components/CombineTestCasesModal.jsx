@@ -110,6 +110,7 @@ export default function CombineTestCasesModal({ projectId, testCases, features, 
                 <option value="functional">Functional</option>
                 <option value="integration">Integration</option>
                 <option value="e2e">E2E</option>
+                <option value="api">API</option>
               </select>
             </div>
 

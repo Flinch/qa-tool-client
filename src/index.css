@@ -305,6 +305,10 @@ body {
 .badge-functional    { border-color: #8CA85E; color: #8CA85E; }
 .badge-integration   { border-color: #8B7EC8; color: #8B7EC8; }
 .badge-e2e           { border-color: #4F8A8A; color: #4F8A8A; }
+/* Same accent used for the existing suite-card "API" badge in
+   AutomationPage.jsx — keeps the two "this is API" signals visually tied
+   together instead of introducing an unrelated third color. */
+.badge-api           { border-color: var(--accent2); color: var(--accent2); }
 .badge-not-started   { border-color: var(--border2); color: var(--muted); }
 .badge-completed     { border-color: var(--success); color: var(--success); }
 .badge-blocked       { border-color: var(--warning); color: var(--warning); }

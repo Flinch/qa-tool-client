@@ -508,6 +508,7 @@ function TestCaseDiffReviewModal({ projectId, diff, unchangedCount, requirementT
       <option value="functional">Functional</option>
       <option value="integration">Integration</option>
       <option value="e2e">E2E</option>
+      <option value="api">API</option>
     </select>
   )
 
@@ -1009,6 +1010,7 @@ export default function RequirementsPage() {
   const [collapsedFeatures, setCollapsedFeatures] = useState(new Set())
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [showAssignFeature, setShowAssignFeature] = useState(false)
+  const [downloadingSource, setDownloadingSource] = useState(false)
 
   useEffect(() => { apiFetch(`/projects/${id}`).then(setProject).catch(console.error) }, [id])
 
@@ -1150,6 +1152,29 @@ export default function RequirementsPage() {
     }
   }
 
+  // The raw text of whatever was last uploaded/pasted (POST /upload) —
+  // verbatim, not the current (possibly since-edited) requirements list.
+  // Always a .txt regardless of the original upload's format, since only
+  // extracted text is ever stored server-side (see requirements.js's
+  // GET /source), never the original PDF/DOCX binary.
+  const downloadSource = async () => {
+    setDownloadingSource(true)
+    try {
+      const doc = await apiFetch(`/projects/${id}/requirements/source`)
+      const blob = new Blob([doc.raw_text], { type: 'text/plain' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = doc.filename ? `${doc.filename.replace(/\.[^.]+$/, '')}-source.txt` : 'requirements-source.txt'
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      addToast(err.status === 404 ? 'No requirements document has been uploaded yet' : err.message, 'error')
+    } finally {
+      setDownloadingSource(false)
+    }
+  }
+
   return (
     <>
       <div className="topbar">
@@ -1171,6 +1196,9 @@ export default function RequirementsPage() {
           <Link to={`/projects/${id}/tests`} className="btn btn-ghost btn-sm">
             See test cases <Icon name="arrowRight" size={12} />
           </Link>
+          <button className="btn btn-ghost btn-sm" onClick={downloadSource} disabled={downloadingSource} title="Download the exact requirements document or pasted text that was last uploaded">
+            {downloadingSource ? 'Downloading…' : 'Download source'}
+          </button>
           {!isClient && (
             <>
               <button className="btn btn-ghost btn-sm" onClick={() => setShowUpload(true)}>Upload document</button>

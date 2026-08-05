@@ -147,7 +147,15 @@ export default function RerunFailedTestsModal({ projectId, run, onClose, onRerun
                   style={{ marginTop: '0.2rem', cursor: 'pointer' }}
                 />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '0.85rem', color: 'var(--light)' }}>{r.test_title}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--light)' }}>{r.test_title}</div>
+                    {/* api_trace only ever gets populated by the apiTrace-wrapped
+                        request fixture (see helpers/apiTrace.ts) — its presence
+                        IS proof this specific failed result came from an API
+                        test, same signal already driving the trace button
+                        below, now surfaced as an explicit badge too. */}
+                    {r.api_trace && <span className="badge badge-api">API</span>}
+                  </div>
                   {r.error_message && (
                     <div style={{ fontSize: '0.74rem', color: 'var(--danger)', marginTop: '0.2rem' }}>{r.error_message}</div>
                   )}

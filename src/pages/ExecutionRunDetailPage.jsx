@@ -17,7 +17,7 @@ const POLL_INTERVAL_MS = 4000
 const POLL_TIMEOUT_MS = 5 * 60 * 1000
 const SSE_MAX_CONSECUTIVE_ERRORS = 3
 
-const TYPE_LABELS = { functional: 'Functional', integration: 'Integration', e2e: 'E2E' }
+const TYPE_LABELS = { functional: 'Functional', integration: 'Integration', e2e: 'E2E', api: 'API' }
 const STATUS_LABELS = { pass: 'Pass', fail: 'Fail', not_run: 'Not run', blocked: 'Blocked' }
 const STATUS_ORDER = ['pass', 'blocked', 'fail', 'not_run']
 const STATUS_DOT_COLOR = { pass: 'var(--success)', fail: 'var(--danger)', blocked: 'var(--warning)', not_run: 'var(--border2)' }

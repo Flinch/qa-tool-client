@@ -6,7 +6,7 @@ import { useAuth } from '../store/AuthContext.jsx'
 import { timeAgo } from '../lib/timeAgo.js'
 import Icon from '../components/Icon.jsx'
 
-const TYPE_LABELS = { functional: 'Functional', integration: 'Integration', e2e: 'E2E' }
+const TYPE_LABELS = { functional: 'Functional', integration: 'Integration', e2e: 'E2E', api: 'API' }
 
 export function RunStatusBadge({ status }) {
   const labels = { not_started: 'Not started', in_progress: 'In progress', completed: 'Completed' }
