@@ -16,6 +16,15 @@ const KNOWN_SETUP_PATTERNS = [
 ]
 
 function matchedSetupKeys(tc) {
+  // KNOWN_SETUP_PATTERNS are all browser-navigation helpers (e.g.
+  // helpers/createTicket.ts) — an api-type test case never calls one of
+  // those, even if its title happens to share words like "create ticket"
+  // with a UI test (e.g. "POST /api/tickets creates a new ticket"). Without
+  // this guard, keyword matching alone would mislabel such a group as
+  // "Share a 'createTicket' setup step," implying a shared browser helper
+  // that doesn't apply — now reachable since API test cases are visible in
+  // the generate-tests modal for api-engine suites.
+  if (tc.type === 'api') return []
   const text = `${(tc.steps || []).join(' ')} ${tc.title || ''}`.toLowerCase()
   return KNOWN_SETUP_PATTERNS.filter(p => p.keywords.some(re => re.test(text))).map(p => p.key)
 }

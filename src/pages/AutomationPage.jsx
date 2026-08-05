@@ -528,9 +528,19 @@ export function GenerateTestsModal({ projectId, suites, onClose, onDispatched })
       .finally(() => setLoading(false))
   }, [projectId, addToast])
 
-  const allCandidates = showAll ? notAutomated : notAutomated.filter(tc => tc.automation_candidate)
-
   const selectedSuite = suites.find(s => s.id === Number(suiteId))
+  // An api-engine suite can only ever run api-type test cases (the
+  // generator writes request/fetch specs, not browser flows) — so its
+  // candidate pool is a completely separate bucket from the "critical
+  // flows curated for automation" concept below, which was designed for
+  // top-to-bottom UI journeys and doesn't apply to a single endpoint check.
+  // Every api-type test case is fair game by default here, the same way
+  // "Critical flows" used to be the only default-visible set for everyone.
+  const isApiSuite = selectedSuite?.engine === 'api'
+  const allCandidates = isApiSuite
+    ? notAutomated.filter(tc => tc.type === 'api')
+    : (showAll ? notAutomated : notAutomated.filter(tc => tc.automation_candidate)).filter(tc => tc.type !== 'api')
+
   // test_cases.platform is coarse (web/mobile), unlike a suite's own
   // web/ios/android — both ios and android suites accept 'mobile' TCs.
   const suiteCategory = selectedSuite ? (selectedSuite.platform === 'web' ? 'web' : 'mobile') : null
@@ -631,22 +641,32 @@ export function GenerateTestsModal({ projectId, suites, onClose, onDispatched })
         </div>
 
         <div className="form-group">
-          <div className="platform-tabs" style={{ marginBottom: '0.6rem' }}>
-            <button
-              type="button" className="platform-tab" aria-selected={!showAll}
-              onClick={() => { setShowAll(false); setSelectedIds(ids => ids.filter(id => notAutomated.some(tc => tc.id === id && tc.automation_candidate))) }}
-            >
-              Critical flows
-            </button>
-            <button type="button" className="platform-tab" aria-selected={showAll} onClick={() => setShowAll(true)}>
-              All test cases
-            </button>
-          </div>
+          {/* The "curated critical flow" distinction is about which UI
+              journeys are worth the E2E-automation investment — it has no
+              equivalent for API test cases, where every well-formed one is
+              already a cheap, deterministic automation candidate. So an
+              api-engine suite skips this toggle entirely and just shows
+              every api-type test case for the platform. */}
+          {!isApiSuite && (
+            <div className="platform-tabs" style={{ marginBottom: '0.6rem' }}>
+              <button
+                type="button" className="platform-tab" aria-selected={!showAll}
+                onClick={() => { setShowAll(false); setSelectedIds(ids => ids.filter(id => notAutomated.some(tc => tc.id === id && tc.automation_candidate))) }}
+              >
+                Critical flows
+              </button>
+              <button type="button" className="platform-tab" aria-selected={showAll} onClick={() => setShowAll(true)}>
+                All test cases
+              </button>
+            </div>
+          )}
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <label className="form-label" style={{ marginBottom: 0 }}>Test cases (select up to {MAX_BATCH_SIZE})</label>
-              {!showAll && alreadyAutomatedCount > 0 && (
+              <label className="form-label" style={{ marginBottom: 0 }}>
+                {isApiSuite ? 'API test cases' : 'Test cases'} (select up to {MAX_BATCH_SIZE})
+              </label>
+              {!isApiSuite && !showAll && alreadyAutomatedCount > 0 && (
                 <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>
                   {alreadyAutomatedCount} already-automated test case{alreadyAutomatedCount === 1 ? '' : 's'} hidden
                 </div>
@@ -692,11 +712,13 @@ export function GenerateTestsModal({ projectId, suites, onClose, onDispatched })
             <div style={{ display: 'flex', justifyContent: 'center', padding: '1.5rem' }}><div className="spinner" /></div>
           ) : candidates.length === 0 ? (
             <div style={{ fontSize: '0.82rem', color: 'var(--muted)', padding: '0.75rem', background: 'var(--bg2)', border: '1px solid var(--border)', textAlign: 'center' }}>
-              {showAll
-                ? 'No other test cases for this platform.'
-                : alreadyAutomatedCount > 0
-                  ? 'Every critical flow for this platform is already automated.'
-                  : 'No critical flows tracked yet for this platform — use "Review critical flows" on the Requirements page, or switch to "All test cases" to pick one manually.'}
+              {isApiSuite
+                ? 'No API test cases tracked for this platform yet — generate test cases from API-flavored requirements on the Requirements page first, or mark an existing test case\'s type as "API".'
+                : showAll
+                  ? 'No other test cases for this platform.'
+                  : alreadyAutomatedCount > 0
+                    ? 'Every critical flow for this platform is already automated.'
+                    : 'No critical flows tracked yet for this platform — use "Review critical flows" on the Requirements page, or switch to "All test cases" to pick one manually.'}
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: 280, overflowY: 'auto' }}>
