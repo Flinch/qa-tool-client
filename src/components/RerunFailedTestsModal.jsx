@@ -85,7 +85,7 @@ export default function RerunFailedTestsModal({ projectId, run, onClose, onRerun
   if (viewingTrace) {
     return (
       <ApiTraceModal
-        trace={JSON.parse(viewingTrace.api_trace)}
+        trace={viewingTrace.api_trace}
         testTitle={viewingTrace.test_title}
         onClose={() => setViewingTrace(null)}
       />

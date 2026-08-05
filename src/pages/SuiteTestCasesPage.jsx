@@ -91,7 +91,7 @@ export function TestCaseRow({ tc, isLab, onRerun, onDiagnose, onRequestHeal, onV
       </div>
       {showTrace && (
         <ApiTraceModal
-          trace={JSON.parse(tc.last_api_trace)}
+          trace={tc.last_api_trace}
           testTitle={tc.linked_test_case_title || tc.title}
           onClose={() => setShowTrace(false)}
         />
