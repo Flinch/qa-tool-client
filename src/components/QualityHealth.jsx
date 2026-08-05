@@ -272,11 +272,11 @@ export default function QualityHealth({ projectId, projectName, logo, links = []
       )}
       <div className="health-hero" style={{ padding: '1.5rem 1.75rem 1.5rem' }}>
         <div className="health-hero-top">
-          {/* Logo + greeting centered as their own unit — a 140px box next
-              to 3 lines of text needs its own vertical centering or it
-              just hangs off the bottom of the text block. Links sit right
-              under the logo itself now, not under the heading. */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flex: 1, minWidth: 0 }}>
+          {/* Heading aligned to the top of the logo box rather than
+              vertically centered against it — reads as anchored to the
+              image instead of floating in the middle of a taller column
+              once links are stacked underneath the logo. */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1.25rem', flex: 1, minWidth: 0 }}>
             <div>
               <ProjectLogoPlaceholder inline logo={logo} />
               <div style={{ marginTop: '0.5rem' }}>
