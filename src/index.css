@@ -321,6 +321,7 @@ body {
    "flagged as a good automation candidate" but not yet automated. */
 .badge-tc-automated  { border-color: var(--success); color: var(--success); }
 .badge-environmental { border-color: var(--warning); color: var(--warning); }
+.badge-regression { border-color: var(--danger); color: var(--danger); }
 .badge-web           { border-color: #5A8DB8; color: #5A8DB8; }
 .badge-mobile        { border-color: #C97AB5; color: #C97AB5; }
 

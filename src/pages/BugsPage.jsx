@@ -8,6 +8,7 @@ import Icon from '../components/Icon.jsx'
 import AssignFeatureModal from '../components/AssignFeatureModal.jsx'
 import FilterPillGroup from '../components/FilterPillGroup.jsx'
 import DateLoggedFilter from '../components/DateLoggedFilter.jsx'
+import ApiTraceModal from '../components/ApiTraceModal.jsx'
 import SaveViewModal from '../components/SaveViewModal.jsx'
 
 const SEVERITIES = ['critical', 'high', 'medium', 'low']
@@ -283,6 +284,7 @@ function BugModal({ projectId, features, onClose, onCreated }) {
 export function BugDetailModal({ bug, projectId, isClient, features, hasPrev, hasNext, onNavigate, onClose, onUpdated }) {
   const { addToast } = useToastStore()
   const [isEditing, setIsEditing] = useState(false)
+  const [showTrace, setShowTrace] = useState(false)
   const [editForm, setEditForm] = useState({
     title: bug.title,
     severity: bug.severity,
@@ -431,6 +433,11 @@ export function BugDetailModal({ bug, projectId, isClient, features, hasPrev, ha
                   <Icon name="alertTriangle" size={11} /> Environmental
                 </span>
               )}
+              {bug.is_regression && (
+                <span className="badge badge-regression" title="This issue was previously marked resolved and has since resurfaced">
+                  <Icon name="clock" size={11} /> Regressed
+                </span>
+              )}
               {bug.jira_issue_key && (
                 <a href={bug.jira_issue_url} target="_blank" rel="noreferrer" className="badge badge-automation" style={{ textDecoration: 'none' }}>
                   {bug.jira_issue_key} ↗
@@ -449,6 +456,14 @@ export function BugDetailModal({ bug, projectId, isClient, features, hasPrev, ha
           <div style={{ marginBottom: '1rem' }}>
             <div style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '0.35rem' }}>Screenshot at failure</div>
             <CommentImage src={bug.screenshot_data} />
+          </div>
+        )}
+        {!bug.screenshot_data && bug.api_trace && (
+          <div style={{ marginBottom: '1rem' }}>
+            <div style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '0.35rem' }}>Evidence</div>
+            <button className="btn btn-ghost btn-sm" onClick={() => setShowTrace(true)}>
+              <Icon name="link" size={13} /> View request/response
+            </button>
           </div>
         )}
         {bug.steps_to_reproduce && (
@@ -510,7 +525,7 @@ export function BugDetailModal({ bug, projectId, isClient, features, hasPrev, ha
               {comments.map(c => (
                 <div key={c.id} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', padding: '0.6rem 0.75rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
-                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--light)' }}>{c.user_name || 'Someone'}</span>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--light)' }}>{c.user_name || (c.user_id ? 'Someone' : 'Automated')}</span>
                     {c.user_role && (
                       <span style={{ fontSize: '0.68rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                         {c.user_role === 'client' ? 'Client' : c.user_role.replace('_', ' ')}
@@ -563,6 +578,9 @@ export function BugDetailModal({ bug, projectId, isClient, features, hasPrev, ha
         </button>
       )}
       </div>
+      {showTrace && bug.api_trace && (
+        <ApiTraceModal trace={bug.api_trace} testTitle={bug.title} onClose={() => setShowTrace(false)} />
+      )}
     </div>
   )
 }
@@ -786,6 +804,11 @@ export default function BugsPage() {
                       {bug.is_environmental && (
                         <span className="badge badge-environmental" title="The test didn't run to completion — a device/driver/connectivity problem, not a failed assertion">
                           <Icon name="alertTriangle" size={11} /> Environmental
+                        </span>
+                      )}
+                      {bug.is_regression && (
+                        <span className="badge badge-regression" title="This issue was previously marked resolved and has since resurfaced">
+                          <Icon name="clock" size={11} /> Regressed
                         </span>
                       )}
                       {bug.jira_issue_key && (

@@ -119,8 +119,15 @@ function ScoreBar({ value, color, breakdown }) {
       onMouseLeave={() => setHover(false)}
     >
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
-        <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '0.64rem', letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted)' }}>
-          Quality score
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+          <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '0.64rem', letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted)' }}>
+            Quality score
+          </span>
+          <Icon
+            name="info" size={12}
+            style={{ color: 'var(--faint)', cursor: 'help' }}
+            title="A composite score: pass rate (65%) and requirement coverage (35%), weighted and blended — then reduced by a penalty for any open critical/high-severity bugs and for flaky tests. Automation coverage isn't part of this score; it's a testing-process metric, shown separately, not a product-health one."
+          />
         </span>
         <span style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '1.05rem', color: 'var(--white)' }}>
           {value !== null ? value : '—'}
@@ -344,11 +351,21 @@ export default function QualityHealth({ projectId, projectName, logo, links = []
               <div className="health-panel-title">Pass rate — recent runs</div>
               <Link to={`/projects/${projectId}/executions`} className="health-panel-link">Executions <Icon name="arrowRight" size={11} /></Link>
             </div>
+            {data.passRateThisWeek !== null && (
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                <span style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '1.4rem', color: featureHealthColor(data.passRateThisWeek) }}>
+                  {data.passRateThisWeek}%
+                </span>
+                <span style={{ fontSize: '0.76rem', color: 'var(--muted)' }}>this week</span>
+              </div>
+            )}
             {data.passRateTrend.length >= 2 ? (
               <TrendChart points={data.passRateTrend} />
             ) : (
               <div style={{ fontSize: '0.85rem', color: 'var(--muted)', padding: '0.75rem 0' }}>
-                Run your first execution to start tracking trends over time.
+                {data.passRateThisWeek === null
+                  ? 'Run your first execution to start tracking trends over time.'
+                  : 'Not enough completed executions yet for a trend line — check back as more run.'}
               </div>
             )}
           </div>

@@ -20,6 +20,7 @@ const PATHS = {
   medic: 'M12 8v8M8 12h8',
   clock: 'M12 7v5l3 3',
   eye: 'M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z',
+  info: 'M12 16v-4M12 8h.01',
 }
 
 // A few icons need more than one primitive (circles alongside a path), so they're
@@ -36,6 +37,7 @@ const CUSTOM = {
   medic: <><circle cx="12" cy="12" r="9" /><path d={PATHS.medic} /></>,
   clock: <><circle cx="12" cy="12" r="9" /><path d={PATHS.clock} /></>,
   eye: <><path d={PATHS.eye} /><circle cx="12" cy="12" r="3" /></>,
+  info: <><circle cx="12" cy="12" r="9" /><path d={PATHS.info} /></>,
   hammer: (
     <g transform="rotate(45 12 12)">
       <rect x="5" y="3" width="8" height="5" rx="1" />
