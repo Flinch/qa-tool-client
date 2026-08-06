@@ -5,6 +5,7 @@ import { useToastStore } from '../store/toastStore.jsx'
 import { useAuth } from '../store/AuthContext.jsx'
 import { describeRunPhase } from '../lib/runPhase.js'
 import { suggestBatches } from '../lib/batchSuggestion.js'
+import { tcLabel } from '../lib/testCaseLabel.js'
 import Icon from '../components/Icon.jsx'
 import RerunFailedTestsModal from '../components/RerunFailedTestsModal.jsx'
 
@@ -599,7 +600,7 @@ export function GenerateTestsModal({ projectId, suites, onClose, onDispatched })
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
               {selected.map(tc => (
                 <div key={tc.id} style={{ fontSize: '0.85rem', color: 'var(--light)', padding: '0.5rem 0.7rem', background: 'var(--bg2)', border: '1px solid var(--border)' }}>
-                  {tc.title}
+                  {tcLabel(tc.id, tc.title)}
                 </div>
               ))}
             </div>
@@ -696,7 +697,7 @@ export function GenerateTestsModal({ projectId, suites, onClose, onDispatched })
                   }}
                 >
                   <div style={{ fontSize: '0.82rem', color: 'var(--light)', marginBottom: '0.2rem' }}>
-                    {batch.tcs.map(tc => tc.title).join(', ')}
+                    {batch.tcs.map(tc => tcLabel(tc.id, tc.title)).join(', ')}
                   </div>
                   <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>{batch.reason}</div>
                 </button>
@@ -735,7 +736,7 @@ export function GenerateTestsModal({ projectId, suites, onClose, onDispatched })
                     }}
                   >
                     <input type="checkbox" checked={checked} disabled={disabled} onChange={() => toggle(tc.id)} />
-                    <span style={{ fontSize: '0.85rem', color: 'var(--light)' }}>{tc.title}</span>
+                    <span style={{ fontSize: '0.85rem', color: 'var(--light)' }}>{tcLabel(tc.id, tc.title)}</span>
                   </label>
                 )
               })}

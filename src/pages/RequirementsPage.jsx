@@ -7,6 +7,7 @@ import { readDocumentFile } from '../lib/documentUpload.js'
 import Icon from '../components/Icon.jsx'
 import ManageFeaturesModal from '../components/ManageFeaturesModal.jsx'
 import AssignFeatureModal from '../components/AssignFeatureModal.jsx'
+import { tcLabel } from '../lib/testCaseLabel.js'
 
 function UploadRequirementsModal({ projectId, onClose, onDiff }) {
   const { addToast } = useToastStore()
@@ -434,7 +435,7 @@ function CriticalFlowsReviewModal({ projectId, diff, unchangedCount, requirement
                   <label key={flow.id} style={{ display: 'flex', gap: '0.6rem', padding: '0.65rem 0.85rem', background: 'var(--bg2)', border: '1px solid var(--border)', cursor: 'pointer' }}>
                     <input type="checkbox" checked={approvedRemoved.has(flow.id)} onChange={() => toggle(setApprovedRemoved, flow.id)} style={{ marginTop: '0.2rem' }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '0.85rem', color: 'var(--light)', fontWeight: 600, marginBottom: '0.2rem' }}>{flow.title}</div>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--light)', fontWeight: 600, marginBottom: '0.2rem' }}>{tcLabel(flow.id, flow.title)}</div>
                       <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>Currently covers {flow.requirementIds?.length || 0} requirement{flow.requirementIds?.length === 1 ? '' : 's'}</div>
                     </div>
                   </label>
@@ -579,7 +580,7 @@ function TestCaseDiffReviewModal({ projectId, diff, unchangedCount, requirementT
                   <label key={tc.id} style={{ display: 'flex', gap: '0.6rem', padding: '0.65rem 0.85rem', background: 'var(--bg2)', border: '1px solid var(--border)', cursor: 'pointer' }}>
                     <input type="checkbox" checked={approvedRemoved.has(tc.id)} onChange={() => toggle(setApprovedRemoved, tc.id)} style={{ marginTop: '0.2rem' }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '0.85rem', color: 'var(--light)', fontWeight: 600, marginBottom: '0.2rem' }}>{tc.title}</div>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--light)', fontWeight: 600, marginBottom: '0.2rem' }}>{tcLabel(tc.id, tc.title)}</div>
                       <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>
                         For: {requirementTitleById[tc.requirementId]}
                         {tc.bug_count > 0 && <span style={{ color: 'var(--danger)' }}> · has {tc.bug_count} linked bug{tc.bug_count === 1 ? '' : 's'} — review before archiving</span>}
@@ -748,7 +749,7 @@ function LinkTestCasesModal({ projectId, requirement, linkedIds, onClose, onLink
                 style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.55rem 0.75rem', background: 'var(--bg2)', border: '1px solid var(--border)', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--light)' }}
               >
                 <input type="checkbox" checked={selected.has(tc.id)} onChange={() => toggle(tc.id)} />
-                {tc.title}
+                {tcLabel(tc.id, tc.title)}
               </label>
             ))}
           </div>
@@ -972,7 +973,7 @@ export function RequirementModal({ requirement, projectId, isClient, features, o
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
               {linkedTestCases.map(tc => (
                 <div key={tc.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.55rem 0.75rem', background: 'var(--bg2)', border: '1px solid var(--border)' }}>
-                  <span style={{ fontSize: '0.82rem', color: 'var(--light)', flex: 1 }}>{tc.title}</span>
+                  <span style={{ fontSize: '0.82rem', color: 'var(--light)', flex: 1 }}>{tcLabel(tc.id, tc.title)}</span>
                   {!isClient && <button className="btn btn-ghost btn-sm" onClick={() => unlink(tc.id)}>Unlink</button>}
                 </div>
               ))}

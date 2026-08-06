@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { apiFetch } from '../lib/api.js'
 import { useToastStore } from '../store/toastStore.jsx'
 import Icon from './Icon.jsx'
+import { tcLabel } from '../lib/testCaseLabel.js'
 
 export default function CombineTestCasesModal({ projectId, testCases, features, onClose, onCombined }) {
   const { addToast } = useToastStore()
@@ -56,7 +57,7 @@ export default function CombineTestCasesModal({ projectId, testCases, features, 
           },
         }),
       })
-      addToast(`Combined ${testCases.length} test cases into "${newTc.title}"`)
+      addToast(`Combined ${testCases.length} test cases into "${tcLabel(newTc.id, newTc.title)}"`)
       onCombined(newTc, testCases.map(tc => tc.id))
       onClose()
     } catch (e) {
@@ -74,7 +75,7 @@ export default function CombineTestCasesModal({ projectId, testCases, features, 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginBottom: '1.25rem' }}>
           {testCases.map(tc => (
             <div key={tc.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', background: 'var(--bg2)', border: '1px solid var(--border)', fontSize: '0.85rem', color: 'var(--light)' }}>
-              <span style={{ flex: 1 }}>{tc.title}</span>
+              <span style={{ flex: 1 }}>{tcLabel(tc.id, tc.title)}</span>
               <span style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>{tc.steps?.length || 0} steps</span>
             </div>
           ))}

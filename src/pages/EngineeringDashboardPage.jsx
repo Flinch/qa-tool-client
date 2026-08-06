@@ -11,6 +11,7 @@ import HealConfirmModal from '../components/HealConfirmModal.jsx'
 import DiagnosisModal from '../components/DiagnosisModal.jsx'
 import { StatusPill, formatWhen, GenerateTestsModal, GENERATION_PHASES, describeGenerationPhase } from './AutomationPage.jsx'
 import { TestCaseRow } from './SuiteTestCasesPage.jsx'
+import { tcLabel } from '../lib/testCaseLabel.js'
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api'
 const GEN_POLL_INTERVAL_MS = 4000
@@ -42,7 +43,11 @@ function TestCaseDetailModal({ test, projectId, onClose }) {
   return (
     <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal" style={{ maxWidth: 560 }}>
-        <div className="modal-title">{test.linked_test_case_title || test.tc_title || test.title || test.test_title}</div>
+        <div className="modal-title">
+          {test.linked_test_case_title
+            ? tcLabel(test.test_case_id, test.linked_test_case_title)
+            : test.tc_title || test.title || test.test_title}
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', fontSize: '0.8rem', color: 'var(--accent2)' }}>
           {test.suite_name}
           {test.type && <span style={{ color: 'var(--muted)' }}>· {test.type}</span>}
@@ -406,7 +411,7 @@ export default function EngineeringDashboardPage() {
         method: 'POST',
         body: JSON.stringify({ result_ids: [tc.last_result_id] }),
       })
-      addToast(`Re-run started for "${tc.title}"`)
+      addToast(`Re-run started for "${tc.linked_test_case_title ? tcLabel(tc.test_case_id, tc.linked_test_case_title) : tc.title}"`)
       loadRunGroups()
     } catch (e) {
       addToast(e.message, 'error')
@@ -550,8 +555,8 @@ export default function EngineeringDashboardPage() {
                 busy={labBusyId === tc.id}
                 onView={setLabDetail}
                 onRerun={labRerun}
-                onDiagnose={(t) => setLabDiagnose({ runId: t.last_run_id, resultId: t.last_result_id, title: t.title, suiteName: t.suite_name })}
-                onRequestHeal={(t) => setLabHealConfirm({ runId: t.last_run_id, resultId: t.last_result_id, title: t.title, suiteName: t.suite_name })}
+                onDiagnose={(t) => setLabDiagnose({ runId: t.last_run_id, resultId: t.last_result_id, title: t.linked_test_case_title ? tcLabel(t.test_case_id, t.linked_test_case_title) : t.title, suiteName: t.suite_name })}
+                onRequestHeal={(t) => setLabHealConfirm({ runId: t.last_run_id, resultId: t.last_result_id, title: t.linked_test_case_title ? tcLabel(t.test_case_id, t.linked_test_case_title) : t.title, suiteName: t.suite_name })}
               />
             ))
           )}

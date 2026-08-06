@@ -5,6 +5,7 @@ import { useToastStore } from '../store/toastStore.jsx'
 import { useAuth } from '../store/AuthContext.jsx'
 import { timeAgo } from '../lib/timeAgo.js'
 import Icon from '../components/Icon.jsx'
+import { tcLabel } from '../lib/testCaseLabel.js'
 
 const TYPE_LABELS = { functional: 'Functional', integration: 'Integration', e2e: 'E2E', api: 'API' }
 
@@ -120,7 +121,7 @@ function CreateRunModal({ projectId, onClose, onCreated }) {
                         checked={selectedTcIds.has(tc.id)}
                         onChange={() => toggle(selectedTcIds, setSelectedTcIds, tc.id)}
                       />
-                      <span style={{ flex: 1 }}>{tc.title}</span>
+                      <span style={{ flex: 1 }}>{tcLabel(tc.id, tc.title)}</span>
                       <span className={`badge badge-${tc.type}`}>{TYPE_LABELS[tc.type]}</span>
                     </label>
                   ))}

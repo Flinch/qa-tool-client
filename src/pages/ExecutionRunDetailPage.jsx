@@ -8,6 +8,7 @@ import { LogBugModal } from './TestCasesPage.jsx'
 import { BugDetailModal } from './BugsPage.jsx'
 import { RunStatusBadge } from './ExecutionRunsPage.jsx'
 import Icon from '../components/Icon.jsx'
+import { tcLabel } from '../lib/testCaseLabel.js'
 import { generateExecutionReportPdf } from '../lib/executionReport.js'
 import { describeRunPhase } from '../lib/runPhase.js'
 import { formatStep } from '../lib/steps.js'
@@ -115,7 +116,7 @@ function SwipeCard({ etc, onMark, onSetStatus, onLogBug }) {
         <StatusMenu status={etc.status} onSelect={onSetStatus} />
       </div>
       <h2 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '1.05rem', fontWeight: 700, color: 'var(--white)', marginBottom: '1rem', lineHeight: 1.3 }}>
-        {etc.title}
+        {tcLabel(etc.test_case_id, etc.title)}
       </h2>
       {etc.steps?.length > 0 && (
         <div style={{ marginBottom: '1.1rem' }}>
@@ -625,7 +626,7 @@ export default function ExecutionRunDetailPage() {
                         >
                           <Icon name="chevronRight" size={12} style={{ color: 'var(--muted)', transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }} />
                           <div style={{ minWidth: 0 }}>
-                            <div style={{ fontWeight: 500, color: 'var(--light)' }}>{etc.title}</div>
+                            <div style={{ fontWeight: 500, color: 'var(--light)' }}>{tcLabel(etc.test_case_id, etc.title)}</div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.72rem', color: 'var(--muted)' }}>
                               {TYPE_LABELS[etc.type]}
                               {etc.bug_count > 0 && (

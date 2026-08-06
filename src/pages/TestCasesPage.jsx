@@ -10,6 +10,7 @@ import ManageFeaturesModal from '../components/ManageFeaturesModal.jsx'
 import CombineTestCasesModal from '../components/CombineTestCasesModal.jsx'
 import AssignFeatureModal from '../components/AssignFeatureModal.jsx'
 import { RequirementModal } from './RequirementsPage.jsx'
+import { tcLabel } from '../lib/testCaseLabel.js'
 
 const TYPE_LABELS = { functional: 'Functional', integration: 'Integration', e2e: 'E2E', api: 'API' }
 const SEVERITIES = ['critical', 'high', 'medium', 'low']
@@ -159,7 +160,7 @@ function CreateTestCaseModal({ projectId, features, onClose, onCreated }) {
 export function LogBugModal({ projectId, testCase, executionRunId, features, onClose, onLogged }) {
   const { addToast } = useToastStore()
   const [form, setForm] = useState({
-    title: `Bug in: ${testCase.title}`,
+    title: `Bug in: ${tcLabel(testCase.id, testCase.title)}`,
     severity: 'high',
     steps_to_reproduce: testCase.steps?.join('\n') || '',
     expected: testCase.expected || '',
@@ -226,7 +227,7 @@ export function LogBugModal({ projectId, testCase, executionRunId, features, onC
         <div className="modal-title">Log a bug</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.78rem', color: 'var(--accent)', marginBottom: '1rem', background: 'rgba(184,70,31,0.08)', border: '1px solid rgba(184,70,31,0.2)', borderRadius: 0, padding: '0.5rem 0.75rem' }}>
           <Icon name="link" size={13} />
-          <span>Will be linked to: <strong>{testCase.title}</strong></span>
+          <span>Will be linked to: <strong>{tcLabel(testCase.id, testCase.title)}</strong></span>
         </div>
         <div className="form-group">
           <label className="form-label">Title *</label>
@@ -399,7 +400,7 @@ function TestCaseModal({ tc, projectId, isClient, features, onClose, onBugLogged
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', fontSize: '0.85rem', color: 'var(--light)', marginBottom: '1.25rem', lineHeight: 1.6, background: 'rgba(193,68,58,0.08)', border: '1px solid rgba(193,68,58,0.25)', borderRadius: 0, padding: '0.75rem 0.9rem' }}>
             <Icon name="alertTriangle" size={16} style={{ color: 'var(--danger)', marginTop: '0.1rem', flexShrink: 0 }} />
             <span>
-              This permanently deletes <strong>{tc.title}</strong>, including its execution history (pass/fail
+              This permanently deletes <strong>{tcLabel(tc.id, tc.title)}</strong>, including its execution history (pass/fail
               records from past test runs are tied to the test case and are deleted with it, not just orphaned).
               This cannot be undone.
             </span>
@@ -526,7 +527,7 @@ function TestCaseModal({ tc, projectId, isClient, features, onClose, onBugLogged
                 </span>
               ) : null}
             </div>
-            <h2 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '1rem', fontWeight: 700, color: 'var(--white)', lineHeight: 1.3 }}>{tc.title}</h2>
+            <h2 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '1rem', fontWeight: 700, color: 'var(--white)', lineHeight: 1.3 }}>{tcLabel(tc.id, tc.title)}</h2>
           </div>
           <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
             {!isClient && tc.archived_at ? (
@@ -844,7 +845,7 @@ export default function TestCasesPage() {
                             </td>
                           )}
                           <td style={{ maxWidth: 320, paddingLeft: '2rem' }}>
-                            <div style={{ fontWeight: 500, color: 'var(--light)', marginBottom: '0.15rem' }}>{tc.title}</div>
+                            <div style={{ fontWeight: 500, color: 'var(--light)', marginBottom: '0.15rem' }}>{tcLabel(tc.id, tc.title)}</div>
                             {tc.steps?.length > 0 && <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>{tc.steps.length} steps</div>}
                           </td>
                           <td><span className={`badge badge-${tc.type}`}>{TYPE_LABELS[tc.type]}</span></td>

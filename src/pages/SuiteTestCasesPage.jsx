@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { apiFetch } from '../lib/api.js'
 import Icon from '../components/Icon.jsx'
 import ApiTraceModal from '../components/ApiTraceModal.jsx'
+import { tcLabel } from '../lib/testCaseLabel.js'
 
 const REVIEW_STATUS_LABEL = {
   pending_review: 'Pending review',
@@ -39,7 +40,7 @@ export function TestCaseRow({ tc, isLab, onRerun, onDiagnose, onRequestHeal, onV
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
         <div style={onView ? { cursor: 'pointer' } : undefined} onClick={onView ? () => onView(tc) : undefined}>
           <div style={{ color: 'var(--white)', fontSize: '0.88rem', fontWeight: 600, marginBottom: '0.15rem' }}>
-            {tc.linked_test_case_title || tc.title}
+            {tc.linked_test_case_title ? tcLabel(tc.test_case_id, tc.linked_test_case_title) : tc.title}
           </div>
           <div style={{ color: 'var(--muted)', fontSize: '0.76rem' }}>
             {isLab && <span style={{ color: 'var(--accent2)' }}>{tc.suite_name} · </span>}
@@ -92,7 +93,7 @@ export function TestCaseRow({ tc, isLab, onRerun, onDiagnose, onRequestHeal, onV
       {showTrace && (
         <ApiTraceModal
           trace={tc.last_api_trace}
-          testTitle={tc.linked_test_case_title || tc.title}
+          testTitle={tc.linked_test_case_title ? tcLabel(tc.test_case_id, tc.linked_test_case_title) : tc.title}
           onClose={() => setShowTrace(false)}
         />
       )}
