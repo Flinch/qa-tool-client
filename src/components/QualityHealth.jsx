@@ -27,11 +27,31 @@ function greetingWord() {
 }
 
 // Turns the health payload into a plain-English headline + subline. Kept
-// entirely derived from real numbers already on `data` — no invented deltas.
+// entirely derived from real numbers already on `data` — no invented deltas,
+// no AI call (this renders on every dashboard load, so it stays free and
+// instant). Boosted beyond the original pass-rate-only version to also name
+// where trouble is concentrated and give a plain release-readiness read —
+// still just deterministic template logic over data already on the page.
 function buildSummary(data, projectName) {
-  const { healthStatus, passRate, bugsBySeverity, testCases } = data
+  const { healthStatus, passRate, bugsBySeverity, testCases, bugHotspots = [] } = data
   const critical = bugsBySeverity.critical
   const high = bugsBySeverity.high
+
+  // The feature with the most open bugs, critical/high-severity ones
+  // breaking ties — so the headline can point at where trouble is
+  // concentrated instead of just stating a raw count.
+  const worstFeature = [...bugHotspots]
+    .filter(f => f.openBugCount > 0)
+    .sort((a, b) => (b.criticalCount * 100 + b.highCount * 10 + b.openBugCount) - (a.criticalCount * 100 + a.highCount * 10 + a.openBugCount))[0]
+
+  // Deliberately blunt thresholds, not a nuanced model — this is a quick
+  // read, not a guarantee, and the wording says "looks"/"close to" rather
+  // than asserting readiness as fact.
+  const readiness = critical > 0
+    ? 'Not release-ready — critical issues are open.'
+    : (passRate !== null && passRate < 80) || high > 2
+    ? 'Close to release-ready, but a few things need attention first.'
+    : 'Looks release-ready.'
 
   if (healthStatus === 'insufficient_data') {
     return {
@@ -47,22 +67,28 @@ function buildSummary(data, projectName) {
     if (high > 0) issues.push(`${high} high-priority issue${high === 1 ? '' : 's'}`)
     return {
       headline: `${projectName} needs a look.`,
-      sub: issues.length
-        ? `${issues.join(' and ')} open, and the pass rate is at ${passRate}%.`
-        : `Pass rate has dropped to ${passRate}%.`,
+      sub: [
+        issues.length ? `${issues.join(' and ')} open, and the pass rate is at ${passRate}%.` : `Pass rate has dropped to ${passRate}%.`,
+        worstFeature ? `Most of that is concentrated in ${worstFeature.featureName}.` : null,
+        readiness,
+      ].filter(Boolean).join(' '),
     }
   }
   if (healthStatus === 'good') {
     return {
       headline: `${projectName} is in good shape.`,
-      sub: high > 0
-        ? `${passRate}% of tests are passing. ${high} high-priority bug${high === 1 ? '' : 's'} worth a look this week.`
-        : `${passRate}% of tests are passing — a few things short of full health.`,
+      sub: [
+        high > 0
+          ? `${passRate}% of tests are passing. ${high} high-priority bug${high === 1 ? '' : 's'} worth a look this week.`
+          : `${passRate}% of tests are passing — a few things short of full health.`,
+        worstFeature ? `${worstFeature.featureName} has the most open issues.` : null,
+        readiness,
+      ].filter(Boolean).join(' '),
     }
   }
   return {
     headline: `${projectName} is in excellent shape.`,
-    sub: `${passRate}% of your tests are passing and nothing critical is open.`,
+    sub: `${passRate}% of your tests are passing and nothing critical is open — looks release-ready.`,
   }
 }
 
