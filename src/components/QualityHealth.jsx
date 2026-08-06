@@ -8,6 +8,7 @@ import { buildActivity } from '../lib/buildActivity.js'
 import Icon from './Icon.jsx'
 import NotificationBell from './NotificationBell.jsx'
 import { ProjectLogoPlaceholder, ProjectLinksList } from './ProjectBrandBox.jsx'
+import { generateWeeklySummaryPdf } from '../lib/weeklySummaryReport.js'
 
 const STATUS_META = {
   excellent:        { label: 'Excellent',          color: 'var(--success)' },
@@ -290,9 +291,17 @@ export default function QualityHealth({ projectId, projectName, logo, links = []
             </div>
           </div>
 
-          <div className="health-status-pill" style={{ borderColor: status.color, color: status.color, flexShrink: 0 }}>
-            <span className="health-status-dot" style={{ background: status.color }} />
-            {status.label}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.5rem', flexShrink: 0 }}>
+            <div className="health-status-pill" style={{ borderColor: status.color, color: status.color }}>
+              <span className="health-status-dot" style={{ background: status.color }} />
+              {status.label}
+            </div>
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => generateWeeklySummaryPdf({ project: { name: projectName }, data, bugs, runs, automationRuns })}
+            >
+              ⬇ Weekly summary
+            </button>
           </div>
         </div>
 
@@ -339,6 +348,54 @@ export default function QualityHealth({ projectId, projectName, logo, links = []
             <div className="health-kpi-num">{data.requirementCoverage !== null ? `${data.requirementCoverage}%` : '—'}</div>
             <div className="health-kpi-sub">
               {data.totalRequirements > 0 ? `${data.coveredRequirements} of ${data.totalRequirements} covered` : 'No requirements tracked yet'}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Deliberately its own full-width panel right under the hero, not
+          folded into the KPI strip above or the two-column grid below —
+          this is the one section built specifically to answer "what am I
+          getting for this," not an operational signal a QA engineer would
+          check day to day. Every number here is real and already computed
+          elsewhere (automation coverage, bugs caught, pass-rate trend) —
+          reframed for a leadership reader, not a new metric invented to
+          look good; a shaky/invented ROI number would cost more credibility
+          than it buys the moment someone asks how it's calculated. */}
+      <div className="health-panel" style={{ marginBottom: '1.25rem' }}>
+        <div className="health-panel-head">
+          <div className="health-panel-title">Value delivered</div>
+        </div>
+        <div className="health-kpi-strip">
+          <div className="health-kpi">
+            <div className="health-kpi-label">Caught by automation</div>
+            <div className="health-kpi-num" style={{ color: data.bugsCaughtByAutomationThisMonth > 0 ? 'var(--accent2)' : 'var(--white)' }}>
+              {data.bugsCaughtByAutomationThisMonth}
+            </div>
+            <div className="health-kpi-sub">issue{data.bugsCaughtByAutomationThisMonth === 1 ? '' : 's'} found this month before reaching your customers</div>
+          </div>
+          <div className="health-kpi">
+            <div className="health-kpi-label">Automated coverage</div>
+            <div className="health-kpi-num">{data.automationCoverage !== null ? `${data.automationCoverage}%` : '—'}</div>
+            <div className="health-kpi-sub">
+              {data.totalTestCases > 0 ? `${data.automatedTestCases} of ${data.totalTestCases} test cases run continuously, not by hand` : 'No test cases yet'}
+            </div>
+          </div>
+          <div className="health-kpi">
+            <div className="health-kpi-label">Pass rate trend</div>
+            <div className="health-kpi-num" style={{ color: data.passRateThisWeek === null ? 'var(--white)' : featureHealthColor(data.passRateThisWeek) }}>
+              {data.passRateThisWeek !== null ? `${data.passRateThisWeek}%` : '—'}
+            </div>
+            <div className="health-kpi-sub">
+              {data.passRateThisWeek === null
+                ? 'No executions this week yet'
+                : data.passRatePriorWeek === null
+                ? 'this week — not enough history yet for a week-over-week trend'
+                : data.passRateThisWeek > data.passRatePriorWeek
+                ? `up from ${data.passRatePriorWeek}% last week`
+                : data.passRateThisWeek < data.passRatePriorWeek
+                ? `down from ${data.passRatePriorWeek}% last week`
+                : `steady with last week (${data.passRatePriorWeek}%)`}
             </div>
           </div>
         </div>

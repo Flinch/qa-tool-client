@@ -466,6 +466,12 @@ export function BugDetailModal({ bug, projectId, isClient, features, hasPrev, ha
             </button>
           </div>
         )}
+        {bug.business_impact && (
+          <div style={{ marginBottom: '1rem', background: 'var(--bg2)', border: '1px solid var(--accent-border)', borderLeft: '3px solid var(--accent)', padding: '0.65rem 0.85rem' }}>
+            <div style={{ fontSize: '0.7rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--accent2)', marginBottom: '0.25rem' }}>Business impact</div>
+            <div style={{ fontSize: '0.85rem', color: 'var(--light)', lineHeight: 1.5 }}>{bug.business_impact}</div>
+          </div>
+        )}
         {bug.steps_to_reproduce && (
           <div style={{ marginBottom: '1rem' }}>
             <div style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '0.35rem' }}>Steps to reproduce</div>
@@ -821,6 +827,12 @@ export default function BugsPage() {
                         </a>
                       )}
                     </div>
+                    {bug.business_impact && (
+                      <div style={{ fontSize: '0.8rem', color: 'var(--light)', marginBottom: '0.3rem' }}>
+                        <strong style={{ color: 'var(--accent2)' }}>Business impact: </strong>
+                        {bug.business_impact}
+                      </div>
+                    )}
                     {bug.steps_to_reproduce && (
                       <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginBottom: '0.3rem' }}>
                         <strong style={{ color: 'var(--light)' }}>Steps: </strong>
