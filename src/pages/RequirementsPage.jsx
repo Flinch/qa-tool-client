@@ -1198,7 +1198,7 @@ export default function RequirementsPage() {
             See test cases <Icon name="arrowRight" size={12} />
           </Link>
           <button className="btn btn-ghost btn-sm" onClick={downloadSource} disabled={downloadingSource} title="Download the exact requirements document or pasted text that was last uploaded">
-            {downloadingSource ? 'Downloading…' : 'Download source'}
+            {downloadingSource ? 'Downloading…' : 'Download original document'}
           </button>
           {!isClient && (
             <>
@@ -1219,7 +1219,7 @@ export default function RequirementsPage() {
         {requirements.length > 0 && (
           <div className="stats-row" style={{ marginBottom: '1.5rem' }}>
             <div className="stat-card"><div className="stat-num">{requirements.length}</div><div className="stat-label">Total</div></div>
-            <div className="stat-card"><div className="stat-num" style={{ color: uncoveredCount > 0 ? 'var(--danger)' : 'var(--success)' }}>{uncoveredCount}</div><div className="stat-label">No test coverage</div></div>
+            <div className="stat-card"><div className="stat-num" style={{ color: uncoveredCount > 0 ? 'var(--danger)' : 'var(--success)' }}>{uncoveredCount}</div><div className="stat-label">Uncovered requirements</div></div>
           </div>
         )}
 

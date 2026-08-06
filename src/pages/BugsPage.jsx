@@ -720,23 +720,27 @@ export default function BugsPage() {
         )}
         <div className="filters-row">
           <FilterPillGroup
+            groupLabel="Severity"
             options={['all', ...SEVERITIES]}
             value={filters.severity}
             onChange={v => setFilters(f => ({ ...f, severity: v }))}
           />
           <FilterPillGroup
+            groupLabel="Status"
             options={['all', ...STATUSES]}
             value={filters.status}
             labels={STATUS_LABELS}
             onChange={v => setFilters(f => ({ ...f, status: v }))}
           />
           <FilterPillGroup
+            groupLabel="Source"
             options={['all', 'automated', 'manual']}
             value={filters.source}
             labels={{ all: 'Any source' }}
             onChange={v => setFilters(f => ({ ...f, source: v }))}
           />
           <DateLoggedFilter
+            groupLabel="Date logged"
             value={filters.dateLogged}
             onChange={v => setFilters(f => ({ ...f, dateLogged: v }))}
           />

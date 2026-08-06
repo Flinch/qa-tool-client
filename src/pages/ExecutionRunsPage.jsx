@@ -189,15 +189,14 @@ function CreateRunModal({ projectId, onClose, onCreated }) {
 }
 
 function RunCard({ run, projectId }) {
-  const navigate = useNavigate()
   const total = run.total_test_cases || 0
   const passRate = total > 0 ? Math.round((run.passed / total) * 100) : null
 
   return (
-    <div
+    <Link
+      to={`/projects/${projectId}/executions/${run.id}`}
       className="card"
-      style={{ cursor: 'pointer', transition: 'border-color 0.2s' }}
-      onClick={() => navigate(`/projects/${projectId}/executions/${run.id}`)}
+      style={{ display: 'block', color: 'inherit', textDecoration: 'none', cursor: 'pointer', transition: 'border-color 0.2s' }}
       onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,70,31,0.3)'}
       onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
     >
@@ -236,7 +235,7 @@ function RunCard({ run, projectId }) {
         Created {new Date(run.created_at).toLocaleDateString()}
         {run.completed_at && <> · Completed {timeAgo(run.completed_at)}</>}
       </div>
-    </div>
+    </Link>
   )
 }
 

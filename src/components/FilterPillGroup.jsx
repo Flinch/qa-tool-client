@@ -5,9 +5,23 @@
 // component only owns the single-select-within-itself behavior. Same
 // filter-btn/active classes the pill row already used before this existed,
 // so the visual result is unchanged from the old single hand-rolled row.
-export default function FilterPillGroup({ options, value, onChange, labels = {} }) {
+//
+// `groupLabel` (distinct from `labels`, which relabels individual options)
+// names the group itself — confirmed live (2026-08-06) that without one,
+// adjacent groups in the same row were indistinguishable, most visibly two
+// identical "All" pills back to back (one resets severity, one resets
+// status) with nothing showing which was which. Wrapped in its own flex
+// container (not a bare fragment) so the label and its pills can't get
+// separated by flex-wrap on a narrow row, and a trailing divider visually
+// separates this group from whatever sits next to it.
+export default function FilterPillGroup({ options, value, onChange, labels = {}, groupLabel }) {
   return (
-    <>
+    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', paddingRight: '0.6rem', borderRight: '1px solid var(--border)' }}>
+      {groupLabel && (
+        <span style={{ fontSize: '0.66rem', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--faint)' }}>
+          {groupLabel}
+        </span>
+      )}
       {options.map(opt => (
         <button
           key={opt}
@@ -18,6 +32,6 @@ export default function FilterPillGroup({ options, value, onChange, labels = {} 
           {labels[opt] || (opt === 'all' ? 'All' : opt.charAt(0).toUpperCase() + opt.slice(1).replace('_', ' '))}
         </button>
       ))}
-    </>
+    </div>
   )
 }

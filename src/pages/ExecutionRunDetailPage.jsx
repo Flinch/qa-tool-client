@@ -162,8 +162,16 @@ function ExecutionSuiteCard({ suite, onRun, running, readOnly }) {
           <span style={{ color: 'var(--success)' }}>{suite.passed} passed</span>
           {suite.failed > 0 && <>, <span style={{ color: 'var(--danger)' }}>{suite.failed} failed</span></>}
         </div>
-      ) : !isRunning && (
+      ) : !suite.latest_status ? (
+        // Genuinely never run — distinct from "ran and failed before
+        // producing any results" below. That case previously fell through
+        // to this same "Not yet run" text (the old condition was
+        // !isRunning, which is also true for a completed 'failed' run with
+        // no total), directly contradicting the Failed badge above and the
+        // error message below it on the same card.
         <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginBottom: '0.75rem' }}>Not yet run</div>
+      ) : !isRunning && suite.latest_status === 'failed' && (
+        <div style={{ fontSize: '0.8rem', color: 'var(--danger)', marginBottom: '0.75rem' }}>Run failed before producing results</div>
       )}
       {suite.latest_status === 'failed' && suite.latest_error_message && (
         <div style={{ fontSize: '0.76rem', color: 'var(--danger)', background: 'rgba(193,68,58,0.08)', border: '1px solid rgba(193,68,58,0.25)', padding: '0.5rem 0.65rem', marginBottom: '0.75rem', lineHeight: 1.4 }}>
@@ -399,6 +407,7 @@ export default function ExecutionRunDetailPage() {
     const filtered = run.test_cases
       .filter(tc => filters.status === 'all' || tc.status === filters.status)
       .filter(tc => filters.type === 'all' || tc.type === filters.type)
+      .sort((a, b) => (a.test_case_id || 0) - (b.test_case_id || 0))
     const current = filtered[cardIndex]
     if (!current) return
     await markSingle(current.execution_test_case_id, status)
@@ -469,6 +478,7 @@ export default function ExecutionRunDetailPage() {
   const filteredTestCases = run.test_cases
     .filter(tc => filters.status === 'all' || tc.status === filters.status)
     .filter(tc => filters.type === 'all' || tc.type === filters.type)
+    .sort((a, b) => (a.test_case_id || 0) - (b.test_case_id || 0))
   const filteredTotal = filteredTestCases.length
   const noFiltersActive = filters.status === 'all' && filters.type === 'all'
   const currentCard = filteredTestCases[cardIndex]
@@ -555,12 +565,14 @@ export default function ExecutionRunDetailPage() {
         {manualTotal > 0 && (
           <div className="filters-row">
             <FilterPillGroup
+              groupLabel="Status"
               options={['all', 'pass', 'fail', 'blocked', 'not_run']}
               value={filters.status}
               labels={STATUS_LABELS}
               onChange={v => setFilters(f => ({ ...f, status: v }))}
             />
             <FilterPillGroup
+              groupLabel="Type"
               options={['all', 'functional', 'integration', 'e2e', 'api']}
               value={filters.type}
               labels={TYPE_LABELS}
