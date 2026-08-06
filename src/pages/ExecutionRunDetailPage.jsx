@@ -494,7 +494,7 @@ export default function ExecutionRunDetailPage() {
           </div>
         </div>
         <div className="topbar-actions">
-          {!isClient && <button className="btn btn-ghost btn-sm" onClick={() => setShowSaveView(true)}>Save as view</button>}
+          <button className="btn btn-ghost btn-sm" onClick={() => setShowSaveView(true)}>Save as view</button>
           {(!isClient || run.status === 'completed') && (
             <button className="btn btn-ghost btn-sm" onClick={downloadReport}>⬇ Download report</button>
           )}

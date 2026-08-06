@@ -674,17 +674,15 @@ export default function BugsPage() {
             <span className="topbar-title">Bugs</span>
           </div>
         </div>
-        {!isClient && (
-          <div className="topbar-actions">
-            {selectedIds.size >= 1 && (
-              <button className="btn btn-ghost btn-sm" onClick={() => setShowAssignFeature(true)}>
-                Assign feature ({selectedIds.size})
-              </button>
-            )}
-            <button className="btn btn-ghost btn-sm" onClick={() => setShowSaveView(true)}>Save as view</button>
-            <button className="btn btn-primary btn-sm" onClick={() => setShowModal(true)}>+ Log bug</button>
-          </div>
-        )}
+        <div className="topbar-actions">
+          {!isClient && selectedIds.size >= 1 && (
+            <button className="btn btn-ghost btn-sm" onClick={() => setShowAssignFeature(true)}>
+              Assign feature ({selectedIds.size})
+            </button>
+          )}
+          <button className="btn btn-ghost btn-sm" onClick={() => setShowSaveView(true)}>Save as view</button>
+          {!isClient && <button className="btn btn-primary btn-sm" onClick={() => setShowModal(true)}>+ Log bug</button>}
+        </div>
       </div>
       <div className="page-content fade-in">
         {bugs.length > 0 && (
