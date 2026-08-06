@@ -409,7 +409,7 @@ export default function EngineeringDashboardPage() {
     try {
       await apiFetch(`/projects/${id}/automation/runs/${tc.last_run_id}/rerun`, {
         method: 'POST',
-        body: JSON.stringify({ result_ids: [tc.last_result_id] }),
+        body: JSON.stringify({ result_ids: [tc.last_result_id], source: 'engineering_page' }),
       })
       addToast(`Re-run started for "${tc.linked_test_case_title ? tcLabel(tc.test_case_id, tc.linked_test_case_title) : tc.title}"`)
       loadRunGroups()
@@ -740,6 +740,7 @@ export default function EngineeringDashboardPage() {
         <RerunFailedTestsModal
           projectId={id}
           run={rerunChildRun}
+          source="engineering_page"
           onClose={() => setRerunChildRun(null)}
           onRerunTriggered={() => { setRerunChildRun(null); loadRunGroups() }}
           onHealTriggered={() => { setRerunChildRun(null); loadRunGroups() }}

@@ -13,6 +13,14 @@ const API_BASE = import.meta.env.VITE_API_URL || '/api'
 const POLL_INTERVAL_MS = 4000
 const POLL_TIMEOUT_MS = 5 * 60 * 1000
 const SSE_MAX_CONSECUTIVE_ERRORS = 3
+// Falls back to the older Manual/Nightly-only label for any run dispatched
+// before triggered_from existed (NULL on those rows).
+const TRIGGERED_FROM_LABEL = {
+  automation_page: 'Automation page',
+  executions_page: 'Executions page',
+  engineering_page: 'Engineering page',
+  nightly: 'Nightly',
+}
 const MAX_BATCH_SIZE = 3
 // The five non-terminal statuses generation_runs.status can be in, per the
 // server's CHECK constraint (migrate.js) — used both to know when to keep
@@ -298,7 +306,7 @@ function RunRow({ run, canRerun, onRerun, onCancel }) {
         <div>
           <div style={{ color: 'var(--white)', fontSize: '0.88rem', fontWeight: 600 }}>{run.suite_name}</div>
           <div style={{ color: 'var(--muted)', fontSize: '0.76rem' }}>
-            {run.trigger_type === 'nightly' ? 'Nightly' : 'Manual'} · {new Date(run.started_at).toLocaleString()}
+            {run.triggered_from ? (TRIGGERED_FROM_LABEL[run.triggered_from] || run.triggered_from) : (run.trigger_type === 'nightly' ? 'Nightly' : 'Manual')} · {new Date(run.started_at).toLocaleString()}
           </div>
         </div>
         <StatusPill status={run.status} />
@@ -1042,6 +1050,7 @@ export default function AutomationPage() {
         <RerunFailedTestsModal
           projectId={id}
           run={rerunRun}
+          source="automation_page"
           onClose={() => setRerunRun(null)}
           onRerunTriggered={() => { setRerunRun(null); load() }}
           onHealTriggered={() => { setRerunRun(null); addToast('Healing started — track progress on the Engineering page') }}

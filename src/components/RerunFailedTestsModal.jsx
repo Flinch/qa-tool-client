@@ -5,7 +5,7 @@ import HealConfirmModal from './HealConfirmModal.jsx'
 import DiagnosisModal from './DiagnosisModal.jsx'
 import ApiTraceModal from './ApiTraceModal.jsx'
 
-export default function RerunFailedTestsModal({ projectId, run, onClose, onRerunTriggered, onHealTriggered }) {
+export default function RerunFailedTestsModal({ projectId, run, source, onClose, onRerunTriggered, onHealTriggered }) {
   const { addToast } = useToastStore()
   const [loading, setLoading] = useState(true)
   const [failedResults, setFailedResults] = useState([])
@@ -47,7 +47,7 @@ export default function RerunFailedTestsModal({ projectId, run, onClose, onRerun
     try {
       await apiFetch(`/projects/${projectId}/automation/runs/${run.id}/rerun`, {
         method: 'POST',
-        body: JSON.stringify({ result_ids: [...selectedIds] }),
+        body: JSON.stringify({ result_ids: [...selectedIds], source }),
       })
       addToast(`Re-run started for ${selectedIds.size} test case${selectedIds.size === 1 ? '' : 's'}`)
       onRerunTriggered()

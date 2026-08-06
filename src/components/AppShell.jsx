@@ -43,6 +43,19 @@ export default function AppShell() {
             </NavLink>
           </div>
         )}
+        {/* Staff have no other project-scoped sidebar nav (everything else
+            is reached via ProjectDetailPage's own card grid) — Views gets
+            a dedicated entry here anyway since it's the kind of thing you
+            want to jump to directly while working a project, not dig for
+            via Overview each time. */}
+        {user?.role !== 'client' && projectId && (
+          <div className="sidebar-section">
+            <div className="sidebar-label">Project</div>
+            <NavLink to={`/projects/${projectId}/views`} className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}>
+              <Icon name="eye" /> Views
+            </NavLink>
+          </div>
+        )}
         <div className="sidebar-bottom">
           <div style={{ fontSize: '0.78rem', color: 'var(--muted)', padding: '0 0.5rem' }}>
             <div style={{ color: 'var(--light)', fontWeight: 600, marginBottom: '0.1rem' }} data-testid="sidebar-user-name">

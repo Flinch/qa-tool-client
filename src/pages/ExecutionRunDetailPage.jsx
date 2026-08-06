@@ -151,7 +151,10 @@ function ExecutionSuiteCard({ suite, onRun, running, readOnly }) {
   return (
     <div className="card" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
-        <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)' }}>{suite.suite_name}</div>
+        <div>
+          <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)' }}>{suite.suite_name}</div>
+          <div style={{ fontSize: '0.74rem', color: 'var(--muted)' }}>{suite.test_case_count} test case{suite.test_case_count === 1 ? '' : 's'}</div>
+        </div>
         {suite.latest_status && <StatusPill status={suite.latest_status} />}
       </div>
       {hasResult ? (
@@ -212,6 +215,7 @@ export default function ExecutionRunDetailPage() {
   const [selectedBug, setSelectedBug] = useState(null)
   const [triggeringSuiteId, setTriggeringSuiteId] = useState(null)
   const [allBugs, setAllBugs] = useState([])
+  const [features, setFeatures] = useState([])
   const pollRef = useRef(null)
   const pollStartedAt = useRef(null)
   const sseErrorCount = useRef(0)
@@ -233,6 +237,7 @@ export default function ExecutionRunDetailPage() {
   useEffect(() => {
     apiFetch(`/projects/${id}`).then(setProject).catch(console.error)
     apiFetch(`/projects/${id}/bugs`).then(setAllBugs).catch(console.error)
+    apiFetch(`/projects/${id}/features`).then(setFeatures).catch(console.error)
     load().catch(e => addToast(e.message, 'error'))
   }, [id, runId, load])
 
@@ -597,11 +602,14 @@ export default function ExecutionRunDetailPage() {
                 {filteredTestCases.map((tc, i) => (
                   <div
                     key={tc.execution_test_case_id}
+                    onClick={() => setCardIndex(i)}
+                    title={tcLabel(tc.test_case_id, tc.title)}
                     style={{
                       height: 4, flex: 1, borderRadius: 0,
                       background: STATUS_DOT_COLOR[tc.status],
                       opacity: i === cardIndex ? 1 : 0.4,
                       transition: 'opacity 0.15s',
+                      cursor: 'pointer',
                     }}
                   />
                 ))}
@@ -746,6 +754,7 @@ export default function ExecutionRunDetailPage() {
           projectId={id}
           testCase={logBugFor}
           executionRunId={Number(runId)}
+          features={features}
           onClose={() => setLogBugFor(null)}
           onLogged={(bug) => {
             setAllBugs(bs => [bug, ...bs])
