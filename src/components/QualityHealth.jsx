@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { Link, useNavigate } from 'react-router-dom'
 import { apiFetch } from '../lib/api.js'
 import { useAuth } from '../store/AuthContext.jsx'
+import { useToastStore } from '../store/toastStore.jsx'
 import { timeAgo } from '../lib/timeAgo.js'
 import { buildActivity } from '../lib/buildActivity.js'
 import Icon from './Icon.jsx'
@@ -27,31 +28,11 @@ function greetingWord() {
 }
 
 // Turns the health payload into a plain-English headline + subline. Kept
-// entirely derived from real numbers already on `data` — no invented deltas,
-// no AI call (this renders on every dashboard load, so it stays free and
-// instant). Boosted beyond the original pass-rate-only version to also name
-// where trouble is concentrated and give a plain release-readiness read —
-// still just deterministic template logic over data already on the page.
+// entirely derived from real numbers already on `data` — no invented deltas.
 function buildSummary(data, projectName) {
-  const { healthStatus, passRate, bugsBySeverity, testCases, bugHotspots = [] } = data
+  const { healthStatus, passRate, bugsBySeverity, testCases } = data
   const critical = bugsBySeverity.critical
   const high = bugsBySeverity.high
-
-  // The feature with the most open bugs, critical/high-severity ones
-  // breaking ties — so the headline can point at where trouble is
-  // concentrated instead of just stating a raw count.
-  const worstFeature = [...bugHotspots]
-    .filter(f => f.openBugCount > 0)
-    .sort((a, b) => (b.criticalCount * 100 + b.highCount * 10 + b.openBugCount) - (a.criticalCount * 100 + a.highCount * 10 + a.openBugCount))[0]
-
-  // Deliberately blunt thresholds, not a nuanced model — this is a quick
-  // read, not a guarantee, and the wording says "looks"/"close to" rather
-  // than asserting readiness as fact.
-  const readiness = critical > 0
-    ? 'Not release-ready — critical issues are open.'
-    : (passRate !== null && passRate < 80) || high > 2
-    ? 'Close to release-ready, but a few things need attention first.'
-    : 'Looks release-ready.'
 
   if (healthStatus === 'insufficient_data') {
     return {
@@ -67,28 +48,22 @@ function buildSummary(data, projectName) {
     if (high > 0) issues.push(`${high} high-priority issue${high === 1 ? '' : 's'}`)
     return {
       headline: `${projectName} needs a look.`,
-      sub: [
-        issues.length ? `${issues.join(' and ')} open, and the pass rate is at ${passRate}%.` : `Pass rate has dropped to ${passRate}%.`,
-        worstFeature ? `Most of that is concentrated in ${worstFeature.featureName}.` : null,
-        readiness,
-      ].filter(Boolean).join(' '),
+      sub: issues.length
+        ? `${issues.join(' and ')} open, and the pass rate is at ${passRate}%.`
+        : `Pass rate has dropped to ${passRate}%.`,
     }
   }
   if (healthStatus === 'good') {
     return {
       headline: `${projectName} is in good shape.`,
-      sub: [
-        high > 0
-          ? `${passRate}% of tests are passing. ${high} high-priority bug${high === 1 ? '' : 's'} worth a look this week.`
-          : `${passRate}% of tests are passing — a few things short of full health.`,
-        worstFeature ? `${worstFeature.featureName} has the most open issues.` : null,
-        readiness,
-      ].filter(Boolean).join(' '),
+      sub: high > 0
+        ? `${passRate}% of tests are passing. ${high} high-priority bug${high === 1 ? '' : 's'} worth a look this week.`
+        : `${passRate}% of tests are passing — a few things short of full health.`,
     }
   }
   return {
     headline: `${projectName} is in excellent shape.`,
-    sub: `${passRate}% of your tests are passing and nothing critical is open — looks release-ready.`,
+    sub: `${passRate}% of your tests are passing and nothing critical is open.`,
   }
 }
 
@@ -220,6 +195,7 @@ export function featureHealthColor(rate) {
 
 export default function QualityHealth({ projectId, projectName, logo, links = [] }) {
   const { user } = useAuth()
+  const { addToast } = useToastStore()
   const navigate = useNavigate()
   const [data, setData] = useState(null)
   const [bugs, setBugs] = useState([])
@@ -228,6 +204,7 @@ export default function QualityHealth({ projectId, projectName, logo, links = []
   const [features, setFeatures] = useState([])
   const [automationRuns, setAutomationRuns] = useState([])
   const [loading, setLoading] = useState(true)
+  const [generatingSummary, setGeneratingSummary] = useState(false)
   // The bell lives in the real page topbar (rendered by ProjectDetailPage),
   // not inside this component's own hero card — portaled into the mount
   // point ProjectDetailPage reserves for it, so it reads as "top of the
@@ -329,9 +306,19 @@ export default function QualityHealth({ projectId, projectName, logo, links = []
             </div>
             <button
               className="btn btn-ghost btn-sm"
-              onClick={() => generateWeeklySummaryPdf({ project: { name: projectName }, data, bugs, runs, automationRuns })}
+              disabled={generatingSummary}
+              onClick={async () => {
+                setGeneratingSummary(true)
+                try {
+                  await generateWeeklySummaryPdf({ projectId, project: { name: projectName }, data, bugs, runs, automationRuns })
+                } catch (e) {
+                  addToast(e.message, 'error')
+                } finally {
+                  setGeneratingSummary(false)
+                }
+              }}
             >
-              ⬇ Weekly summary
+              {generatingSummary ? 'Generating...' : '⬇ Weekly summary'}
             </button>
           </div>
         </div>
