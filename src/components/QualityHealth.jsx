@@ -113,12 +113,7 @@ function ScoreBar({ value, color, breakdown }) {
   const hasBreakdown = breakdown && breakdown.length > 0
 
   return (
-    <div
-      ref={wrapRef}
-      style={{ marginTop: '0.9rem', cursor: hasBreakdown ? 'default' : undefined }}
-      onMouseEnter={hasBreakdown ? onEnter : undefined}
-      onMouseLeave={() => setHover(false)}
-    >
+    <div style={{ marginTop: '0.9rem' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
           <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '0.64rem', letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted)' }}>
@@ -134,7 +129,17 @@ function ScoreBar({ value, color, breakdown }) {
           {value !== null ? value : '—'}
         </span>
       </div>
-      <div style={{ height: 8, background: 'var(--border)', borderRadius: 4, overflow: 'hidden' }}>
+      {/* Hover zone scoped to just the bar itself now, not the label row
+          above — the label row has its own separate info-icon tooltip
+          (methodology), and having both hoverable in the same zone meant
+          hovering the info icon fired this feature-breakdown popover
+          instead of/on top of the icon's native tooltip. */}
+      <div
+        ref={wrapRef}
+        style={{ height: 8, background: 'var(--border)', borderRadius: 4, overflow: 'hidden', cursor: hasBreakdown ? 'default' : undefined }}
+        onMouseEnter={hasBreakdown ? onEnter : undefined}
+        onMouseLeave={() => setHover(false)}
+      >
         {value !== null && (
           <div style={{ width: `${value}%`, height: '100%', background: color, borderRadius: 4, transition: 'width 0.6s ease' }} />
         )}
