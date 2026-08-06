@@ -3,15 +3,11 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { apiFetch } from '../lib/api.js'
 import { useToastStore } from '../store/toastStore.jsx'
 import { timeAgo } from '../lib/timeAgo.js'
-import { formatStep } from '../lib/steps.js'
 import { describeRunPhase } from '../lib/runPhase.js'
 import Icon from '../components/Icon.jsx'
 import RerunFailedTestsModal from '../components/RerunFailedTestsModal.jsx'
-import HealConfirmModal from '../components/HealConfirmModal.jsx'
-import DiagnosisModal from '../components/DiagnosisModal.jsx'
+import LabPanel from '../components/LabPanel.jsx'
 import { StatusPill, formatWhen, GenerateTestsModal, GENERATION_PHASES, describeGenerationPhase } from './AutomationPage.jsx'
-import { TestCaseRow } from './SuiteTestCasesPage.jsx'
-import { tcLabel } from '../lib/testCaseLabel.js'
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api'
 const GEN_POLL_INTERVAL_MS = 4000
@@ -32,66 +28,6 @@ const REVIEW_STATUS_COLOR = {
 }
 const PRIORITY_COLOR = { high: 'var(--danger)', medium: 'var(--warning)', low: 'var(--muted)' }
 const RUN_GROUPS_POLL_MS = 4000
-
-// Read-only summary of a test case — steps/expected, and its last error if
-// it has one, plus a link through to the full Test Cases page for anyone
-// who wants to edit it. Deliberately not the full editable test-case modal:
-// this is a quick "what does this test actually do" look from The Lab, not
-// a place to manage the test case itself.
-function TestCaseDetailModal({ test, projectId, onClose }) {
-  const errorMessage = test.last_error_message || test.error_message
-  return (
-    <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal" style={{ maxWidth: 560 }}>
-        <div className="modal-title">
-          {test.linked_test_case_title
-            ? tcLabel(test.test_case_id, test.linked_test_case_title)
-            : test.tc_title || test.title || test.test_title}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', fontSize: '0.8rem', color: 'var(--accent2)' }}>
-          {test.suite_name}
-          {test.type && <span style={{ color: 'var(--muted)' }}>· {test.type}</span>}
-        </div>
-
-        {test.steps?.length > 0 && (
-          <div style={{ marginBottom: '1.25rem' }}>
-            <div style={{ fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '0.6rem' }}>Steps</div>
-            <ol style={{ paddingLeft: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-              {test.steps.map((step, i) => (
-                <li key={i} style={{ fontSize: '0.88rem', color: 'var(--light)', lineHeight: 1.55 }}>{formatStep(step)}</li>
-              ))}
-            </ol>
-          </div>
-        )}
-
-        {test.expected && (
-          <div style={{ marginBottom: '1.25rem', background: 'var(--bg2)', border: '1px solid var(--border)', padding: '0.75rem 1rem' }}>
-            <div style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '0.35rem' }}>Expected result</div>
-            <div style={{ fontSize: '0.85rem', color: 'var(--light)' }}>{test.expected}</div>
-          </div>
-        )}
-
-        {errorMessage && (
-          <div style={{ marginBottom: '1.25rem' }}>
-            <div style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '0.35rem' }}>Last failure</div>
-            <div style={{ fontSize: '0.82rem', color: 'var(--danger)', background: 'rgba(193,68,58,0.08)', border: '1px solid rgba(193,68,58,0.25)', padding: '0.6rem 0.75rem', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 220, overflowY: 'auto' }}>
-              {errorMessage}
-            </div>
-          </div>
-        )}
-
-        <div className="modal-footer">
-          {test.test_case_id && (
-            <Link to={`/projects/${projectId}/tests?tcId=${test.test_case_id}`} className="btn btn-ghost">
-              Open in Test Cases
-            </Link>
-          )}
-          <button className="btn btn-primary" onClick={onClose}>Close</button>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 // One "grouped run" card — a group of exactly one child renders exactly
 // like a plain individual run; N>1 children render as a bundle with an
@@ -184,14 +120,6 @@ export default function EngineeringDashboardPage() {
   const [rerunChildRun, setRerunChildRun] = useState(null)
   const pollRef = useRef(null)
 
-  const [labTestCases, setLabTestCases] = useState([])
-  const [labLoading, setLabLoading] = useState(true)
-  const [labBusyId, setLabBusyId] = useState(null)
-  const [labDetail, setLabDetail] = useState(null)
-  const [labDiagnose, setLabDiagnose] = useState(null)
-  const [labHealConfirm, setLabHealConfirm] = useState(null)
-  const [labHealing, setLabHealing] = useState(false)
-
   // Generation ("Generate automated tests") — moved here from the Automation
   // page, which is suite-runs only now. Same button, same GenerateTestsModal,
   // same generation_runs/generation-events pipeline; only the host page
@@ -266,16 +194,6 @@ export default function EngineeringDashboardPage() {
     wasRunningRef.current = anyRunning
     return () => { if (pollRef.current) clearInterval(pollRef.current) }
   }, [runGroups, loadRunGroups, loadEngineeringHealth])
-
-  const loadLab = useCallback(() => {
-    setLabLoading(true)
-    return apiFetch(`/projects/${id}/automation/generated-test-cases`)
-      .then(data => setLabTestCases(data.testCases))
-      .catch(console.error)
-      .finally(() => setLabLoading(false))
-  }, [id])
-
-  useEffect(() => { loadLab() }, [loadLab])
 
   useEffect(() => { apiFetch(`/projects/${id}/automation/suites`).then(setSuites).catch(console.error) }, [id])
 
@@ -404,38 +322,6 @@ export default function EngineeringDashboardPage() {
     }
   }
 
-  const labRerun = async (tc) => {
-    setLabBusyId(tc.id)
-    try {
-      await apiFetch(`/projects/${id}/automation/runs/${tc.last_run_id}/rerun`, {
-        method: 'POST',
-        body: JSON.stringify({ result_ids: [tc.last_result_id], source: 'engineering_page' }),
-      })
-      addToast(`Re-run started for "${tc.linked_test_case_title ? tcLabel(tc.test_case_id, tc.linked_test_case_title) : tc.title}"`)
-      loadRunGroups()
-    } catch (e) {
-      addToast(e.message, 'error')
-    } finally {
-      setLabBusyId(null)
-    }
-  }
-
-  const confirmLabHeal = async (context) => {
-    if (!labHealConfirm) return
-    setLabHealing(true)
-    try {
-      await apiFetch(`/projects/${id}/automation/runs/${labHealConfirm.runId}/heal`, {
-        method: 'POST',
-        body: JSON.stringify({ result_id: labHealConfirm.resultId, context: context || undefined }),
-      })
-      addToast(`Healing started for "${labHealConfirm.title}"`)
-      setLabHealConfirm(null)
-    } catch (e) {
-      addToast(e.message, 'error')
-    } finally {
-      setLabHealing(false)
-    }
-  }
 
   return (
     <>
@@ -537,32 +423,7 @@ export default function EngineeringDashboardPage() {
         {/* The Lab sits above everything else, full width — independent of
             the engineering-health fetch below (its own loading state), so it
             shows up first regardless of how long that call takes. */}
-        <div className="health-panel" id="the-lab">
-          <div className="health-panel-head">
-            <div className="health-panel-title">The Lab</div>
-            <span style={{ fontSize: '0.76rem', color: 'var(--muted)' }}>Every AI-generated test, its last run, and the option to re-run or heal it</span>
-          </div>
-          {labLoading ? (
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '1rem' }}><div className="spinner" /></div>
-          ) : labTestCases.length === 0 ? (
-            <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>No AI-generated test cases found yet across any suite in this project.</div>
-          ) : (
-            <div className="health-panel-body">
-              {labTestCases.map(tc => (
-                <TestCaseRow
-                  key={tc.id}
-                  tc={tc}
-                  isLab
-                  busy={labBusyId === tc.id}
-                  onView={setLabDetail}
-                  onRerun={labRerun}
-                  onDiagnose={(t) => setLabDiagnose({ runId: t.last_run_id, resultId: t.last_result_id, title: t.linked_test_case_title ? tcLabel(t.test_case_id, t.linked_test_case_title) : t.title, suiteName: t.suite_name })}
-                  onRequestHeal={(t) => setLabHealConfirm({ runId: t.last_run_id, resultId: t.last_result_id, title: t.linked_test_case_title ? tcLabel(t.test_case_id, t.linked_test_case_title) : t.title, suiteName: t.suite_name })}
-                />
-              ))}
-            </div>
-          )}
-        </div>
+        <LabPanel projectId={id} viewAllHref={`/projects/${id}/automation/lab`} onAfterRerun={loadRunGroups} />
 
         {loading || !data ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}><div className="spinner" /></div>
@@ -723,10 +584,6 @@ export default function EngineeringDashboardPage() {
         )}
       </div>
 
-      {labDetail && (
-        <TestCaseDetailModal test={labDetail} projectId={id} onClose={() => setLabDetail(null)} />
-      )}
-
       {showGenerateTests && (
         <GenerateTestsModal
           projectId={id}
@@ -747,27 +604,6 @@ export default function EngineeringDashboardPage() {
         />
       )}
 
-      {labDiagnose && (
-        <DiagnosisModal
-          projectId={id}
-          runId={labDiagnose.runId}
-          resultId={labDiagnose.resultId}
-          testTitle={labDiagnose.title}
-          suiteName={labDiagnose.suiteName}
-          onClose={() => setLabDiagnose(null)}
-          onRequestHeal={() => { setLabHealConfirm(labDiagnose); setLabDiagnose(null) }}
-        />
-      )}
-
-      {labHealConfirm && (
-        <HealConfirmModal
-          testTitle={labHealConfirm.title}
-          suiteName={labHealConfirm.suiteName}
-          healing={labHealing}
-          onCancel={() => setLabHealConfirm(null)}
-          onConfirm={confirmLabHeal}
-        />
-      )}
     </>
   )
 }

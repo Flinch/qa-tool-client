@@ -4,6 +4,7 @@ import { apiFetch } from '../lib/api.js'
 import Icon from '../components/Icon.jsx'
 import ApiTraceModal from '../components/ApiTraceModal.jsx'
 import { tcLabel } from '../lib/testCaseLabel.js'
+import { formatStep } from '../lib/steps.js'
 
 const REVIEW_STATUS_LABEL = {
   pending_review: 'Pending review',
@@ -22,6 +23,7 @@ function LastRunBadge({ status }) {
   if (!status) return <span style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>Never run</span>
   if (status === 'passed') return <span className="badge badge-pass">Passed</span>
   if (status === 'failed') return <span className="badge badge-fail">Failed</span>
+  if (status === 'skipped') return <span className="badge badge-blocked">Skipped</span>
   return <span style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>{status}</span>
 }
 
@@ -71,12 +73,22 @@ export function TestCaseRow({ tc, isLab, onRerun, onDiagnose, onRequestHeal, onV
             <Icon name="link" size={12} /> View on GitHub
           </a>
         )}
+        {isLab && tc.last_report_url && (
+          <a href={tc.last_report_url} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm">
+            Report
+          </a>
+        )}
+        {isLab && tc.last_run_url && (
+          <a href={tc.last_run_url} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm">
+            CI logs
+          </a>
+        )}
         {isLab && tc.last_api_trace && (
           <button className="btn btn-ghost btn-sm" onClick={() => setShowTrace(true)}>
             View request/response
           </button>
         )}
-        {isLab && tc.last_status === 'failed' && (
+        {isLab && (tc.last_status === 'failed' || tc.last_status === 'skipped') && (
           <>
             <button className="btn btn-ghost btn-sm" onClick={() => onRerun(tc)} disabled={busy}>
               Re-run
@@ -97,6 +109,68 @@ export function TestCaseRow({ tc, isLab, onRerun, onDiagnose, onRequestHeal, onV
           onClose={() => setShowTrace(false)}
         />
       )}
+    </div>
+  )
+}
+
+// Read-only summary of a test case — steps/expected, and its last error if
+// it has one, plus a link through to the full Test Cases page for anyone
+// who wants to edit it. Deliberately not the full editable test-case modal:
+// this is a quick "what does this test actually do" look from The Lab, not
+// a place to manage the test case itself. Exported for reuse by LabPanel.jsx
+// (both the Engineering page's inline Lab section and the standalone "view
+// all" Lab page open this same modal on row click).
+export function TestCaseDetailModal({ test, projectId, onClose }) {
+  const errorMessage = test.last_error_message || test.error_message
+  return (
+    <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal" style={{ maxWidth: 560 }}>
+        <div className="modal-title">
+          {test.linked_test_case_title
+            ? tcLabel(test.test_case_id, test.linked_test_case_title)
+            : test.tc_title || test.title || test.test_title}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', fontSize: '0.8rem', color: 'var(--accent2)' }}>
+          {test.suite_name}
+          {test.type && <span style={{ color: 'var(--muted)' }}>· {test.type}</span>}
+        </div>
+
+        {test.steps?.length > 0 && (
+          <div style={{ marginBottom: '1.25rem' }}>
+            <div style={{ fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '0.6rem' }}>Steps</div>
+            <ol style={{ paddingLeft: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+              {test.steps.map((step, i) => (
+                <li key={i} style={{ fontSize: '0.88rem', color: 'var(--light)', lineHeight: 1.55 }}>{formatStep(step)}</li>
+              ))}
+            </ol>
+          </div>
+        )}
+
+        {test.expected && (
+          <div style={{ marginBottom: '1.25rem', background: 'var(--bg2)', border: '1px solid var(--border)', padding: '0.75rem 1rem' }}>
+            <div style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '0.35rem' }}>Expected result</div>
+            <div style={{ fontSize: '0.85rem', color: 'var(--light)' }}>{test.expected}</div>
+          </div>
+        )}
+
+        {errorMessage && (
+          <div style={{ marginBottom: '1.25rem' }}>
+            <div style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '0.35rem' }}>Last failure</div>
+            <div style={{ fontSize: '0.82rem', color: 'var(--danger)', background: 'rgba(193,68,58,0.08)', border: '1px solid rgba(193,68,58,0.25)', padding: '0.6rem 0.75rem', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 220, overflowY: 'auto' }}>
+              {errorMessage}
+            </div>
+          </div>
+        )}
+
+        <div className="modal-footer">
+          {test.test_case_id && (
+            <Link to={`/projects/${projectId}/tests?tcId=${test.test_case_id}`} className="btn btn-ghost">
+              Open in Test Cases
+            </Link>
+          )}
+          <button className="btn btn-primary" onClick={onClose}>Close</button>
+        </div>
+      </div>
     </div>
   )
 }

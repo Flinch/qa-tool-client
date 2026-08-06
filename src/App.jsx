@@ -20,6 +20,7 @@ import ExecutionRunsPage from './pages/ExecutionRunsPage.jsx'
 import ExecutionRunDetailPage from './pages/ExecutionRunDetailPage.jsx'
 import QualityTimelinePage from './pages/QualityTimelinePage.jsx'
 import EngineeringDashboardPage from './pages/EngineeringDashboardPage.jsx'
+import LabTestCasesPage from './pages/LabTestCasesPage.jsx'
 
 // Clients only ever have one project (a QA agency's single client account, one
 // engagement) — there's no real list to browse, so skip straight to it instead
@@ -169,6 +170,7 @@ function Gate() {
           <Route path="automation/suites/:suiteId/test-cases" element={<SuiteTestCasesPage />} />
           <Route element={<StaffOnlyRoute />}>
             <Route path="automation/history" element={<GenerationHistoryPage />} />
+            <Route path="automation/lab" element={<LabTestCasesPage />} />
             <Route path="engineering" element={<EngineeringDashboardPage />} />
           </Route>
           <Route path="executions" element={<ExecutionRunsPage />} />
