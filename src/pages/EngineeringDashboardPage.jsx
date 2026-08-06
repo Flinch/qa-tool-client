@@ -547,18 +547,20 @@ export default function EngineeringDashboardPage() {
           ) : labTestCases.length === 0 ? (
             <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>No AI-generated test cases found yet across any suite in this project.</div>
           ) : (
-            labTestCases.map(tc => (
-              <TestCaseRow
-                key={tc.id}
-                tc={tc}
-                isLab
-                busy={labBusyId === tc.id}
-                onView={setLabDetail}
-                onRerun={labRerun}
-                onDiagnose={(t) => setLabDiagnose({ runId: t.last_run_id, resultId: t.last_result_id, title: t.linked_test_case_title ? tcLabel(t.test_case_id, t.linked_test_case_title) : t.title, suiteName: t.suite_name })}
-                onRequestHeal={(t) => setLabHealConfirm({ runId: t.last_run_id, resultId: t.last_result_id, title: t.linked_test_case_title ? tcLabel(t.test_case_id, t.linked_test_case_title) : t.title, suiteName: t.suite_name })}
-              />
-            ))
+            <div className="health-panel-body">
+              {labTestCases.map(tc => (
+                <TestCaseRow
+                  key={tc.id}
+                  tc={tc}
+                  isLab
+                  busy={labBusyId === tc.id}
+                  onView={setLabDetail}
+                  onRerun={labRerun}
+                  onDiagnose={(t) => setLabDiagnose({ runId: t.last_run_id, resultId: t.last_result_id, title: t.linked_test_case_title ? tcLabel(t.test_case_id, t.linked_test_case_title) : t.title, suiteName: t.suite_name })}
+                  onRequestHeal={(t) => setLabHealConfirm({ runId: t.last_run_id, resultId: t.last_result_id, title: t.linked_test_case_title ? tcLabel(t.test_case_id, t.linked_test_case_title) : t.title, suiteName: t.suite_name })}
+                />
+              ))}
+            </div>
           )}
         </div>
 
@@ -576,9 +578,11 @@ export default function EngineeringDashboardPage() {
                 ) : runGroups.length === 0 ? (
                   <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>No re-runs dispatched from here yet — select failing tests above and run them.</div>
                 ) : (
-                  runGroups.map(g => (
-                    <RunGroupCard key={g.id} group={g} onRerunChild={setRerunChildRun} onCancelChild={cancelChildRun} />
-                  ))
+                  <div className="health-panel-body">
+                    {runGroups.map(g => (
+                      <RunGroupCard key={g.id} group={g} onRerunChild={setRerunChildRun} onCancelChild={cancelChildRun} />
+                    ))}
+                  </div>
                 )}
               </div>
 
@@ -590,19 +594,21 @@ export default function EngineeringDashboardPage() {
                 {data.prValidation.length === 0 ? (
                   <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>No pull requests opened yet.</div>
                 ) : (
-                  data.prValidation.map((r, i) => (
-                    <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', padding: '0.55rem 0', borderBottom: i < data.prValidation.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: '0.85rem', color: 'var(--light)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {r.kind === 'heal' ? `Heal: ${r.target_title}` : (r.branch_name || `Run #${r.id}`)}
+                  <div className="health-panel-body">
+                    {data.prValidation.map((r, i) => (
+                      <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', padding: '0.55rem 0', borderBottom: i < data.prValidation.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: '0.85rem', color: 'var(--light)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {r.kind === 'heal' ? `Heal: ${r.target_title}` : (r.branch_name || `Run #${r.id}`)}
+                          </div>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--faint)' }}>{timeAgo(r.completed_at)}</div>
                         </div>
-                        <div style={{ fontSize: '0.72rem', color: 'var(--faint)' }}>{timeAgo(r.completed_at)}</div>
+                        <a href={r.pr_url} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm" style={{ flexShrink: 0 }}>
+                          {r.pr_status?.merged ? 'Merged' : 'View PR'}
+                        </a>
                       </div>
-                      <a href={r.pr_url} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm" style={{ flexShrink: 0 }}>
-                        {r.pr_status?.merged ? 'Merged' : 'View PR'}
-                      </a>
-                    </div>
-                  ))
+                    ))}
+                  </div>
                 )}
               </div>
             </div>
@@ -618,20 +624,22 @@ export default function EngineeringDashboardPage() {
                     <Icon name="check" size={15} /> No open environmental issues.
                   </div>
                 ) : (
-                  data.brokenEnvironments.map(b => (
-                    <div
-                      className="health-attn-row"
-                      key={b.id}
-                      onClick={() => navigate(`/projects/${id}/bugs?bugId=${b.id}`)}
-                      style={{ cursor: 'pointer' }}
-                    >
-                      <div className="health-sev-stripe" style={{ background: `var(--severity-${b.severity})` }} />
-                      <div>
-                        <div className="health-attn-title">{b.title}</div>
-                        <div className="health-attn-meta">#{b.id} · opened {timeAgo(b.created_at)}</div>
+                  <div className="health-panel-body">
+                    {data.brokenEnvironments.map(b => (
+                      <div
+                        className="health-attn-row"
+                        key={b.id}
+                        onClick={() => navigate(`/projects/${id}/bugs?bugId=${b.id}`)}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        <div className="health-sev-stripe" style={{ background: `var(--severity-${b.severity})` }} />
+                        <div>
+                          <div className="health-attn-title">{b.title}</div>
+                          <div className="health-attn-meta">#{b.id} · opened {timeAgo(b.created_at)}</div>
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    ))}
+                  </div>
                 )}
               </div>
 
@@ -644,17 +652,19 @@ export default function EngineeringDashboardPage() {
                     <Icon name="check" size={15} /> No flaky tests detected.
                   </div>
                 ) : (
-                  data.flakyTests.map((t, i) => (
-                    <div key={`${t.suite_name}-${t.test_title}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', padding: '0.5rem 0', borderBottom: i < data.flakyTests.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: '0.85rem', color: 'var(--light)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.test_title}</div>
-                        <div style={{ fontSize: '0.72rem', color: 'var(--accent2)' }}>{t.suite_name}</div>
+                  <div className="health-panel-body">
+                    {data.flakyTests.map((t, i) => (
+                      <div key={`${t.suite_name}-${t.test_title}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', padding: '0.5rem 0', borderBottom: i < data.flakyTests.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: '0.85rem', color: 'var(--light)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.test_title}</div>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--accent2)' }}>{t.suite_name}</div>
+                        </div>
+                        <span style={{ fontSize: '0.78rem', color: 'var(--warning)', fontWeight: 600, flexShrink: 0 }}>
+                          {t.failed_count}/{t.runs_considered} failed
+                        </span>
                       </div>
-                      <span style={{ fontSize: '0.78rem', color: 'var(--warning)', fontWeight: 600, flexShrink: 0 }}>
-                        {t.failed_count}/{t.runs_considered} failed
-                      </span>
-                    </div>
-                  ))
+                    ))}
+                  </div>
                 )}
               </div>
 

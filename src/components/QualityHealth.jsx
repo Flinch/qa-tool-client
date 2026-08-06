@@ -363,18 +363,20 @@ export default function QualityHealth({ projectId, projectName, logo, links = []
                 <Icon name="check" size={15} /> Every requirement has test coverage.
               </div>
             ) : (
-              data.uncoveredRequirements.map(r => (
-                <div
-                  key={r.id}
-                  onClick={() => navigate(`/projects/${projectId}/requirements`)}
-                  style={{
-                    padding: '0.5rem 0', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--light)',
-                    borderBottom: '1px solid var(--border)',
-                  }}
-                >
-                  {r.title}
-                </div>
-              ))
+              <div className="health-panel-body">
+                {data.uncoveredRequirements.map(r => (
+                  <div
+                    key={r.id}
+                    onClick={() => navigate(`/projects/${projectId}/requirements`)}
+                    style={{
+                      padding: '0.5rem 0', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--light)',
+                      borderBottom: '1px solid var(--border)',
+                    }}
+                  >
+                    {r.title}
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </div>
@@ -420,7 +422,8 @@ export default function QualityHealth({ projectId, projectName, logo, links = []
             {data.bugHotspots.length === 0 ? (
               <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>No features tracked yet.</div>
             ) : (
-              data.bugHotspots.map(h => {
+              <div className="health-panel-body">
+              {data.bugHotspots.map(h => {
                 const worst = h.criticalCount > 0 ? 'critical' : h.highCount > 0 ? 'high' : h.mediumCount > 0 ? 'medium' : h.lowCount > 0 ? 'low' : null
                 const color = worst ? `var(--severity-${worst})` : 'var(--muted)'
                 const breakdown = worst
@@ -453,7 +456,8 @@ export default function QualityHealth({ projectId, projectName, logo, links = []
                     </div>
                   </div>
                 )
-              })
+              })}
+              </div>
             )}
           </div>
         </div>

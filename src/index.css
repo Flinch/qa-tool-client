@@ -708,6 +708,11 @@ tr:hover td { background: rgba(237,231,220,0.02); }
 
 .health-panel { background: var(--card); border: 1px solid var(--border); padding: 1.4rem 1.5rem; min-width: 0; }
 .health-panel + .health-panel { margin-top: 1.25rem; }
+/* Caps an open-ended list's height so the PANEL scrolls internally instead
+   of growing the whole dashboard column taller as more items accumulate
+   (bug hotspots, The Lab's test roster, etc.) — header/link row above this
+   stays fixed, only the list itself scrolls. */
+.health-panel-body { max-height: 320px; overflow-y: auto; }
 .health-panel-head {
   display: flex;
   align-items: center;
