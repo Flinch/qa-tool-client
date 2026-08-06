@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState, useCallback, useRef } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { useSwipeable } from 'react-swipeable'
 import { apiFetch } from '../lib/api.js'
 import { useToastStore } from '../store/toastStore.jsx'
@@ -9,6 +9,8 @@ import { BugDetailModal } from './BugsPage.jsx'
 import { RunStatusBadge } from './ExecutionRunsPage.jsx'
 import Icon from '../components/Icon.jsx'
 import { tcLabel } from '../lib/testCaseLabel.js'
+import FilterPillGroup from '../components/FilterPillGroup.jsx'
+import SaveViewModal from '../components/SaveViewModal.jsx'
 import { generateExecutionReportPdf } from '../lib/executionReport.js'
 import { describeRunPhase } from '../lib/runPhase.js'
 import { formatStep } from '../lib/steps.js'
@@ -23,6 +25,10 @@ const STATUS_LABELS = { pass: 'Pass', fail: 'Fail', not_run: 'Not run', blocked:
 const STATUS_ORDER = ['pass', 'blocked', 'fail', 'not_run']
 const STATUS_DOT_COLOR = { pass: 'var(--success)', fail: 'var(--danger)', blocked: 'var(--warning)', not_run: 'var(--border2)' }
 const STATUS_TINT_RGB = { pass: '122,155,87', fail: '193,68,58', blocked: '201,162,39', not_run: '156,146,128' }
+// Shape doubles as the execution_test_cases saved-view schema (see
+// SaveViewModal) — no run id in here, a saved view of this type always
+// reopens against whatever's the latest run (see ViewRedirectPage).
+const DEFAULT_ETC_FILTERS = { status: 'all', type: 'all' }
 
 function StatusMenu({ status, onSelect }) {
   const [open, setOpen] = useState(false)
@@ -196,7 +202,9 @@ export default function ExecutionRunDetailPage() {
   const [run, setRun] = useState(null)
   const [loading, setLoading] = useState(true)
   const [mode, setMode] = useState('swipe')
-  const [statusFilter, setStatusFilter] = useState('all')
+  const [filters, setFilters] = useState(DEFAULT_ETC_FILTERS)
+  const [showSaveView, setShowSaveView] = useState(false)
+  const [searchParams] = useSearchParams()
   const [cardIndex, setCardIndex] = useState(0)
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [expandedIds, setExpandedIds] = useState(new Set())
@@ -287,7 +295,19 @@ export default function ExecutionRunDetailPage() {
   }, [load, addToast])
   useEffect(() => () => stopPolling(), [])
 
-  useEffect(() => { setCardIndex(0) }, [statusFilter])
+  useEffect(() => { setCardIndex(0) }, [filters])
+
+  // Deep-link support: ?viewId=123 (Views tab card / copied link) applies
+  // that saved view's filters once fetched. The run itself is already
+  // resolved by :runId in the URL (ViewRedirectPage put the CURRENT latest
+  // run there before landing here) — this only ever supplies filters.
+  useEffect(() => {
+    const viewId = searchParams.get('viewId')
+    if (!viewId) return
+    apiFetch(`/projects/${id}/saved-views/${viewId}`)
+      .then(v => { if (v.type === 'execution_test_cases') setFilters(f => ({ ...DEFAULT_ETC_FILTERS, ...v.filters })) })
+      .catch(() => addToast('Saved view not found', 'error'))
+  }, [id, searchParams])
 
   const markSingle = async (etcId, status) => {
     try {
@@ -371,7 +391,9 @@ export default function ExecutionRunDetailPage() {
 
   const handleSwipeMark = async (status) => {
     if (!run) return
-    const filtered = statusFilter === 'all' ? run.test_cases : run.test_cases.filter(tc => tc.status === statusFilter)
+    const filtered = run.test_cases
+      .filter(tc => filters.status === 'all' || tc.status === filters.status)
+      .filter(tc => filters.type === 'all' || tc.type === filters.type)
     const current = filtered[cardIndex]
     if (!current) return
     await markSingle(current.execution_test_case_id, status)
@@ -439,8 +461,11 @@ export default function ExecutionRunDetailPage() {
   const executedCount = total - counts.not_run
   const progressPct = total > 0 ? Math.round((executedCount / total) * 100) : 0
   const effectiveMode = isClient ? 'list' : mode
-  const filteredTestCases = statusFilter === 'all' ? run.test_cases : run.test_cases.filter(tc => tc.status === statusFilter)
+  const filteredTestCases = run.test_cases
+    .filter(tc => filters.status === 'all' || tc.status === filters.status)
+    .filter(tc => filters.type === 'all' || tc.type === filters.type)
   const filteredTotal = filteredTestCases.length
+  const noFiltersActive = filters.status === 'all' && filters.type === 'all'
   const currentCard = filteredTestCases[cardIndex]
 
   return (
@@ -469,6 +494,7 @@ export default function ExecutionRunDetailPage() {
           </div>
         </div>
         <div className="topbar-actions">
+          {!isClient && <button className="btn btn-ghost btn-sm" onClick={() => setShowSaveView(true)}>Save as view</button>}
           {(!isClient || run.status === 'completed') && (
             <button className="btn btn-ghost btn-sm" onClick={downloadReport}>⬇ Download report</button>
           )}
@@ -477,6 +503,9 @@ export default function ExecutionRunDetailPage() {
           )}
         </div>
       </div>
+      {showSaveView && (
+        <SaveViewModal projectId={id} type="execution_test_cases" filters={filters} onClose={() => setShowSaveView(false)} />
+      )}
 
       <div className="page-content fade-in">
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
@@ -520,11 +549,18 @@ export default function ExecutionRunDetailPage() {
 
         {manualTotal > 0 && (
           <div className="filters-row">
-            {['all', 'pass', 'fail', 'blocked', 'not_run'].map(f => (
-              <button key={f} className={`filter-btn${statusFilter === f ? ' active' : ''}`} onClick={() => setStatusFilter(f)}>
-                {f === 'all' ? 'All' : STATUS_LABELS[f]}
-              </button>
-            ))}
+            <FilterPillGroup
+              options={['all', 'pass', 'fail', 'blocked', 'not_run']}
+              value={filters.status}
+              labels={STATUS_LABELS}
+              onChange={v => setFilters(f => ({ ...f, status: v }))}
+            />
+            <FilterPillGroup
+              options={['all', 'functional', 'integration', 'e2e', 'api']}
+              value={filters.type}
+              labels={TYPE_LABELS}
+              onChange={v => setFilters(f => ({ ...f, type: v }))}
+            />
           </div>
         )}
 
@@ -599,11 +635,11 @@ export default function ExecutionRunDetailPage() {
                           <button className="btn btn-primary btn-sm" onClick={() => markBulk([...selectedIds], 'pass')}>Mark selected pass</button>
                         </>
                       )}
-                      <button className="btn btn-ghost btn-sm" onClick={() => markBulk(statusFilter === 'all' ? 'all' : filteredTestCases.map(t => t.execution_test_case_id), 'fail')}>
-                        Mark {statusFilter === 'all' ? 'all' : 'visible'} fail
+                      <button className="btn btn-ghost btn-sm" onClick={() => markBulk(noFiltersActive ? 'all' : filteredTestCases.map(t => t.execution_test_case_id), 'fail')}>
+                        Mark {noFiltersActive ? 'all' : 'visible'} fail
                       </button>
-                      <button className="btn btn-ghost btn-sm" onClick={() => markBulk(statusFilter === 'all' ? 'all' : filteredTestCases.map(t => t.execution_test_case_id), 'pass')}>
-                        Mark {statusFilter === 'all' ? 'all' : 'visible'} pass
+                      <button className="btn btn-ghost btn-sm" onClick={() => markBulk(noFiltersActive ? 'all' : filteredTestCases.map(t => t.execution_test_case_id), 'pass')}>
+                        Mark {noFiltersActive ? 'all' : 'visible'} pass
                       </button>
                     </div>
                   </div>

@@ -594,7 +594,7 @@ export default function ProjectDetailPage() {
                     sub={executionRuns.length > 0 ? `${executionRuns.length} session${executionRuns.length === 1 ? '' : 's'} logged` : 'No sessions logged yet'}
                   />
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.75rem', marginBottom: '1.4rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '0.75rem', marginBottom: '1.4rem' }}>
                   <NavCardSmall
                     to={`/projects/${id}/tests`} icon="check" title="Test cases"
                     sub={`${health.testCases.total} cases · ${health.automatedTestCases} automated`}
@@ -602,6 +602,10 @@ export default function ProjectDetailPage() {
                   <NavCardSmall
                     to={`/projects/${id}/requirements`} icon="target" title="Requirements"
                     sub={health.totalRequirements > 0 ? `${health.totalRequirements} requirements · ${health.requirementCoverage}% covered` : 'No requirements tracked yet'}
+                  />
+                  <NavCardSmall
+                    to={`/projects/${id}/views`} icon="link" title="Views"
+                    sub="Saved bug & execution filters"
                   />
                 </div>
 

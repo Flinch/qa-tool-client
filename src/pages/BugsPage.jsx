@@ -6,10 +6,44 @@ import { useAuth } from '../store/AuthContext.jsx'
 import { handleImageFile } from '../lib/imageUpload.js'
 import Icon from '../components/Icon.jsx'
 import AssignFeatureModal from '../components/AssignFeatureModal.jsx'
+import FilterPillGroup from '../components/FilterPillGroup.jsx'
+import DateLoggedFilter from '../components/DateLoggedFilter.jsx'
+import SaveViewModal from '../components/SaveViewModal.jsx'
 
 const SEVERITIES = ['critical', 'high', 'medium', 'low']
 const STATUSES = ['open', 'in_progress', 'resolved']
 const STATUS_LABELS = { open: 'Open', in_progress: 'In progress', resolved: 'Resolved' }
+
+// One filters object instead of five separate useState calls — this is also
+// exactly what gets persisted verbatim into a saved view's `filters` JSONB
+// column (see SaveViewModal), so its shape IS the view schema for type
+// 'bugs'. Each top-level field (except dateLogged, which owns its own
+// preset/from/to) is independently composable with every other field — see
+// the `filtered` computation below, which ANDs them all together — while
+// severity/status/source are each single-select WITHIN themselves via
+// FilterPillGroup.
+const DEFAULT_BUG_FILTERS = {
+  severity: 'all',
+  status: 'all',
+  source: 'all',
+  dateLogged: { preset: 'all', from: null, to: null },
+  environmentalOnly: false,
+  executionRunId: '',
+  suiteId: '',
+}
+
+function matchesDateLogged(bug, dl) {
+  if (dl.preset === 'all') return true
+  const created = new Date(bug.created_at)
+  if (dl.preset === '24h') return Date.now() - created.getTime() <= 24 * 60 * 60 * 1000
+  if (dl.preset === '7d') return Date.now() - created.getTime() <= 7 * 24 * 60 * 60 * 1000
+  if (dl.preset === 'custom') {
+    if (dl.from && created < new Date(dl.from)) return false
+    if (dl.to && created > new Date(`${dl.to}T23:59:59`)) return false
+    return true
+  }
+  return true
+}
 
 // Pre-selects this JIRA project in the "post to JIRA" picker when it's
 // present in the fetched list, since it's the one Malik files into most —
@@ -246,7 +280,7 @@ function BugModal({ projectId, features, onClose, onCreated }) {
   )
 }
 
-export function BugDetailModal({ bug, projectId, isClient, features, onClose, onUpdated }) {
+export function BugDetailModal({ bug, projectId, isClient, features, hasPrev, hasNext, onNavigate, onClose, onUpdated }) {
   const { addToast } = useToastStore()
   const [isEditing, setIsEditing] = useState(false)
   const [editForm, setEditForm] = useState({
@@ -373,6 +407,12 @@ export function BugDetailModal({ bug, projectId, isClient, features, onClose, on
 
   return (
     <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal-nav-wrap">
+        {onNavigate && (
+          <button className="modal-nav-arrow left" disabled={!hasPrev} onClick={() => onNavigate('prev')} title="Previous bug">
+            <Icon name="arrowLeft" size={16} />
+          </button>
+        )}
       <div className="modal" style={{ maxWidth: 640 }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem', marginBottom: '1.25rem' }}>
           <div style={{ flex: 1 }}>
@@ -517,6 +557,12 @@ export function BugDetailModal({ bug, projectId, isClient, features, onClose, on
           </div>
         </div>
       </div>
+      {onNavigate && (
+        <button className="modal-nav-arrow right" disabled={!hasNext} onClick={() => onNavigate('next')} title="Next bug">
+          <Icon name="arrowRight" size={16} />
+        </button>
+      )}
+      </div>
     </div>
   )
 }
@@ -535,11 +581,8 @@ export default function BugsPage() {
   const [features, setFeatures] = useState([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
-  const [filter, setFilter] = useState('all')
-  const [executionRunFilter, setExecutionRunFilter] = useState('')
-  const [suiteFilter, setSuiteFilter] = useState('')
-  const [sourceFilter, setSourceFilter] = useState('all')
-  const [environmentalOnly, setEnvironmentalOnly] = useState(false)
+  const [filters, setFilters] = useState(DEFAULT_BUG_FILTERS)
+  const [showSaveView, setShowSaveView] = useState(false)
   const [selectedBug, setSelectedBug] = useState(null)
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [showAssignFeature, setShowAssignFeature] = useState(false)
@@ -564,6 +607,19 @@ export default function BugsPage() {
     const match = bugs.find(b => b.id === Number(bugId))
     if (match) setSelectedBug(match)
   }, [bugs, searchParams])
+
+  // Deep-link support: ?viewId=123 (Views tab card / copied link) applies
+  // that saved view's filters once fetched. Left in the URL afterward
+  // (unlike bugId, which gets stripped on modal close) — there's no
+  // equivalent "done with this" moment, and keeping it means the page stays
+  // trivially re-shareable/bookmarkable as-is.
+  useEffect(() => {
+    const viewId = searchParams.get('viewId')
+    if (!viewId) return
+    apiFetch(`/projects/${id}/saved-views/${viewId}`)
+      .then(v => { if (v.type === 'bugs') setFilters(f => ({ ...DEFAULT_BUG_FILTERS, ...v.filters })) })
+      .catch(() => addToast('Saved view not found', 'error'))
+  }, [id, searchParams])
 
   const updateStatus = async (bugId, status) => {
     try {
@@ -593,11 +649,13 @@ export default function BugsPage() {
   }
 
   const filtered = bugs
-    .filter(b => filter === 'all' ? true : SEVERITIES.includes(filter) ? b.severity === filter : b.status === filter)
-    .filter(b => executionRunFilter ? String(b.execution_run_id) === executionRunFilter : true)
-    .filter(b => suiteFilter ? String(b.suite_id) === suiteFilter : true)
-    .filter(b => sourceFilter === 'all' ? true : b.origin === sourceFilter)
-    .filter(b => environmentalOnly ? b.is_environmental : true)
+    .filter(b => filters.severity === 'all' || b.severity === filters.severity)
+    .filter(b => filters.status === 'all' || b.status === filters.status)
+    .filter(b => filters.source === 'all' || b.origin === filters.source)
+    .filter(b => matchesDateLogged(b, filters.dateLogged))
+    .filter(b => !filters.environmentalOnly || b.is_environmental)
+    .filter(b => !filters.executionRunId || String(b.execution_run_id) === filters.executionRunId)
+    .filter(b => !filters.suiteId || String(b.suite_id) === filters.suiteId)
 
   return (
     <>
@@ -623,6 +681,7 @@ export default function BugsPage() {
                 Assign feature ({selectedIds.size})
               </button>
             )}
+            <button className="btn btn-ghost btn-sm" onClick={() => setShowSaveView(true)}>Save as view</button>
             <button className="btn btn-primary btn-sm" onClick={() => setShowModal(true)}>+ Log bug</button>
           </div>
         )}
@@ -638,19 +697,30 @@ export default function BugsPage() {
           </div>
         )}
         <div className="filters-row">
-          {['all', 'open', 'in_progress', 'resolved', 'critical', 'high', 'medium', 'low'].map(f => (
-            <button key={f} className={`filter-btn${filter === f ? ' active' : ''}`} onClick={() => setFilter(f)}>
-              {f === 'all' ? 'All' : f === 'in_progress' ? 'In progress' : f.charAt(0).toUpperCase() + f.slice(1)}
-            </button>
-          ))}
-          {['all', 'automated', 'manual'].map(f => (
-            <button key={f} className={`filter-btn${sourceFilter === f ? ' active' : ''}`} onClick={() => setSourceFilter(f)}>
-              {f === 'all' ? 'Any source' : f.charAt(0).toUpperCase() + f.slice(1)}
-            </button>
-          ))}
+          <FilterPillGroup
+            options={['all', ...SEVERITIES]}
+            value={filters.severity}
+            onChange={v => setFilters(f => ({ ...f, severity: v }))}
+          />
+          <FilterPillGroup
+            options={['all', ...STATUSES]}
+            value={filters.status}
+            labels={STATUS_LABELS}
+            onChange={v => setFilters(f => ({ ...f, status: v }))}
+          />
+          <FilterPillGroup
+            options={['all', 'automated', 'manual']}
+            value={filters.source}
+            labels={{ all: 'Any source' }}
+            onChange={v => setFilters(f => ({ ...f, source: v }))}
+          />
+          <DateLoggedFilter
+            value={filters.dateLogged}
+            onChange={v => setFilters(f => ({ ...f, dateLogged: v }))}
+          />
           <button
-            className={`filter-btn${environmentalOnly ? ' active' : ''}`}
-            onClick={() => setEnvironmentalOnly(v => !v)}
+            className={`filter-btn${filters.environmentalOnly ? ' active' : ''}`}
+            onClick={() => setFilters(f => ({ ...f, environmentalOnly: !f.environmentalOnly }))}
             title="Only bugs where the test didn't run to completion (device/driver/connectivity), not a failed assertion"
           >
             Environmental only
@@ -659,8 +729,8 @@ export default function BugsPage() {
             <select
               className="form-select"
               style={{ width: 'auto', padding: '0.35rem 0.75rem', fontSize: '0.78rem' }}
-              value={executionRunFilter}
-              onChange={e => setExecutionRunFilter(e.target.value)}
+              value={filters.executionRunId}
+              onChange={e => setFilters(f => ({ ...f, executionRunId: e.target.value }))}
             >
               <option value="">All executions</option>
               {executionRuns.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
@@ -670,8 +740,8 @@ export default function BugsPage() {
             <select
               className="form-select"
               style={{ width: 'auto', padding: '0.35rem 0.75rem', fontSize: '0.78rem' }}
-              value={suiteFilter}
-              onChange={e => setSuiteFilter(e.target.value)}
+              value={filters.suiteId}
+              onChange={e => setFilters(f => ({ ...f, suiteId: e.target.value }))}
             >
               <option value="">All suites</option>
               {suites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -783,12 +853,24 @@ export default function BugsPage() {
           onAssign={assignFeatureToSelected}
         />
       )}
-      {selectedBug && (
+      {showSaveView && (
+        <SaveViewModal projectId={id} type="bugs" filters={filters} onClose={() => setShowSaveView(false)} />
+      )}
+      {selectedBug && (() => {
+        const navIndex = filtered.findIndex(b => b.id === selectedBug.id)
+        return (
         <BugDetailModal
+          key={selectedBug.id}
           bug={selectedBug}
           projectId={id}
           isClient={isClient}
           features={features}
+          hasPrev={navIndex > 0}
+          hasNext={navIndex >= 0 && navIndex < filtered.length - 1}
+          onNavigate={dir => {
+            const next = filtered[navIndex + (dir === 'next' ? 1 : -1)]
+            if (next) setSelectedBug(next)
+          }}
           onClose={() => {
             setSelectedBug(null)
             if (searchParams.has('bugId')) {
@@ -807,7 +889,8 @@ export default function BugsPage() {
             setSelectedBug(prev => ({ ...prev, ...merged }))
           }}
         />
-      )}
+        )
+      })()}
     </>
   )
 }

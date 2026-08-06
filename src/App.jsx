@@ -7,7 +7,8 @@ import AppShell from './components/AppShell.jsx'
 import DashboardPage from './pages/DashboardPage.jsx'
 import ProjectsPage from './pages/ProjectsPage.jsx'
 import ProjectDetailPage from './pages/ProjectDetailPage.jsx'
-import ProjectReportsPage from './pages/ProjectReportsPage.jsx'
+import SavedViewsPage from './pages/SavedViewsPage.jsx'
+import ViewRedirectPage from './pages/ViewRedirectPage.jsx'
 import TestCasesPage from './pages/TestCasesPage.jsx'
 import RequirementsPage from './pages/RequirementsPage.jsx'
 import BugsPage from './pages/BugsPage.jsx'
@@ -157,7 +158,10 @@ function Gate() {
             to fail gracefully (most didn't). */}
         <Route path="projects/:id" element={<ProjectGate />}>
           <Route index element={<ProjectDetailPage />} />
-          <Route path="reports" element={<ProjectReportsPage />} />
+          <Route path="views" element={<SavedViewsPage />} />
+          <Route path="views/:viewId" element={<ViewRedirectPage />} />
+          {/* Back-compat for any existing bookmarks/links to the old Reports tab. */}
+          <Route path="reports" element={<Navigate to="../views" replace />} />
           <Route path="tests" element={<TestCasesPage />} />
           <Route path="requirements" element={<RequirementsPage />} />
           <Route path="bugs" element={<BugsPage />} />

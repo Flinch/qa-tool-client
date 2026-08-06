@@ -1009,6 +1009,31 @@ tr:hover td { background: rgba(237,231,220,0.02); }
 .swipe-arrow.left { left: 0; }
 .swipe-arrow.right { right: 0; }
 
+/* MODAL NAV (bug detail prev/next) — same tokens as .swipe-arrow above,
+   but hidden until the wrapper is hovered instead of always-visible, per
+   "invisible during the modal pop out but shows on hover". CSS-only reveal,
+   no JS hover-state tracking needed. */
+.modal-nav-wrap { position: relative; display: flex; align-items: center; }
+.modal-nav-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 40px; height: 40px;
+  border: 1px solid var(--border2);
+  background: var(--card2);
+  color: var(--light);
+  cursor: pointer;
+  z-index: 5;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s ease, border-color 0.15s, color 0.15s;
+}
+.modal-nav-wrap:hover .modal-nav-arrow { opacity: 1; }
+.modal-nav-arrow:hover { border-color: var(--accent); color: var(--accent); }
+.modal-nav-arrow:disabled { opacity: 0 !important; cursor: default; }
+.modal-nav-arrow.left { left: -56px; }
+.modal-nav-arrow.right { right: -56px; }
+
 /* SELECT ROW (bulk mode) */
 .select-row {
   display: flex;
