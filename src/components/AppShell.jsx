@@ -12,7 +12,7 @@ export default function AppShell() {
   const { pathname } = useLocation()
 
   // Which project (if any) the current URL is inside — used both for the
-  // client's sidebar Overview/Views links (client-only) and for staff's
+  // client's sidebar Dashboard/Views links (client-only) and for staff's
   // global Engineering shortcut (staff-only) below.
   const projectMatch = pathname.match(/^\/projects\/(\d+)/)
   const projectId = projectMatch?.[1]
@@ -36,10 +36,10 @@ export default function AppShell() {
           <div className="sidebar-section">
             <div className="sidebar-label">Project</div>
             <NavLink to={`/projects/${projectId}`} end className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}>
-              <Icon name="dashboard" /> Overview
+              <Icon name="dashboard" /> Dashboard
             </NavLink>
             <NavLink to={`/projects/${projectId}/views`} className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}>
-              <Icon name="link" /> Views
+              <Icon name="eye" /> Views
             </NavLink>
           </div>
         )}

@@ -604,7 +604,7 @@ export default function ProjectDetailPage() {
                     sub={health.totalRequirements > 0 ? `${health.totalRequirements} requirements · ${health.requirementCoverage}% covered` : 'No requirements tracked yet'}
                   />
                   <NavCardSmall
-                    to={`/projects/${id}/views`} icon="link" title="Views"
+                    to={`/projects/${id}/views`} icon="eye" title="Views"
                     sub="Saved bug & execution filters"
                   />
                 </div>

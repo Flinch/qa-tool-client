@@ -19,6 +19,7 @@ const PATHS = {
   bell: 'M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0',
   medic: 'M12 8v8M8 12h8',
   clock: 'M12 7v5l3 3',
+  eye: 'M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z',
 }
 
 // A few icons need more than one primitive (circles alongside a path), so they're
@@ -34,6 +35,7 @@ const CUSTOM = {
   alertTriangle: <><path d={PATHS.alertTriangle} /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></>,
   medic: <><circle cx="12" cy="12" r="9" /><path d={PATHS.medic} /></>,
   clock: <><circle cx="12" cy="12" r="9" /><path d={PATHS.clock} /></>,
+  eye: <><path d={PATHS.eye} /><circle cx="12" cy="12" r="3" /></>,
   hammer: (
     <g transform="rotate(45 12 12)">
       <rect x="5" y="3" width="8" height="5" rx="1" />
