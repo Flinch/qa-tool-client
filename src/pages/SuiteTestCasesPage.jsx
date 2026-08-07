@@ -34,7 +34,7 @@ function LastRunBadge({ status }) {
 // which suite it's in is already obvious from the breadcrumb and this stays
 // a plain browsing list. Exported so EngineeringDashboardPage.jsx can reuse
 // it for that section instead of duplicating this row layout.
-export function TestCaseRow({ tc, isLab, onRerun, onDiagnose, onRequestHeal, onView, busy }) {
+export function TestCaseRow({ tc, isLab, onRerun, onDiagnose, onRequestHeal, onMoveToSuite, onView, busy }) {
   const reviewLabel = REVIEW_STATUS_LABEL[tc.review_status]
   const [showTrace, setShowTrace] = useState(false)
   return (
@@ -86,6 +86,11 @@ export function TestCaseRow({ tc, isLab, onRerun, onDiagnose, onRequestHeal, onV
         {isLab && tc.last_api_trace && (
           <button className="btn btn-ghost btn-sm" onClick={() => setShowTrace(true)}>
             View request/response
+          </button>
+        )}
+        {isLab && onMoveToSuite && (
+          <button className="btn btn-ghost btn-sm" onClick={() => onMoveToSuite(tc)} disabled={busy}>
+            Add to suite
           </button>
         )}
         {isLab && (tc.last_status === 'failed' || tc.last_status === 'skipped') && (

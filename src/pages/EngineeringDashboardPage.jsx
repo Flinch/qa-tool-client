@@ -381,7 +381,9 @@ export default function EngineeringDashboardPage() {
                 {visibleRuns.slice(0, 4).map(r => {
                   const isRunning = GENERATION_PHASES.includes(r.status)
                   const color = isRunning ? 'var(--warning)' : r.status === 'failed' ? 'var(--danger)' : 'var(--success)'
-                  const label = r.kind === 'heal' ? `Heal: ${r.target_title || r.suite_name}` : r.suite_name
+                  const label = r.kind === 'heal' ? `Heal: ${r.target_title || r.suite_name}`
+                    : r.kind === 'move' ? `Move: ${r.target_title || r.suite_name}${r.target_suite_name ? ` → ${r.target_suite_name}` : ''}`
+                    : r.suite_name
                   const linkUrl = r.github_run_url || r.pr_url
                   const content = (
                     <>
@@ -423,7 +425,7 @@ export default function EngineeringDashboardPage() {
         {/* The Lab sits above everything else, full width — independent of
             the engineering-health fetch below (its own loading state), so it
             shows up first regardless of how long that call takes. */}
-        <LabPanel projectId={id} viewAllHref={`/projects/${id}/automation/lab`} onAfterRerun={loadRunGroups} />
+        <LabPanel projectId={id} viewAllHref={`/projects/${id}/automation/lab`} onAfterRerun={loadRunGroups} onAfterMove={loadGenerationRuns} />
 
         {loading || !data ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}><div className="spinner" /></div>
@@ -460,7 +462,9 @@ export default function EngineeringDashboardPage() {
                       <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', padding: '0.55rem 0', borderBottom: i < data.prValidation.length - 1 ? '1px solid var(--border)' : 'none' }}>
                         <div style={{ minWidth: 0 }}>
                           <div style={{ fontSize: '0.85rem', color: 'var(--light)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {r.kind === 'heal' ? `Heal: ${r.target_title}` : (r.branch_name || `Run #${r.id}`)}
+                            {r.kind === 'heal' ? `Heal: ${r.target_title}`
+                              : r.kind === 'move' ? `Move: ${r.target_title}${r.target_suite_name ? ` → ${r.target_suite_name}` : ''}`
+                              : (r.branch_name || `Run #${r.id}`)}
                           </div>
                           <div style={{ fontSize: '0.72rem', color: 'var(--faint)' }}>{timeAgo(r.completed_at)}</div>
                         </div>

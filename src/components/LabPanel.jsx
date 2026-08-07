@@ -6,23 +6,28 @@ import { tcLabel } from '../lib/testCaseLabel.js'
 import Icon from './Icon.jsx'
 import HealConfirmModal from './HealConfirmModal.jsx'
 import DiagnosisModal from './DiagnosisModal.jsx'
+import MoveToSuiteModal from './MoveToSuiteModal.jsx'
 import { TestCaseRow, TestCaseDetailModal } from '../pages/SuiteTestCasesPage.jsx'
 
 // "The Lab" — every AI-generated test case across every suite in the
-// project, its last run, and re-run/diagnose/heal actions. Shared between
-// EngineeringDashboardPage's compact inline panel (fixed-height, scrolling,
-// links out via `viewAllHref`) and LabTestCasesPage's full page
-// (`fullPage`, unbounded height, no further place to link to) so the two
-// never drift out of sync on data-loading or action behavior.
-export default function LabPanel({ projectId, viewAllHref, fullPage, onAfterRerun }) {
+// project, its last run, and re-run/diagnose/heal/add-to-suite actions.
+// Shared between EngineeringDashboardPage's compact inline panel
+// (fixed-height, scrolling, links out via `viewAllHref`) and
+// LabTestCasesPage's full page (`fullPage`, unbounded height, no further
+// place to link to) so the two never drift out of sync on data-loading or
+// action behavior.
+export default function LabPanel({ projectId, viewAllHref, fullPage, onAfterRerun, onAfterMove }) {
   const { addToast } = useToastStore()
   const [testCases, setTestCases] = useState([])
   const [loading, setLoading] = useState(true)
+  const [suites, setSuites] = useState([])
   const [busyId, setBusyId] = useState(null)
   const [detail, setDetail] = useState(null)
   const [diagnose, setDiagnose] = useState(null)
   const [healConfirm, setHealConfirm] = useState(null)
   const [healing, setHealing] = useState(false)
+  const [moveTarget, setMoveTarget] = useState(null)
+  const [moving, setMoving] = useState(false)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -33,6 +38,10 @@ export default function LabPanel({ projectId, viewAllHref, fullPage, onAfterReru
   }, [projectId])
 
   useEffect(() => { load() }, [load])
+
+  // For MoveToSuiteModal's suite picker — every suite in the project,
+  // regardless of platform/engine (the modal itself filters to matches).
+  useEffect(() => { apiFetch(`/projects/${projectId}/automation/suites`).then(setSuites).catch(console.error) }, [projectId])
 
   const rerun = async (tc) => {
     setBusyId(tc.id)
@@ -67,6 +76,24 @@ export default function LabPanel({ projectId, viewAllHref, fullPage, onAfterReru
     }
   }
 
+  const confirmMove = async (targetSuiteId) => {
+    if (!moveTarget) return
+    setMoving(true)
+    try {
+      await apiFetch(`/projects/${projectId}/automation/test-cases/${moveTarget.atc.id}/move`, {
+        method: 'POST',
+        body: JSON.stringify({ target_suite_id: targetSuiteId }),
+      })
+      addToast(`Add-to-suite started for "${moveTarget.title}" — it moves once the PR merges`)
+      setMoveTarget(null)
+      onAfterMove?.()
+    } catch (e) {
+      addToast(e.message, 'error')
+    } finally {
+      setMoving(false)
+    }
+  }
+
   return (
     <div className={fullPage ? undefined : 'health-panel'} id={fullPage ? undefined : 'the-lab'}>
       {!fullPage && (
@@ -95,6 +122,7 @@ export default function LabPanel({ projectId, viewAllHref, fullPage, onAfterReru
               onRerun={rerun}
               onDiagnose={(t) => setDiagnose({ runId: t.last_run_id, resultId: t.last_result_id, title: t.linked_test_case_title ? tcLabel(t.test_case_id, t.linked_test_case_title) : t.title, suiteName: t.suite_name })}
               onRequestHeal={(t) => setHealConfirm({ runId: t.last_run_id, resultId: t.last_result_id, title: t.linked_test_case_title ? tcLabel(t.test_case_id, t.linked_test_case_title) : t.title, suiteName: t.suite_name })}
+              onMoveToSuite={(t) => setMoveTarget({ atc: t, title: t.linked_test_case_title ? tcLabel(t.test_case_id, t.linked_test_case_title) : t.title })}
             />
           ))}
         </div>
@@ -123,6 +151,20 @@ export default function LabPanel({ projectId, viewAllHref, fullPage, onAfterReru
           healing={healing}
           onCancel={() => setHealConfirm(null)}
           onConfirm={confirmHeal}
+        />
+      )}
+
+      {moveTarget && (
+        <MoveToSuiteModal
+          testCaseTitle={moveTarget.title}
+          sourceSuiteId={moveTarget.atc.suite_id}
+          sourceSuiteName={moveTarget.atc.suite_name}
+          sourcePlatform={moveTarget.atc.suite_platform}
+          sourceEngine={moveTarget.atc.suite_engine}
+          suites={suites}
+          moving={moving}
+          onCancel={() => setMoveTarget(null)}
+          onConfirm={confirmMove}
         />
       )}
     </div>

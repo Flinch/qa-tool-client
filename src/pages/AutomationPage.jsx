@@ -386,7 +386,7 @@ function GenerationLogModal({ run, projectId, onClose }) {
   return (
     <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal" style={{ maxWidth: 720, width: '90vw' }}>
-        <div className="modal-title">Agent log — {run.suite_name}{run.kind === 'heal' ? ' (heal)' : ''}</div>
+        <div className="modal-title">Agent log — {run.suite_name}{run.kind === 'heal' ? ' (heal)' : run.kind === 'move' ? ' (move)' : ''}</div>
         <div
           style={{
             background: '#0a0a0a', border: '1px solid var(--border)', borderRadius: 4,
@@ -453,9 +453,16 @@ export function GenerationRunRow({ run, projectId }) {
                 Heal
               </span>
             )}
+            {run.kind === 'move' && (
+              <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--accent)', border: '1px solid rgba(184,70,31,0.4)', padding: '0.1rem 0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Move
+              </span>
+            )}
           </div>
           <div style={{ color: 'var(--muted)', fontSize: '0.76rem' }}>
-            {run.kind === 'heal' ? `Healing: ${run.target_title}` : `${tcCount} test case${tcCount === 1 ? '' : 's'}`} · {formatWhen(run.started_at)}
+            {run.kind === 'heal' ? `Healing: ${run.target_title}`
+              : run.kind === 'move' ? `Adding to ${run.target_suite_name || 'suite'}: ${run.target_title}`
+              : `${tcCount} test case${tcCount === 1 ? '' : 's'}`} · {formatWhen(run.started_at)}
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
