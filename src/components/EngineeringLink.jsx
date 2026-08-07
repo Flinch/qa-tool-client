@@ -8,13 +8,13 @@ export default function EngineeringLink({ projectId, className = 'btn btn-ghost 
   if (!projectId) {
     return (
       <span className={className} style={{ opacity: 0.4, cursor: 'default' }} title="Open a project to view its engineering page">
-        <Icon name="hammer" size={13} />
+        <Icon name="hammer" size={15} />
       </span>
     )
   }
   return (
     <Link to={`/projects/${projectId}/engineering`} className={className} title="Engineering">
-      <Icon name="hammer" size={13} />
+      <Icon name="hammer" size={15} />
     </Link>
   )
 }

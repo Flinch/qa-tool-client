@@ -38,10 +38,21 @@ const CUSTOM = {
   clock: <><circle cx="12" cy="12" r="9" /><path d={PATHS.clock} /></>,
   eye: <><path d={PATHS.eye} /><circle cx="12" cy="12" r="3" /></>,
   info: <><circle cx="12" cy="12" r="9" /><path d={PATHS.info} /></>,
+  // Crossed hammer + screwdriver ("tools"/engineering) — a single rotated
+  // rect+line read as too thin and easy to miss at nav sizes (13-14px), so
+  // this crosses a second, bolder tool through it (its own thicker
+  // strokeWidth) for more ink at a glance, same idea as Material's classic
+  // "build" glyph but kept stroke-based to match every other icon here.
   hammer: (
-    <g transform="rotate(45 12 12)">
-      <rect x="5" y="3" width="8" height="5" rx="1" />
-      <line x1="9" y1="8" x2="9" y2="21" />
+    <g strokeWidth={2.2}>
+      <g transform="rotate(45 12 12)">
+        <rect x="5" y="3" width="8" height="5" rx="1" />
+        <line x1="9" y1="8" x2="9" y2="21" />
+      </g>
+      <g transform="rotate(-45 12 12)">
+        <rect x="12" y="2" width="4" height="7" rx="2" />
+        <line x1="14" y1="9" x2="14" y2="21" />
+      </g>
     </g>
   ),
 }
