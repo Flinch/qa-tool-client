@@ -329,10 +329,10 @@ export default function QualityHealth({ projectId, projectName, logo, links = []
             gap so this row starts under the HEADING text, not the logo. */}
         <div style={{ display: 'flex', gap: '0.6rem', marginTop: '0.3rem', marginLeft: 'calc(140px + 1.25rem)' }}>
           <Link to={`/projects/${projectId}/requirements`} className="health-quicklink"><Icon name="target" size={14} /> Requirements</Link>
+          <Link to={`/projects/${projectId}/tests`} className="health-quicklink"><Icon name="check" size={14} /> Test cases</Link>
           <Link to={`/projects/${projectId}/executions`} className="health-quicklink"><Icon name="play" size={14} /> Executions</Link>
           <Link to={`/projects/${projectId}/bugs`} className="health-quicklink"><Icon name="bug" size={14} /> Bug reports</Link>
           <Link to={`/projects/${projectId}/automation`} className="health-quicklink"><Icon name="gear" size={14} /> Automation</Link>
-          <Link to={`/projects/${projectId}/timeline`} className="health-quicklink"><Icon name="clock" size={14} /> Timeline</Link>
         </div>
 
         <div className="health-kpi-strip" style={{ marginTop: '0.75rem' }}>
