@@ -107,7 +107,20 @@ function FeatureBreakdownRow({ f }) {
 // background glow effect, which would otherwise cut the popover off. Lives
 // under the headline/sub text and fills that column's width, rather than a
 // fixed-footprint circular gauge off to the side.
-function ScoreBar({ value, color, breakdown, label = 'Quality score' }) {
+// One row in the score's own hover breakdown — a labeled value, optionally
+// styled as a penalty (red/warning, prefixed with a minus) rather than a
+// plain contributing input.
+function ScoreFactorRow({ label, value, tone }) {
+  const color = tone === 'penalty' ? 'var(--danger)' : tone === 'warning' ? 'var(--warning)' : 'var(--light)'
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', padding: '0.2rem 0', fontSize: '0.78rem' }}>
+      <span style={{ color: 'var(--muted)' }}>{label}</span>
+      <span style={{ color, fontWeight: 600, flexShrink: 0 }}>{value}</span>
+    </div>
+  )
+}
+
+function ScoreBar({ value, color, breakdown, scoreBreakdown, label = 'Quality score' }) {
   const [hover, setHover] = useState(false)
   const [pos, setPos] = useState(null)
   const wrapRef = useRef(null)
@@ -122,6 +135,22 @@ function ScoreBar({ value, color, breakdown, label = 'Quality score' }) {
 
   const hasBreakdown = breakdown && breakdown.length > 0
 
+  // Separate hover state from the bar's own feature-breakdown popover above
+  // — sharing one hover/pos pair between the info icon and the bar caused a
+  // real bug before (hovering the icon fired the bar's popover instead of
+  // its own), so this stays its own ref/state pair even though the popover
+  // shape is otherwise identical.
+  const [scoreHover, setScoreHover] = useState(false)
+  const [scorePos, setScorePos] = useState(null)
+  const infoRef = useRef(null)
+  const onScoreEnter = () => {
+    if (infoRef.current) {
+      const rect = infoRef.current.getBoundingClientRect()
+      setScorePos({ top: rect.bottom + 10, left: rect.left })
+    }
+    setScoreHover(true)
+  }
+
   return (
     <div style={{ marginTop: '0.9rem' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
@@ -129,16 +158,37 @@ function ScoreBar({ value, color, breakdown, label = 'Quality score' }) {
           <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '0.64rem', letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted)' }}>
             {label}
           </span>
-          <Icon
-            name="info" size={12}
-            style={{ color: 'var(--faint)', cursor: 'help' }}
-            title="A composite score: pass rate (65%) and requirement coverage (35%), weighted and blended — then reduced by a penalty for any open critical/high-severity bugs and for flaky tests. Automation coverage isn't part of this score; it's a testing-process metric, shown separately, not a product-health one."
-          />
+          <span ref={infoRef} onMouseEnter={onScoreEnter} onMouseLeave={() => setScoreHover(false)} style={{ display: 'inline-flex' }}>
+            <Icon name="info" size={12} style={{ color: 'var(--faint)', cursor: 'help' }} title="Hover for the factors behind this score" />
+          </span>
         </span>
         <span style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: '1.05rem', color: 'var(--white)' }}>
           {value !== null ? value : '—'}
         </span>
       </div>
+      {scoreHover && scoreBreakdown && scorePos && createPortal(
+        <div className="notif-bell-dropdown" style={{ position: 'fixed', top: scorePos.top, left: scorePos.left, width: 250 }}>
+          <div className="notif-bell-title">How this score is calculated</div>
+          <ScoreFactorRow
+            label={`Pass rate (${Math.round(scoreBreakdown.passRateWeight * 100)}% weight)`}
+            value={scoreBreakdown.passRate !== null ? `${scoreBreakdown.passRate}%` : 'Not enough data'}
+          />
+          <ScoreFactorRow
+            label={`Requirement coverage (${Math.round(scoreBreakdown.requirementCoverageWeight * 100)}% weight)`}
+            value={scoreBreakdown.requirementCoverage !== null ? `${scoreBreakdown.requirementCoverage}%` : 'Not enough data'}
+          />
+          {scoreBreakdown.bugPenalty > 0 && (
+            <ScoreFactorRow label="Open critical/high bugs" value={`−${scoreBreakdown.bugPenalty}`} tone="penalty" />
+          )}
+          {scoreBreakdown.flakePenalty > 0 && (
+            <ScoreFactorRow label={`Flaky tests (${scoreBreakdown.flakyCount})`} value={`−${scoreBreakdown.flakePenalty}`} tone="warning" />
+          )}
+          {scoreBreakdown.bugPenalty === 0 && scoreBreakdown.flakePenalty === 0 && (
+            <div style={{ fontSize: '0.74rem', color: 'var(--success)', paddingTop: '0.3rem' }}>No penalties right now.</div>
+          )}
+        </div>,
+        document.body
+      )}
       {/* Hover zone scoped to just the bar itself now, not the label row
           above — the label row has its own separate info-icon tooltip
           (methodology), and having both hoverable in the same zone meant
@@ -331,10 +381,16 @@ export default function QualityHealth({ projectId, projectName, logo, links = []
                     value={p.qualityScore}
                     color={(STATUS_META[p.healthStatus] || STATUS_META.insufficient_data).color}
                     breakdown={features}
+                    scoreBreakdown={p.scoreBreakdown}
                   />
                 ))
               ) : (
-                <ScoreBar value={platformScores[0]?.qualityScore ?? data.qualityScore} color={status.color} breakdown={features} />
+                <ScoreBar
+                  value={platformScores[0]?.qualityScore ?? data.qualityScore}
+                  color={status.color}
+                  breakdown={features}
+                  scoreBreakdown={platformScores[0]?.scoreBreakdown ?? data.scoreBreakdown}
+                />
               )}
             </div>
           </div>
