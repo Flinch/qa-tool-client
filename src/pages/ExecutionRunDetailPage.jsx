@@ -143,7 +143,7 @@ function SwipeCard({ etc, onMark, onSetStatus, onLogBug }) {
   )
 }
 
-function ExecutionSuiteCard({ suite, onRun, running, readOnly }) {
+function ExecutionSuiteCard({ suite, onRun, onCancel, running, readOnly }) {
   const isRunning = running || suite.latest_status === 'pending' || suite.latest_status === 'running'
   const hasResult = suite.total != null
   const phase = isRunning ? describeRunPhase(suite.latest_status || 'pending', suite.latest_started_at) : null
@@ -194,9 +194,18 @@ function ExecutionSuiteCard({ suite, onRun, running, readOnly }) {
           </>
         )}
         {!readOnly && (
-          <button className="btn btn-primary btn-sm" onClick={() => onRun(suite.suite_id)} disabled={isRunning} style={{ width: '100%' }}>
-            {isRunning ? 'Running…' : 'Run suite'}
-          </button>
+          isRunning && suite.latest_test_run_id ? (
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button className="btn btn-primary btn-sm" disabled style={{ flex: 1 }}>Running…</button>
+              <button className="btn btn-ghost btn-sm" onClick={() => onCancel(suite.latest_test_run_id)} style={{ color: 'var(--danger)', borderColor: 'rgba(193,68,58,0.4)' }}>
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button className="btn btn-primary btn-sm" onClick={() => onRun(suite.suite_id)} disabled={isRunning} style={{ width: '100%' }}>
+              {isRunning ? 'Running…' : 'Run suite'}
+            </button>
+          )
         )}
       </div>
     </div>
@@ -367,6 +376,16 @@ export default function ExecutionRunDetailPage() {
     }
   }
 
+  const cancelSuite = async (testRunId) => {
+    try {
+      await apiFetch(`/projects/${id}/automation/runs/${testRunId}/cancel`, { method: 'POST' })
+      addToast('Run cancelled')
+      await load().catch(e => addToast(e.message, 'error'))
+    } catch (e) {
+      addToast(e.message, 'error')
+    }
+  }
+
   const completeRun = async () => {
     try {
       const updated = await apiFetch(`/projects/${id}/execution-runs/${runId}`, {
@@ -395,6 +414,7 @@ export default function ExecutionRunDetailPage() {
     title: etc.title,
     steps: etc.steps,
     expected: etc.expected,
+    feature_id: etc.feature_id,
   })
 
   const downloadReport = () => {
@@ -753,7 +773,7 @@ export default function ExecutionRunDetailPage() {
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1rem' }}>
             {run.suites.map(s => (
-              <ExecutionSuiteCard key={s.execution_suite_id} suite={s} onRun={runSuite} running={triggeringSuiteId === s.suite_id} readOnly={isClient} />
+              <ExecutionSuiteCard key={s.execution_suite_id} suite={s} onRun={runSuite} onCancel={cancelSuite} running={triggeringSuiteId === s.suite_id} readOnly={isClient} />
             ))}
           </div>
         )}

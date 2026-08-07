@@ -45,11 +45,17 @@ function CreateRunModal({ projectId, onClose, onCreated }) {
     setSet(next)
   }
 
+  // API test cases are automation-only — there's no human to manually mark
+  // an API check pass/fail in an execution-run session, so they're excluded
+  // from every selection path here (the list itself, "select all", and
+  // feature-based selection) rather than just hidden from view.
+  const manualTestCases = testCases.filter(tc => tc.type !== 'api')
+
   // A test case has at most one feature_id, so checking/unchecking a feature
   // can safely add/remove exactly its own test case ids from selectedTcIds
   // without ever touching a test case another checked feature also claims.
   const toggleFeature = (featureId) => {
-    const tcIdsForFeature = testCases.filter(tc => tc.feature_id === featureId).map(tc => tc.id)
+    const tcIdsForFeature = manualTestCases.filter(tc => tc.feature_id === featureId).map(tc => tc.id)
     const checking = !selectedFeatureIds.has(featureId)
     toggle(selectedFeatureIds, setSelectedFeatureIds, featureId)
     setSelectedTcIds(s => {
@@ -100,21 +106,21 @@ function CreateRunModal({ projectId, onClose, onCreated }) {
             <div className="form-group">
               <label className="form-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span>Test cases {selectedTcIds.size > 0 && `(${selectedTcIds.size} selected)`}</span>
-                {testCases.length > 0 && (
+                {manualTestCases.length > 0 && (
                   <button
                     type="button"
-                    onClick={() => setSelectedTcIds(selectedTcIds.size === testCases.length ? new Set() : new Set(testCases.map(tc => tc.id)))}
+                    onClick={() => setSelectedTcIds(selectedTcIds.size === manualTestCases.length ? new Set() : new Set(manualTestCases.map(tc => tc.id)))}
                     style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: '0.76rem', fontWeight: 600, cursor: 'pointer' }}
                   >
-                    {selectedTcIds.size === testCases.length ? 'Clear all' : 'Select all'}
+                    {selectedTcIds.size === manualTestCases.length ? 'Clear all' : 'Select all'}
                   </button>
                 )}
               </label>
-              {testCases.length === 0 ? (
+              {manualTestCases.length === 0 ? (
                 <div className="form-hint">No test cases in this project yet.</div>
               ) : (
                 <div className="checkbox-list">
-                  {testCases.map(tc => (
+                  {manualTestCases.map(tc => (
                     <label key={tc.id}>
                       <input
                         type="checkbox"
@@ -188,19 +194,24 @@ function CreateRunModal({ projectId, onClose, onCreated }) {
   )
 }
 
-function RunCard({ run, projectId }) {
+function RunCard({ run, projectId, onReExecute }) {
   const total = run.total_test_cases || 0
   const passRate = total > 0 ? Math.round((run.passed / total) * 100) : null
 
   return (
-    <Link
-      to={`/projects/${projectId}/executions/${run.id}`}
+    <div
       className="card"
-      style={{ display: 'block', color: 'inherit', textDecoration: 'none', cursor: 'pointer', transition: 'border-color 0.2s' }}
+      style={{ position: 'relative', transition: 'border-color 0.2s' }}
       onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,70,31,0.3)'}
       onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+      {/* "Stretched link" pattern: the whole card is clickable via this
+          absolutely-positioned overlay, but the Re-execute button below sits
+          in normal flow with a higher z-index, so it stays independently
+          clickable instead of nesting a <button> inside an <a> (invalid
+          HTML, and the click would just navigate away instead of firing). */}
+      <Link to={`/projects/${projectId}/executions/${run.id}`} style={{ position: 'absolute', inset: 0 }} aria-label={run.name} />
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem', position: 'relative' }}>
         <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, color: 'var(--white)' }}>{run.name}</div>
         <RunStatusBadge status={run.status} />
       </div>
@@ -231,17 +242,31 @@ function RunCard({ run, projectId }) {
           </div>
         </>
       )}
-      <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: '0.75rem' }}>
-        Created {new Date(run.created_at).toLocaleDateString()}
-        {run.completed_at && <> · Completed {timeAgo(run.completed_at)}</>}
+      <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+        <span>
+          Created {new Date(run.created_at).toLocaleDateString()}
+          {run.completed_at && <> · Completed {timeAgo(run.completed_at)}</>}
+        </span>
+        {onReExecute && (
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            style={{ position: 'relative', zIndex: 1, flexShrink: 0 }}
+            title="Re-run this release test — carries forward anything already passing, resets blocked/failed to not run"
+            onClick={(e) => { e.preventDefault(); onReExecute(run) }}
+          >
+            Re-execute
+          </button>
+        )}
       </div>
-    </Link>
+    </div>
   )
 }
 
 export default function ExecutionRunsPage() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { addToast } = useToastStore()
   const { user } = useAuth()
   const isClient = user?.role === 'client'
   const [project, setProject] = useState(null)
@@ -254,6 +279,16 @@ export default function ExecutionRunsPage() {
       .then(setRuns)
       .catch(console.error)
       .finally(() => setLoading(false))
+  }
+
+  const reExecute = async (run) => {
+    try {
+      const newRun = await apiFetch(`/projects/${id}/execution-runs/${run.id}/re-execute`, { method: 'POST' })
+      addToast(`"${newRun.name}" created`)
+      navigate(`/projects/${id}/executions/${newRun.id}`)
+    } catch (e) {
+      addToast(e.message, 'error')
+    }
   }
 
   useEffect(() => { apiFetch(`/projects/${id}`).then(setProject).catch(console.error) }, [id])
@@ -295,7 +330,7 @@ export default function ExecutionRunsPage() {
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '1rem' }}>
-            {runs.map(r => <RunCard key={r.id} run={r} projectId={id} />)}
+            {runs.map(r => <RunCard key={r.id} run={r} projectId={id} onReExecute={isClient ? undefined : reExecute} />)}
           </div>
         )}
       </div>
