@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { apiFetch } from '../lib/api.js'
 import { GenerationRunRow } from './AutomationPage.jsx'
 import Icon from '../components/Icon.jsx'
@@ -7,6 +7,8 @@ import Icon from '../components/Icon.jsx'
 export default function GenerationHistoryPage() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const mergedOnly = searchParams.get('merged') === 'true'
   const [project, setProject] = useState(null)
   const [runs, setRuns] = useState([])
   const [loading, setLoading] = useState(true)
@@ -14,11 +16,12 @@ export default function GenerationHistoryPage() {
   useEffect(() => { apiFetch(`/projects/${id}`).then(setProject).catch(console.error) }, [id])
 
   useEffect(() => {
-    apiFetch(`/projects/${id}/automation/generation-runs`)
+    setLoading(true)
+    apiFetch(`/projects/${id}/automation/generation-runs${mergedOnly ? '?merged=true' : ''}`)
       .then(setRuns)
       .catch(console.error)
       .finally(() => setLoading(false))
-  }, [id])
+  }, [id, mergedOnly])
 
   return (
     <>
@@ -32,7 +35,7 @@ export default function GenerationHistoryPage() {
             <span style={{ color: 'var(--muted)' }}>/</span>
             <Link to={`/projects/${id}/automation`} style={{ color: 'var(--muted)', textDecoration: 'none' }}>Automation</Link>
             <span style={{ color: 'var(--muted)' }}>/</span>
-            <span className="topbar-title">Generation history</span>
+            <span className="topbar-title">{mergedOnly ? 'Merged PRs' : 'Generation history'}</span>
           </div>
         </div>
       </div>
@@ -41,8 +44,8 @@ export default function GenerationHistoryPage() {
           <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}><div className="spinner" /></div>
         ) : runs.length === 0 ? (
           <div className="empty-state">
-            <h3>No generation runs yet</h3>
-            <p>Use "Generate automated tests" on the Automation page to write a test case with AI.</p>
+            <h3>{mergedOnly ? 'No merged PRs yet' : 'No generation runs yet'}</h3>
+            <p>{mergedOnly ? 'Once a heal, generate, or move PR is merged, it shows up here.' : 'Use "Generate automated tests" on the Automation page to write a test case with AI.'}</p>
           </div>
         ) : (
           <div className="card" style={{ padding: '0 1rem' }}>

@@ -14,18 +14,6 @@ const GEN_POLL_INTERVAL_MS = 4000
 const GEN_POLL_TIMEOUT_MS = 5 * 60 * 1000
 const SSE_MAX_CONSECUTIVE_ERRORS = 3
 
-const REVIEW_STATUS_LABEL = {
-  active: 'Active',
-  pending_review: 'Pending review',
-  healed_pending_review: 'Healed — pending review',
-  flagged_regression: 'Flagged regression',
-}
-const REVIEW_STATUS_COLOR = {
-  active: 'var(--muted)',
-  pending_review: 'var(--warning)',
-  healed_pending_review: 'var(--warning)',
-  flagged_regression: 'var(--danger)',
-}
 const PRIORITY_COLOR = { high: 'var(--danger)', medium: 'var(--warning)', low: 'var(--muted)' }
 const RUN_GROUPS_POLL_MS = 4000
 
@@ -449,63 +437,50 @@ export default function EngineeringDashboardPage() {
                 )}
               </div>
 
-              <div className="health-panel">
-                <div className="health-panel-head">
-                  <div className="health-panel-title">PR validation</div>
-                  <Link to={`/projects/${id}/automation/history`} className="health-panel-link">Generation history <Icon name="arrowRight" size={11} /></Link>
-                </div>
-                {data.prValidation.length === 0 ? (
-                  <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>No pull requests opened yet.</div>
-                ) : (
-                  <div className="health-panel-body">
-                    {data.prValidation.map((r, i) => (
-                      <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', padding: '0.55rem 0', borderBottom: i < data.prValidation.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontSize: '0.85rem', color: 'var(--light)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {r.kind === 'heal' ? `Heal: ${r.target_title}`
-                              : r.kind === 'move' ? `Move: ${r.target_title}${r.target_suite_name ? ` → ${r.target_suite_name}` : ''}`
-                              : (r.branch_name || `Run #${r.id}`)}
-                          </div>
-                          <div style={{ fontSize: '0.72rem', color: 'var(--faint)' }}>{timeAgo(r.completed_at)}</div>
-                        </div>
-                        <a href={r.pr_url} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm" style={{ flexShrink: 0 }}>
-                          {r.pr_status?.merged ? 'Merged' : 'View PR'}
-                        </a>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
             </div>
 
             <div>
+              {/* Was two separate panels (a review-status-counts "Automation
+                  review backlog" that could never show anything real — see
+                  below — and a "PR validation" PR list). Merged into one:
+                  this panel now IS the PR list, filtered to unmerged only
+                  (an already-merged PR isn't backlog, it's done), with the
+                  arrow linking to the full merged-PR history instead of The
+                  Lab. reviewStatusCounts is dead data — nothing in the
+                  backend ever transitions review_status away from 'active',
+                  so every count here was always zero — this panel is the
+                  real replacement for that intent. */}
               <div className="health-panel">
                 <div className="health-panel-head">
-                  <div className="health-panel-title">Broken environments</div>
-                  <Link to={`/projects/${id}/bugs`} className="health-panel-link">Bugs <Icon name="arrowRight" size={11} /></Link>
+                  <div className="health-panel-title">Automation review backlog</div>
+                  <Link to={`/projects/${id}/automation/history?merged=true`} className="health-panel-link">Merged PRs <Icon name="arrowRight" size={11} /></Link>
                 </div>
-                {data.brokenEnvironments.length === 0 ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', color: 'var(--success)' }}>
-                    <Icon name="check" size={15} /> No open environmental issues.
-                  </div>
-                ) : (
-                  <div className="health-panel-body">
-                    {data.brokenEnvironments.map(b => (
-                      <div
-                        className="health-attn-row"
-                        key={b.id}
-                        onClick={() => navigate(`/projects/${id}/bugs?bugId=${b.id}`)}
-                        style={{ cursor: 'pointer' }}
-                      >
-                        <div className="health-sev-stripe" style={{ background: `var(--severity-${b.severity})` }} />
-                        <div>
-                          <div className="health-attn-title">{b.title}</div>
-                          <div className="health-attn-meta">#{b.id} · opened {timeAgo(b.created_at)}</div>
+                {(() => {
+                  const unmerged = data.prValidation.filter(r => !r.pr_status?.merged)
+                  return unmerged.length === 0 ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', color: 'var(--success)' }}>
+                      <Icon name="check" size={15} /> Nothing waiting on review.
+                    </div>
+                  ) : (
+                    <div className="health-panel-body">
+                      {unmerged.map((r, i) => (
+                        <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', padding: '0.55rem 0', borderBottom: i < unmerged.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: '0.85rem', color: 'var(--light)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {r.kind === 'heal' ? `Heal: ${r.target_title}`
+                                : r.kind === 'move' ? `Move: ${r.target_title}${r.target_suite_name ? ` → ${r.target_suite_name}` : ''}`
+                                : (r.branch_name || `Run #${r.id}`)}
+                            </div>
+                            <div style={{ fontSize: '0.72rem', color: 'var(--faint)' }}>{timeAgo(r.completed_at)}</div>
+                          </div>
+                          <a href={r.pr_url} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm" style={{ flexShrink: 0 }}>
+                            View PR
+                          </a>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                      ))}
+                    </div>
+                  )
+                })()}
               </div>
 
               <div className="health-panel">
@@ -535,20 +510,30 @@ export default function EngineeringDashboardPage() {
 
               <div className="health-panel">
                 <div className="health-panel-head">
-                  <div className="health-panel-title">Automation review backlog</div>
-                  <a href="#the-lab" className="health-panel-link">The Lab <Icon name="arrowRight" size={11} /></a>
+                  <div className="health-panel-title">Broken environments</div>
+                  <Link to={`/projects/${id}/bugs`} className="health-panel-link">Bugs <Icon name="arrowRight" size={11} /></Link>
                 </div>
-                {Object.entries(data.reviewStatusCounts).filter(([status]) => status !== 'active').every(([, count]) => count === 0) ? (
+                {data.brokenEnvironments.length === 0 ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', color: 'var(--success)' }}>
-                    <Icon name="check" size={15} /> Nothing waiting on review.
+                    <Icon name="check" size={15} /> No open environmental issues.
                   </div>
                 ) : (
-                  Object.entries(data.reviewStatusCounts).filter(([status, count]) => status !== 'active' && count > 0).map(([status, count]) => (
-                    <div key={status} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.4rem 0' }}>
-                      <span style={{ fontSize: '0.85rem', color: REVIEW_STATUS_COLOR[status] }}>{REVIEW_STATUS_LABEL[status]}</span>
-                      <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--white)' }}>{count}</span>
-                    </div>
-                  ))
+                  <div className="health-panel-body">
+                    {data.brokenEnvironments.map(b => (
+                      <div
+                        className="health-attn-row"
+                        key={b.id}
+                        onClick={() => navigate(`/projects/${id}/bugs?bugId=${b.id}`)}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        <div className="health-sev-stripe" style={{ background: `var(--severity-${b.severity})` }} />
+                        <div>
+                          <div className="health-attn-title">{b.title}</div>
+                          <div className="health-attn-meta">#{b.id} · opened {timeAgo(b.created_at)}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             </div>
