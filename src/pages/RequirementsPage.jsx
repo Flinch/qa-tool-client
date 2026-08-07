@@ -9,6 +9,8 @@ import ManageFeaturesModal from '../components/ManageFeaturesModal.jsx'
 import AssignFeatureModal from '../components/AssignFeatureModal.jsx'
 import { tcLabel } from '../lib/testCaseLabel.js'
 
+const PLATFORM_LABELS = { web: 'Web', ios: 'iOS', android: 'Android' }
+
 function UploadRequirementsModal({ projectId, onClose, onDiff }) {
   const { addToast } = useToastStore()
   const [mode, setMode] = useState('file')
@@ -105,7 +107,8 @@ function UploadRequirementsModal({ projectId, onClose, onDiff }) {
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             {[
               { value: 'web', label: 'Web' },
-              { value: 'mobile', label: 'Mobile' },
+              { value: 'ios', label: 'iOS' },
+              { value: 'android', label: 'Android' },
             ].map(p => (
               <button
                 key={p.value}
@@ -670,7 +673,8 @@ function CreateRequirementModal({ projectId, features, onClose, onCreated }) {
           <label className="form-label">Platform</label>
           <select className="form-select" value={form.platform} onChange={e => set('platform', e.target.value)}>
             <option value="web">Web</option>
-            <option value="mobile">Mobile</option>
+            <option value="ios">iOS</option>
+            <option value="android">Android</option>
           </select>
         </div>
         <div className="form-group">
@@ -894,7 +898,8 @@ export function RequirementModal({ requirement, projectId, isClient, features, o
             <label className="form-label">Platform</label>
             <select className="form-select" value={editForm.platform} onChange={e => setEditForm(f => ({ ...f, platform: e.target.value }))}>
               <option value="web">Web</option>
-              <option value="mobile">Mobile</option>
+              <option value="ios">iOS</option>
+              <option value="android">Android</option>
             </select>
           </div>
           <div className="form-group">
@@ -932,7 +937,7 @@ export function RequirementModal({ requirement, projectId, isClient, features, o
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem', marginBottom: '1.25rem' }}>
           <div>
             <span className={`badge badge-${requirement.platform || 'web'}`} style={{ marginBottom: '0.4rem', display: 'inline-block' }}>
-              {requirement.platform === 'mobile' ? 'Mobile' : 'Web'}
+              {PLATFORM_LABELS[requirement.platform] || 'Web'}
             </span>
             <h2 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '1rem', fontWeight: 700, color: 'var(--white)', lineHeight: 1.3 }}>{requirement.title}</h2>
           </div>
@@ -1225,9 +1230,9 @@ export default function RequirementsPage() {
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
           <div className="platform-tabs">
-            {['all', 'web', 'mobile'].map(p => (
+            {['all', 'web', 'ios', 'android'].map(p => (
               <button key={p} className="platform-tab" aria-selected={platform === p} onClick={() => setPlatform(p)}>
-                {p === 'all' ? 'All' : p === 'web' ? 'Web' : 'Mobile'}
+                {p === 'all' ? 'All' : PLATFORM_LABELS[p]}
               </button>
             ))}
           </div>
@@ -1315,7 +1320,7 @@ export default function RequirementsPage() {
                             </div>
                             {r.description && <div style={{ fontSize: '0.72rem', color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.description}</div>}
                           </td>
-                          <td><span className={`badge badge-${r.platform || 'web'}`}>{r.platform === 'mobile' ? 'Mobile' : 'Web'}</span></td>
+                          <td><span className={`badge badge-${r.platform || 'web'}`}>{PLATFORM_LABELS[r.platform] || 'Web'}</span></td>
                           <td>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                               {r.linked_test_case_count > 0 ? (

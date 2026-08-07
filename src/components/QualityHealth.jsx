@@ -19,6 +19,15 @@ const STATUS_META = {
 }
 
 const SEVERITY_ORDER = ['critical', 'high', 'medium', 'low']
+const PLATFORM_LABELS = { web: 'Web', ios: 'iOS', android: 'Android' }
+// Lower = worse. Drives which platform's status/headline "wins" when a
+// project spans more than one — the whole point of segmenting the score is
+// that one platform lagging shouldn't hide behind another one's strength, so
+// the headline should reflect whichever platform needs attention most, not
+// an average. insufficient_data ranks above needs_attention (a real, known
+// problem is more urgent than an unmeasured platform) but below good/
+// excellent (not knowing is still worse than knowing it's fine).
+const PLATFORM_STATUS_RANK = { needs_attention: 0, insufficient_data: 1, good: 2, excellent: 3 }
 
 function greetingWord() {
   const h = new Date().getHours()
@@ -98,7 +107,7 @@ function FeatureBreakdownRow({ f }) {
 // background glow effect, which would otherwise cut the popover off. Lives
 // under the headline/sub text and fills that column's width, rather than a
 // fixed-footprint circular gauge off to the side.
-function ScoreBar({ value, color, breakdown }) {
+function ScoreBar({ value, color, breakdown, label = 'Quality score' }) {
   const [hover, setHover] = useState(false)
   const [pos, setPos] = useState(null)
   const wrapRef = useRef(null)
@@ -118,7 +127,7 @@ function ScoreBar({ value, color, breakdown }) {
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
           <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '0.64rem', letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted)' }}>
-            Quality score
+            {label}
           </span>
           <Icon
             name="info" size={12}
@@ -246,11 +255,30 @@ export default function QualityHealth({ projectId, projectName, logo, links = []
     return <div className="empty-state"><h3>Couldn't load quality data</h3></div>
   }
 
-  const status = STATUS_META[data.healthStatus] || STATUS_META.insufficient_data
   const tc = data.testCases
   const openBugsTotal = SEVERITY_ORDER.reduce((sum, s) => sum + data.bugsBySeverity[s], 0)
-  const summary = buildSummary(data, projectName || 'This project')
   const firstName = user?.name?.split(' ')[0]
+
+  // A project that's only ever had one platform gets exactly one entry here
+  // (or none yet, for a brand-new project) — the single-bar rendering below
+  // is then pixel-identical to before this feature existed, sourced from
+  // that one entry rather than the separately-computed top-level blend, so
+  // the two can never subtly disagree (e.g. over a legacy bug/run with no
+  // platform tag that counts toward the blend but no platform bucket).
+  const platformScores = data.platformScores || []
+  const isMultiPlatform = platformScores.length > 1
+  // The worst-ranked platform drives the headline/status when there's more
+  // than one — that's the entire point of segmenting the score: one
+  // platform lagging shouldn't hide behind another's strength.
+  const worstPlatformEntry = isMultiPlatform
+    ? [...platformScores].sort((a, b) => PLATFORM_STATUS_RANK[a.healthStatus] - PLATFORM_STATUS_RANK[b.healthStatus])[0]
+    : null
+  const primaryEntry = worstPlatformEntry || platformScores[0] || data
+  const status = STATUS_META[primaryEntry.healthStatus] || STATUS_META.insufficient_data
+  const summaryName = worstPlatformEntry
+    ? `${projectName || 'This project'} (${PLATFORM_LABELS[worstPlatformEntry.platform]})`
+    : (projectName || 'This project')
+  const summary = buildSummary(primaryEntry, summaryName)
 
   // "New bugs reported" — bugs filed in the last 7 days, regardless of
   // current status (a bug that's already been resolved same-day is still
@@ -295,7 +323,19 @@ export default function QualityHealth({ projectId, projectName, logo, links = []
               <div className="health-greeting-eyebrow">{greetingWord()}{firstName ? `, ${firstName}` : ''}</div>
               <h1 className="health-greeting-h1">{summary.headline}</h1>
               <div className="health-greeting-sub">{summary.sub}</div>
-              <ScoreBar value={data.qualityScore} color={status.color} breakdown={features} />
+              {isMultiPlatform ? (
+                platformScores.map(p => (
+                  <ScoreBar
+                    key={p.platform}
+                    label={`${PLATFORM_LABELS[p.platform]} quality score`}
+                    value={p.qualityScore}
+                    color={(STATUS_META[p.healthStatus] || STATUS_META.insufficient_data).color}
+                    breakdown={features}
+                  />
+                ))
+              ) : (
+                <ScoreBar value={platformScores[0]?.qualityScore ?? data.qualityScore} color={status.color} breakdown={features} />
+              )}
             </div>
           </div>
 

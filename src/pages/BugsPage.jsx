@@ -76,6 +76,7 @@ function BugModal({ projectId, features, onClose, onCreated }) {
   const [executionRuns, setExecutionRuns] = useState([])
   const [linkedRunId, setLinkedRunId] = useState('')
   const [featureId, setFeatureId] = useState('')
+  const [platform, setPlatform] = useState('')
   const [loading, setLoading] = useState(false)
   const [attachedImage, setAttachedImage] = useState(null)
   const [compressing, setCompressing] = useState(false)
@@ -132,7 +133,7 @@ function BugModal({ projectId, features, onClose, onCreated }) {
   }
 
   const submit = async () => {
-    if (!form.title.trim() || !featureId) return
+    if (!form.title.trim() || !featureId || !platform) return
     setLoading(true)
     try {
       const bug = await apiFetch(`/projects/${projectId}/bugs`, {
@@ -141,6 +142,7 @@ function BugModal({ projectId, features, onClose, onCreated }) {
           ...form,
           execution_run_id: linkedRunId || null,
           feature_id: featureId,
+          platform,
           post_to_jira: postToJira && !!jiraProjectKey,
           jira: postToJira && jiraProjectKey
             ? { projectKey: jiraProjectKey, organization: jiraOrganization.trim() || null, image: attachedImage || null }
@@ -190,6 +192,15 @@ function BugModal({ projectId, features, onClose, onCreated }) {
           <select className="form-select" value={featureId} onChange={e => setFeatureId(e.target.value)}>
             <option value="">Select a feature...</option>
             {features.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+          </select>
+        </div>
+        <div className="form-group">
+          <label className="form-label">Platform *</label>
+          <select className="form-select" value={platform} onChange={e => setPlatform(e.target.value)}>
+            <option value="">Select a platform...</option>
+            <option value="web">Web</option>
+            <option value="ios">iOS</option>
+            <option value="android">Android</option>
           </select>
         </div>
         <div className="form-group">
@@ -274,7 +285,7 @@ function BugModal({ projectId, features, onClose, onCreated }) {
 
         <div className="modal-footer">
           <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={submit} disabled={loading || !form.title.trim() || !featureId}>{loading ? 'Logging...' : 'Log bug'}</button>
+          <button className="btn btn-primary" onClick={submit} disabled={loading || !form.title.trim() || !featureId || !platform}>{loading ? 'Logging...' : 'Log bug'}</button>
         </div>
       </div>
     </div>

@@ -13,6 +13,7 @@ import { RequirementModal } from './RequirementsPage.jsx'
 import { tcLabel } from '../lib/testCaseLabel.js'
 
 const TYPE_LABELS = { functional: 'Functional', integration: 'Integration', e2e: 'E2E', api: 'API' }
+const PLATFORM_LABELS = { web: 'Web', ios: 'iOS', android: 'Android' }
 const SEVERITIES = ['critical', 'high', 'medium', 'low']
 
 function CreateTestCaseModal({ projectId, features, onClose, onCreated }) {
@@ -113,7 +114,8 @@ function CreateTestCaseModal({ projectId, features, onClose, onCreated }) {
           <label className="form-label">Platform</label>
           <select className="form-select" value={form.platform} onChange={e => set('platform', e.target.value)}>
             <option value="web">Web</option>
-            <option value="mobile">Mobile</option>
+            <option value="ios">iOS</option>
+            <option value="android">Android</option>
           </select>
         </div>
 
@@ -173,6 +175,9 @@ export function LogBugModal({ projectId, testCase, executionRunId, features, onC
   // still editable, still required, same as test_case_id being implicitly
   // set here but not locked.
   const [featureId, setFeatureId] = useState(testCase.feature_id || '')
+  // Same pre-fill for platform — precise now that test_cases.platform is
+  // web/ios/android rather than a coarse web/mobile split.
+  const [platform, setPlatform] = useState(testCase.platform || '')
   const [loading, setLoading] = useState(false)
   const [attachedImage, setAttachedImage] = useState(null)
   const [compressing, setCompressing] = useState(false)
@@ -198,12 +203,12 @@ export function LogBugModal({ projectId, testCase, executionRunId, features, onC
   }
 
   const submit = async () => {
-    if (!form.title.trim() || !featureId) return
+    if (!form.title.trim() || !featureId || !platform) return
     setLoading(true)
     try {
       const bug = await apiFetch(`/projects/${projectId}/bugs`, {
         method: 'POST',
-        body: JSON.stringify({ ...form, test_case_id: testCase.id, execution_run_id: linkedRunId || null, feature_id: featureId }),
+        body: JSON.stringify({ ...form, test_case_id: testCase.id, execution_run_id: linkedRunId || null, feature_id: featureId, platform }),
       })
       if (attachedImage) {
         await apiFetch(`/projects/${projectId}/bugs/${bug.id}/comments`, {
@@ -245,6 +250,15 @@ export function LogBugModal({ projectId, testCase, executionRunId, features, onC
           <select className="form-select" value={featureId} onChange={e => setFeatureId(e.target.value)}>
             <option value="">Select a feature...</option>
             {features.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+          </select>
+        </div>
+        <div className="form-group">
+          <label className="form-label">Platform *</label>
+          <select className="form-select" value={platform} onChange={e => setPlatform(e.target.value)}>
+            <option value="">Select a platform...</option>
+            <option value="web">Web</option>
+            <option value="ios">iOS</option>
+            <option value="android">Android</option>
           </select>
         </div>
         <div className="form-group">
@@ -293,7 +307,7 @@ export function LogBugModal({ projectId, testCase, executionRunId, features, onC
         </div>
         <div className="modal-footer">
           <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={submit} disabled={loading || !form.title.trim() || !featureId}>
+          <button className="btn btn-primary" onClick={submit} disabled={loading || !form.title.trim() || !featureId || !platform}>
             {loading ? 'Logging...' : 'Log bug'}
           </button>
         </div>
@@ -454,7 +468,8 @@ function TestCaseModal({ tc, projectId, isClient, features, onClose, onBugLogged
             <label className="form-label">Platform</label>
             <select className="form-select" value={editForm.platform} onChange={e => setEditForm(f => ({ ...f, platform: e.target.value }))}>
               <option value="web">Web</option>
-              <option value="mobile">Mobile</option>
+              <option value="ios">iOS</option>
+              <option value="android">Android</option>
             </select>
           </div>
 
@@ -515,7 +530,7 @@ function TestCaseModal({ tc, projectId, isClient, features, onClose, onBugLogged
           <div style={{ flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem', flexWrap: 'wrap' }}>
               <span className={`badge badge-${tc.type}`}>{TYPE_LABELS[tc.type]}</span>
-              <span className={`badge badge-${tc.platform || 'web'}`}>{tc.platform === 'mobile' ? 'Mobile' : 'Web'}</span>
+              <span className={`badge badge-${tc.platform || 'web'}`}>{PLATFORM_LABELS[tc.platform] || 'Web'}</span>
               {tc.archived_at && <span className="badge" style={{ color: 'var(--muted)' }}>Archived</span>}
               {tc.is_automated ? (
                 <span className="badge badge-tc-automated" title="Has real generated automation">
@@ -744,9 +759,9 @@ export default function TestCasesPage() {
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
           <div className="platform-tabs">
-            {['all', 'web', 'mobile'].map(p => (
+            {['all', 'web', 'ios', 'android'].map(p => (
               <button key={p} className="platform-tab" aria-selected={platform === p} onClick={() => setPlatform(p)}>
-                {p === 'all' ? 'All' : p === 'web' ? 'Web' : 'Mobile'}
+                {p === 'all' ? 'All' : PLATFORM_LABELS[p]}
               </button>
             ))}
           </div>
@@ -849,7 +864,7 @@ export default function TestCasesPage() {
                             {tc.steps?.length > 0 && <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>{tc.steps.length} steps</div>}
                           </td>
                           <td><span className={`badge badge-${tc.type}`}>{TYPE_LABELS[tc.type]}</span></td>
-                          <td><span className={`badge badge-${tc.platform || 'web'}`}>{tc.platform === 'mobile' ? 'Mobile' : 'Web'}</span></td>
+                          <td><span className={`badge badge-${tc.platform || 'web'}`}>{PLATFORM_LABELS[tc.platform] || 'Web'}</span></td>
                           <td>
                             {tc.is_automated
                               ? <span className="badge badge-tc-automated" title="Has real generated automation"><Icon name="check" size={11} /> Automated</span>

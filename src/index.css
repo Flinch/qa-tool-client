@@ -323,7 +323,8 @@ body {
 .badge-environmental { border-color: var(--warning); color: var(--warning); }
 .badge-regression { border-color: var(--danger); color: var(--danger); }
 .badge-web           { border-color: #5A8DB8; color: #5A8DB8; }
-.badge-mobile        { border-color: #C97AB5; color: #C97AB5; }
+.badge-ios           { border-color: #C97AB5; color: #C97AB5; }
+.badge-android       { border-color: #3DDC84; color: #3DDC84; }
 
 /* STATUS MENU — expandable status picker on a swipe-mode test case card */
 .status-menu {

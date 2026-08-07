@@ -557,10 +557,12 @@ export function GenerateTestsModal({ projectId, suites, onClose, onDispatched })
     ? notAutomated.filter(tc => tc.type === 'api')
     : (showAll ? notAutomated : notAutomated.filter(tc => tc.automation_candidate)).filter(tc => tc.type !== 'api')
 
-  // test_cases.platform is coarse (web/mobile), unlike a suite's own
-  // web/ios/android — both ios and android suites accept 'mobile' TCs.
-  const suiteCategory = selectedSuite ? (selectedSuite.platform === 'web' ? 'web' : 'mobile') : null
-  const candidates = suiteCategory ? allCandidates.filter(tc => tc.platform === suiteCategory) : allCandidates
+  // test_cases.platform is web/ios/android, same as a suite's own — but a
+  // mobile suite still isn't limited to its exact OS, an ios suite can
+  // automate an android-tagged TC and vice versa (same "either mobile TC is
+  // fair game" policy as before test_cases.platform had this granularity).
+  const suitePlatforms = selectedSuite ? (selectedSuite.platform === 'web' ? ['web'] : ['ios', 'android']) : null
+  const candidates = suitePlatforms ? allCandidates.filter(tc => suitePlatforms.includes(tc.platform)) : allCandidates
 
   // A TC checked while one suite was selected shouldn't silently ride along
   // after switching to a different-platform suite.

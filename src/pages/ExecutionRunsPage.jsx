@@ -18,6 +18,7 @@ export function RunStatusBadge({ status }) {
 function CreateRunModal({ projectId, onClose, onCreated }) {
   const { addToast } = useToastStore()
   const [name, setName] = useState('')
+  const [platform, setPlatform] = useState('')
   const [testCases, setTestCases] = useState([])
   const [suites, setSuites] = useState([])
   const [features, setFeatures] = useState([])
@@ -48,8 +49,12 @@ function CreateRunModal({ projectId, onClose, onCreated }) {
   // API test cases are automation-only — there's no human to manually mark
   // an API check pass/fail in an execution-run session, so they're excluded
   // from every selection path here (the list itself, "select all", and
-  // feature-based selection) rather than just hidden from view.
-  const manualTestCases = testCases.filter(tc => tc.type !== 'api')
+  // feature-based selection) rather than just hidden from view. Also scoped
+  // to the chosen platform — an execution run represents one platform's
+  // release state, so mixing web and iOS test cases into the same run would
+  // make its pass rate meaningless for either platform's score.
+  const manualTestCases = testCases.filter(tc => tc.type !== 'api' && tc.platform === platform)
+  const platformSuites = suites.filter(s => s.platform === platform)
 
   // A test case has at most one feature_id, so checking/unchecking a feature
   // can safely add/remove exactly its own test case ids from selectedTcIds
@@ -66,13 +71,14 @@ function CreateRunModal({ projectId, onClose, onCreated }) {
   }
 
   const create = async () => {
-    if (!name.trim()) return
+    if (!name.trim() || !platform) return
     setSaving(true)
     try {
       const run = await apiFetch(`/projects/${projectId}/execution-runs`, {
         method: 'POST',
         body: JSON.stringify({
           name,
+          platform,
           test_case_ids: [...selectedTcIds],
           suite_ids: [...selectedSuiteIds],
         }),
@@ -87,7 +93,7 @@ function CreateRunModal({ projectId, onClose, onCreated }) {
     }
   }
 
-  const canCreate = name.trim() && (selectedTcIds.size > 0 || selectedSuiteIds.size > 0)
+  const canCreate = name.trim() && platform && (selectedTcIds.size > 0 || selectedSuiteIds.size > 0)
 
   return (
     <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
@@ -99,7 +105,30 @@ function CreateRunModal({ projectId, onClose, onCreated }) {
           <input className="form-input" placeholder="e.g. Sprint 14 regression" value={name} onChange={e => setName(e.target.value)} />
         </div>
 
-        {loading ? (
+        <div className="form-group">
+          <label className="form-label">Platform *</label>
+          <select
+            className="form-select"
+            value={platform}
+            onChange={e => {
+              setPlatform(e.target.value)
+              // A test case or suite checked under one platform doesn't
+              // silently ride along after switching — same reasoning as
+              // GenerateTestsModal's suite-switch cleanup.
+              setSelectedTcIds(new Set())
+              setSelectedSuiteIds(new Set())
+              setSelectedFeatureIds(new Set())
+            }}
+          >
+            <option value="">Select a platform...</option>
+            <option value="web">Web</option>
+            <option value="ios">iOS</option>
+            <option value="android">Android</option>
+          </select>
+          <div className="form-hint">An execution run represents one platform's release state — test cases and suites below are scoped to it.</div>
+        </div>
+
+        {!platform ? null : loading ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}><div className="spinner" /></div>
         ) : (
           <>
@@ -162,11 +191,11 @@ function CreateRunModal({ projectId, onClose, onCreated }) {
               <label className="form-label">
                 Automation suites {selectedSuiteIds.size > 0 && `(${selectedSuiteIds.size} selected)`}
               </label>
-              {suites.length === 0 ? (
-                <div className="form-hint">No automation suites in this project yet.</div>
+              {platformSuites.length === 0 ? (
+                <div className="form-hint">No {platform} automation suites in this project yet.</div>
               ) : (
                 <div className="checkbox-list">
-                  {suites.map(s => (
+                  {platformSuites.map(s => (
                     <label key={s.id}>
                       <input
                         type="checkbox"
