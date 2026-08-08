@@ -4,12 +4,17 @@ import { apiFetch } from '../lib/api.js'
 import { useAuth } from '../store/AuthContext.jsx'
 import { useToastStore } from '../store/toastStore.jsx'
 import { readDocumentFile } from '../lib/documentUpload.js'
+import { timeAgo } from '../lib/timeAgo.js'
 import Icon from '../components/Icon.jsx'
 import ManageFeaturesModal from '../components/ManageFeaturesModal.jsx'
 import AssignFeatureModal from '../components/AssignFeatureModal.jsx'
 import { tcLabel } from '../lib/testCaseLabel.js'
+import { GENERATION_PHASES } from './AutomationPage.jsx'
 
 const PLATFORM_LABELS = { web: 'Web', ios: 'iOS', android: 'Android' }
+const EXPLORE_GEN_POLL_MS = 5000
+const EXPLORE_GEN_POLL_TIMEOUT_MS = 5 * 60 * 1000
+const INSTRUCTIONS_MAX_LEN = 500
 
 function UploadRequirementsModal({ projectId, onClose, onDiff }) {
   const { addToast } = useToastStore()
@@ -144,6 +149,199 @@ function UploadRequirementsModal({ projectId, onClose, onDiff }) {
                 <div className="spinner" style={{ width: 14, height: 14, borderWidth: 1.5 }} /> Parsing...
               </span>
             ) : 'Upload & parse'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// For a project with no requirements doc at all (or one being automated
+// without one): explores the real, live app and drafts requirements from
+// what it actually finds, then hands off to the exact same onDiff callback
+// UploadRequirementsModal uses — RequirementsPage needs no new state beyond
+// this modal's own open/close, since pendingDiff + DiffReviewModal are fully
+// generic (confirmed by reading DiffReviewModal: it only cares about
+// diff.modified/removed/new + documentId + platform).
+function GenerateRequirementsFromAppModal({ projectId, onClose, onDiff }) {
+  const { addToast } = useToastStore()
+  const [platform, setPlatform] = useState('web')
+  const [instructions, setInstructions] = useState('')
+  // undefined = still checking; null = checked, nothing found
+  const [existingExploration, setExistingExploration] = useState(undefined)
+  const [reExplore, setReExplore] = useState(false)
+  const [showSummary, setShowSummary] = useState(false)
+  const [step, setStep] = useState('form') // 'form' | 'exploring' | 'drafting'
+  const pollRef = useRef(null)
+  const pollStartedAt = useRef(null)
+
+  useEffect(() => {
+    setExistingExploration(undefined)
+    setShowSummary(false)
+    setReExplore(false)
+    apiFetch(`/projects/${projectId}/automation/app-explorations`)
+      .then(rows => setExistingExploration(rows.find(r => r.platform === platform) || null))
+      .catch(() => setExistingExploration(null))
+  }, [projectId, platform])
+
+  useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current) }, [])
+
+  const busy = step !== 'form'
+  const needsFreshExplore = !existingExploration || reExplore
+
+  const draftFromExploration = async () => {
+    setStep('drafting')
+    try {
+      const result = await apiFetch(`/projects/${projectId}/requirements/generate-from-exploration`, {
+        method: 'POST',
+        body: JSON.stringify({ platform, instructions: instructions.trim() || undefined }),
+      })
+      onDiff(result.mode, result.document, result.diff, platform)
+      onClose()
+    } catch (e) {
+      addToast(e.message, 'error')
+      setStep('form')
+    }
+  }
+
+  const pollExploreRun = (runId) => {
+    pollStartedAt.current = Date.now()
+    pollRef.current = setInterval(async () => {
+      if (Date.now() - pollStartedAt.current > EXPLORE_GEN_POLL_TIMEOUT_MS) {
+        clearInterval(pollRef.current)
+        addToast('Still exploring — check the Engineering dashboard directly if this persists', 'error')
+        setStep('form')
+        return
+      }
+      let runs
+      try {
+        runs = await apiFetch(`/projects/${projectId}/automation/generation-runs`)
+      } catch (e) {
+        clearInterval(pollRef.current)
+        addToast(`Lost connection while exploring: ${e.message}`, 'error')
+        setStep('form')
+        return
+      }
+      const run = runs.find(r => r.id === runId)
+      if (!run || GENERATION_PHASES.includes(run.status)) return
+      clearInterval(pollRef.current)
+      if (run.status === 'completed') {
+        draftFromExploration()
+      } else {
+        addToast(run.error_message || 'Exploration failed', 'error')
+        setStep('form')
+      }
+    }, EXPLORE_GEN_POLL_MS)
+  }
+
+  const submit = async () => {
+    if (!needsFreshExplore) return draftFromExploration()
+    setStep('exploring')
+    try {
+      const run = await apiFetch(`/projects/${projectId}/automation/explore`, {
+        method: 'POST',
+        body: JSON.stringify({ platform, instructions: instructions.trim() || undefined }),
+      })
+      pollExploreRun(run.id)
+    } catch (e) {
+      addToast(e.message, 'error')
+      setStep('form')
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal" style={{ maxWidth: 620 }}>
+        <div className="modal-title">Generate requirements from app</div>
+        <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginBottom: '1.1rem' }}>
+          For a project with no requirements doc yet — an agent explores the real, live app and drafts
+          testable requirements from what it actually finds.
+        </div>
+
+        <div className="form-group">
+          <label className="form-label">Platform</label>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            {[
+              { value: 'web', label: 'Web' },
+              { value: 'ios', label: 'iOS' },
+              { value: 'android', label: 'Android' },
+            ].map(p => (
+              <button
+                key={p.value}
+                onClick={() => setPlatform(p.value)}
+                disabled={busy}
+                style={{
+                  flex: 1, padding: '0.5rem 1rem', borderRadius: 0, cursor: busy ? 'default' : 'pointer',
+                  border: platform === p.value ? '1px solid var(--accent)' : '1px solid var(--border)',
+                  background: platform === p.value ? 'rgba(184,70,31,0.1)' : 'var(--bg2)',
+                  color: platform === p.value ? 'var(--accent)' : 'var(--muted)',
+                  fontWeight: 600, fontSize: '0.85rem', transition: 'all 0.15s', opacity: busy ? 0.6 : 1,
+                }}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ marginBottom: '1rem', fontSize: '0.82rem' }}>
+          {existingExploration === undefined ? (
+            <span style={{ color: 'var(--faint)' }}>Checking exploration status…</span>
+          ) : existingExploration ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <span style={{ color: 'var(--success)' }}>✓ Explored {timeAgo(existingExploration.created_at)}</span>
+              <button className="btn btn-ghost btn-sm" type="button" onClick={() => setShowSummary(s => !s)}>
+                {showSummary ? 'Hide summary' : 'View summary'}
+              </button>
+            </div>
+          ) : (
+            <span style={{ color: 'var(--muted)' }}>This platform hasn't been explored yet — I'll explore it first.</span>
+          )}
+          {showSummary && existingExploration && (
+            <div style={{ marginTop: '0.5rem', fontSize: '0.78rem', color: 'var(--muted)', whiteSpace: 'pre-wrap', maxHeight: 160, overflowY: 'auto', background: 'var(--bg2)', border: '1px solid var(--border)', padding: '0.6rem 0.75rem' }}>
+              {existingExploration.summary}
+            </div>
+          )}
+        </div>
+
+        <div className="form-group">
+          <label className="form-label">Guidance (optional)</label>
+          <textarea
+            className="form-textarea"
+            style={{ minHeight: 90 }}
+            placeholder='e.g. "ignore the admin section", "keep these high-level", "be very comprehensive on checkout"'
+            value={instructions}
+            onChange={e => setInstructions(e.target.value.slice(0, INSTRUCTIONS_MAX_LEN))}
+            disabled={busy}
+          />
+          <div className="form-hint" style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span>Shapes scope and how high-level vs. comprehensive the drafted requirements are.</span>
+            <span>{instructions.length}/{INSTRUCTIONS_MAX_LEN}</span>
+          </div>
+        </div>
+
+        {existingExploration && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.82rem', color: 'var(--light)', marginBottom: '1rem', cursor: busy ? 'default' : 'pointer' }}>
+            <input type="checkbox" checked={reExplore} onChange={e => setReExplore(e.target.checked)} disabled={busy} />
+            Re-explore the app first
+          </label>
+        )}
+
+        {step === 'exploring' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.82rem', color: 'var(--warning)', marginBottom: '1rem' }}>
+            <div className="spinner" style={{ width: 14, height: 14, borderWidth: 1.5 }} />
+            Exploring the app — this can take a few minutes. Safe to close; it'll keep running.
+          </div>
+        )}
+
+        <div className="modal-footer">
+          <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" onClick={submit} disabled={busy || existingExploration === undefined}>
+            {step === 'drafting' ? (
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <div className="spinner" style={{ width: 14, height: 14, borderWidth: 1.5 }} /> Drafting...
+              </span>
+            ) : step === 'exploring' ? 'Exploring...' : needsFreshExplore ? 'Explore & draft requirements' : 'Draft requirements from last exploration'}
           </button>
         </div>
       </div>
@@ -779,6 +977,16 @@ export function RequirementModal({ requirement, projectId, isClient, features, o
   const [saving, setSaving] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [pendingTcDiff, setPendingTcDiff] = useState(null)
+  // undefined = still checking; null = checked, nothing found — surfaces
+  // whether "Generate test case" below will actually be grounded in live
+  // app behavior or just the requirement text alone (previously silent).
+  const [exploration, setExploration] = useState(undefined)
+
+  useEffect(() => {
+    apiFetch(`/projects/${projectId}/automation/app-explorations`)
+      .then(rows => setExploration(rows.find(r => r.platform === requirement.platform) || null))
+      .catch(() => setExploration(null))
+  }, [projectId, requirement.platform])
 
   const loadLinked = () => {
     setLoadingLinked(true)
@@ -968,6 +1176,18 @@ export function RequirementModal({ requirement, projectId, isClient, features, o
               </div>
             )}
           </div>
+          {!isClient && exploration !== undefined && (
+            <div style={{ fontSize: '0.75rem', marginBottom: '0.75rem' }}>
+              {exploration ? (
+                <span style={{ color: 'var(--success)' }}>✓ Using live exploration from {timeAgo(exploration.created_at)}</span>
+              ) : (
+                <span style={{ color: 'var(--muted)' }}>
+                  No exploration yet for {PLATFORM_LABELS[requirement.platform] || requirement.platform} — steps will be based on the requirement text only.{' '}
+                  <Link to={`/projects/${projectId}/engineering`} style={{ color: 'var(--accent)' }}>Explore app →</Link>
+                </span>
+              )}
+            </div>
+          )}
           {loadingLinked ? (
             <div style={{ display: 'flex', justifyContent: 'center', padding: '1rem' }}><div className="spinner" /></div>
           ) : linkedTestCases.length === 0 ? (
@@ -1003,6 +1223,7 @@ export default function RequirementsPage() {
   const [loading, setLoading] = useState(true)
   const [showCreate, setShowCreate] = useState(false)
   const [showUpload, setShowUpload] = useState(false)
+  const [showGenerateFromApp, setShowGenerateFromApp] = useState(false)
   const [showManageFeatures, setShowManageFeatures] = useState(false)
   const [pendingDiff, setPendingDiff] = useState(null)
   const [selected, setSelected] = useState(null)
@@ -1022,6 +1243,12 @@ export default function RequirementsPage() {
 
   const fetchFeatures = () => apiFetch(`/projects/${id}/features`).then(setFeatures).catch(console.error)
   useEffect(() => { fetchFeatures() }, [id])
+
+  // Which platforms have live exploration data — used to caption the bulk
+  // "Generate test cases" button (previously exploration was used silently
+  // when present, with no visibility into whether it actually applied).
+  const [explorations, setExplorations] = useState([])
+  useEffect(() => { apiFetch(`/projects/${id}/automation/app-explorations`).then(setExplorations).catch(console.error) }, [id])
 
   // Deep-link support: ?reqId=123 (e.g. from the Test Cases page's
   // Requirement column) auto-opens that requirement's detail modal once the
@@ -1208,6 +1435,7 @@ export default function RequirementsPage() {
           {!isClient && (
             <>
               <button className="btn btn-ghost btn-sm" onClick={() => setShowUpload(true)}>Upload document</button>
+              <button className="btn btn-ghost btn-sm" onClick={() => setShowGenerateFromApp(true)} title="No requirements doc? Explore the real app and draft requirements from what it actually does">Generate from app</button>
               <button className="btn btn-ghost btn-sm" onClick={() => setConfirmingFlows(true)} disabled={reviewingFlows || requirements.length === 0} title="Identify the small set of critical end-to-end flows worth automating first">
                 {reviewingFlows ? 'Generating...' : 'Generate critical flows'}
               </button>
@@ -1227,6 +1455,20 @@ export default function RequirementsPage() {
             <div className="stat-card"><div className="stat-num" style={{ color: uncoveredCount > 0 ? 'var(--danger)' : 'var(--success)' }}>{uncoveredCount}</div><div className="stat-label">Uncovered requirements</div></div>
           </div>
         )}
+
+        {!isClient && requirements.length > 0 && (() => {
+          const activePlatforms = [...new Set(requirements.map(r => r.platform))]
+          const exploredPlatforms = new Set(explorations.map(e => e.platform))
+          const unexplored = activePlatforms.filter(p => !exploredPlatforms.has(p))
+          if (unexplored.length === 0) return null
+          return (
+            <div style={{ fontSize: '0.78rem', color: 'var(--muted)', marginBottom: '1rem' }}>
+              {unexplored.map(p => PLATFORM_LABELS[p] || p).join(', ')} not yet explored — "Generate test cases" will
+              base steps on requirement text only for {unexplored.length === 1 ? 'that platform' : 'those platforms'}.{' '}
+              <Link to={`/projects/${id}/engineering`} style={{ color: 'var(--accent)' }}>Explore app →</Link>
+            </div>
+          )
+        })()}
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
           <div className="platform-tabs">
@@ -1256,10 +1498,11 @@ export default function RequirementsPage() {
         ) : requirements.length === 0 ? (
           <div className="empty-state">
             <h3>No requirements yet</h3>
-            <p>{isClient ? 'No requirements have been added for this project yet.' : 'Upload a requirements document or add one manually to track which test cases actually cover them.'}</p>
+            <p>{isClient ? 'No requirements have been added for this project yet.' : 'Upload a requirements document, generate requirements from the live app, or add one manually to track which test cases actually cover them.'}</p>
             {!isClient && (
               <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
                 <button className="btn btn-ghost" onClick={() => setShowUpload(true)}>Upload document</button>
+                <button className="btn btn-ghost" onClick={() => setShowGenerateFromApp(true)}>Generate from app</button>
                 <button className="btn btn-primary" onClick={() => setShowCreate(true)}>+ New requirement</button>
               </div>
             )}
@@ -1383,6 +1626,14 @@ export default function RequirementsPage() {
           projectId={id}
           onClose={() => setShowUpload(false)}
           onDiff={(mode, document, diff, uploadPlatform) => setPendingDiff({ mode, documentId: document.id, diff, platform: uploadPlatform })}
+        />
+      )}
+
+      {showGenerateFromApp && (
+        <GenerateRequirementsFromAppModal
+          projectId={id}
+          onClose={() => setShowGenerateFromApp(false)}
+          onDiff={(mode, document, diff, explorePlatform) => setPendingDiff({ mode, documentId: document.id, diff, platform: explorePlatform })}
         />
       )}
 
