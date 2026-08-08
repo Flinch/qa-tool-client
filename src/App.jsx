@@ -22,25 +22,30 @@ import QualityTimelinePage from './pages/QualityTimelinePage.jsx'
 import EngineeringDashboardPage from './pages/EngineeringDashboardPage.jsx'
 import LabTestCasesPage from './pages/LabTestCasesPage.jsx'
 
-// Clients only ever have one project (a QA agency's single client account, one
-// engagement) — there's no real list to browse, so skip straight to it instead
-// of making them click through an intermediate "Projects" page with one card.
+// Most clients only ever have one project (a QA agency's single client
+// account, one engagement) — there's no real list to browse, so skip
+// straight to it instead of making them click through an intermediate
+// "Projects" page with one card. A client shared on 2+ projects has no
+// single obvious destination though, so they land on that same list
+// (ProjectsPage, already role-safe — its "+ New project" affordance is
+// admin-only) instead of being silently locked onto whichever project
+// happened to come back first.
 function ClientHome() {
-  const [projectId, setProjectId] = useState(undefined)
+  const [projects, setProjects] = useState(undefined)
 
   useEffect(() => {
     apiFetch('/projects')
-      .then(ps => setProjectId(ps[0]?.id ?? null))
-      .catch(() => setProjectId(null))
+      .then(setProjects)
+      .catch(() => setProjects(null))
   }, [])
 
-  if (projectId === undefined) {
+  if (projects === undefined) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}><div className="spinner" /></div>
     )
   }
 
-  if (projectId === null) {
+  if (projects === null || projects.length === 0) {
     return (
       <>
         <div className="topbar"><span className="topbar-title">Blueprint</span></div>
@@ -54,7 +59,11 @@ function ClientHome() {
     )
   }
 
-  return <Navigate to={`/projects/${projectId}`} replace />
+  if (projects.length === 1) {
+    return <Navigate to={`/projects/${projects[0].id}`} replace />
+  }
+
+  return <Navigate to="/projects" replace />
 }
 
 // Wraps every /projects/:id/* route. Confirms the current user actually has
@@ -153,7 +162,11 @@ function Gate() {
     <Routes>
       <Route path="/" element={<AppShell />}>
         <Route index element={user.role === 'client' ? <ClientHome /> : <DashboardPage />} />
-        <Route path="projects" element={user.role === 'client' ? <ClientHome /> : <ProjectsPage />} />
+        {/* Role-safe as-is (its "+ New project" affordance is admin-only) —
+            shared by every role so a client with 2+ projects has somewhere
+            to land and switch, instead of being routed back through
+            ClientHome's single-project redirect in a loop. */}
+        <Route path="projects" element={<ProjectsPage />} />
         {/* Every /projects/:id/* page sits behind ProjectGate — one access
             check per project, instead of relying on each page's own fetch
             to fail gracefully (most didn't). */}
