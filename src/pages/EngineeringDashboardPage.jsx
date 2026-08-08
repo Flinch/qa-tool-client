@@ -16,6 +16,9 @@ const SSE_MAX_CONSECUTIVE_ERRORS = 3
 
 const PRIORITY_COLOR = { high: 'var(--danger)', medium: 'var(--warning)', low: 'var(--muted)' }
 const RUN_GROUPS_POLL_MS = 4000
+const EXPLORE_POLL_MS = 5000
+const PLATFORM_LABEL = { web: 'Web', ios: 'iOS', android: 'Android' }
+const PLATFORM_ORDER = ['web', 'ios', 'android']
 
 // One "grouped run" card — a group of exactly one child renders exactly
 // like a plain individual run; N>1 children render as a bundle with an
@@ -184,6 +187,54 @@ export default function EngineeringDashboardPage() {
   }, [runGroups, loadRunGroups, loadEngineeringHealth])
 
   useEffect(() => { apiFetch(`/projects/${id}/automation/suites`).then(setSuites).catch(console.error) }, [id])
+
+  // "Explore app" — a staff-triggered agent walks the real, live target for a
+  // platform and produces a summary later injected into requirements-based
+  // test case generation for that platform (see generateTestCasesFromRequirements.js).
+  // Purely informational: unlike "Generate automated tests" this never blocks
+  // anything, so it gets its own lightweight status fetch rather than sharing
+  // the generation-runs polling above (that list's query excludes suite-less
+  // kinds like explore entirely).
+  const [explorations, setExplorations] = useState([])
+  const [dispatchingExplore, setDispatchingExplore] = useState(null)
+  const [expandedSummaryPlatform, setExpandedSummaryPlatform] = useState(null)
+  const explorePollRef = useRef(null)
+
+  const loadExplorations = useCallback(() => (
+    apiFetch(`/projects/${id}/automation/app-explorations`).then(setExplorations).catch(console.error)
+  ), [id])
+
+  useEffect(() => { loadExplorations() }, [loadExplorations])
+
+  useEffect(() => {
+    const anyExploring = explorations.some(e => e.exploring)
+    if (explorePollRef.current) { clearInterval(explorePollRef.current); explorePollRef.current = null }
+    if (anyExploring) explorePollRef.current = setInterval(loadExplorations, EXPLORE_POLL_MS)
+    return () => { if (explorePollRef.current) clearInterval(explorePollRef.current) }
+  }, [explorations, loadExplorations])
+
+  const handleExplore = async (platform) => {
+    setDispatchingExplore(platform)
+    try {
+      await apiFetch(`/projects/${id}/automation/explore`, { method: 'POST', body: JSON.stringify({ platform }) })
+      addToast(`Exploring the ${PLATFORM_LABEL[platform]} app…`)
+      loadExplorations()
+    } catch (e) {
+      addToast(e.message, 'error')
+    } finally {
+      setDispatchingExplore(null)
+    }
+  }
+
+  // Active platforms = whichever ones this project actually has suites for,
+  // plus any platform that's already been explored (covers the edge case of
+  // a suite later deleted after its platform was explored) — same
+  // "derive from real usage, don't invent a platform picker" approach the
+  // rest of this page's suite-driven controls already take.
+  const activePlatforms = PLATFORM_ORDER.filter(p =>
+    suites.some(s => s.platform === p) || explorations.some(e => e.platform === p)
+  )
+  const explorationByPlatform = Object.fromEntries(explorations.map(e => [e.platform, e]))
 
   const loadGenerationRuns = useCallback(() => (
     apiFetch(`/projects/${id}/automation/generation-runs`)
@@ -409,6 +460,65 @@ export default function EngineeringDashboardPage() {
             View all →
           </Link>
         </div>
+
+        {/* "Explore app" — one chip per platform this project actually has
+            suites for. An agent walks the real, configured target once and
+            the resulting summary gets reused across every future
+            requirements-based generation call for that platform, so
+            re-exploring is occasional (after a real UI change), not routine. */}
+        {activePlatforms.length > 0 && (
+          <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', padding: '0.75rem 1.25rem', marginBottom: '1.25rem' }}>
+            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '0.68rem', letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--faint)', flexShrink: 0 }}>
+              Explore app
+            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', flex: 1 }}>
+              {activePlatforms.map(platform => {
+                const exp = explorationByPlatform[platform]
+                const isExploring = !!exp?.exploring
+                const isDispatching = dispatchingExplore === platform
+                const statusText = isExploring ? 'Exploring…' : exp?.created_at ? `Explored ${timeAgo(exp.created_at)}` : 'Never explored'
+                return (
+                  <div key={platform} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.3rem 0.4rem 0.3rem 0.6rem', fontSize: '0.76rem', color: 'var(--light)', border: '1px solid var(--border2)', background: 'var(--card2)' }}>
+                    <span style={{ fontWeight: 600 }}>{PLATFORM_LABEL[platform]}</span>
+                    <span style={{ color: isExploring ? 'var(--warning)' : 'var(--faint)' }}>{statusText}</span>
+                    {exp?.summary && !isExploring && (
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => setExpandedSummaryPlatform(p => p === platform ? null : platform)}
+                        title="View exploration summary"
+                      >
+                        <Icon name="eye" size={11} /> Summary
+                      </button>
+                    )}
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => handleExplore(platform)}
+                      disabled={isExploring || isDispatching}
+                    >
+                      <Icon name="search" size={11} /> {exp?.created_at ? 'Re-explore' : 'Explore'}
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {expandedSummaryPlatform && explorationByPlatform[expandedSummaryPlatform]?.summary && (
+          <div className="card" style={{ padding: '1rem 1.25rem', marginBottom: '1.25rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
+              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--light)' }}>
+                {PLATFORM_LABEL[expandedSummaryPlatform]} exploration summary
+              </span>
+              <button className="btn btn-ghost btn-sm" onClick={() => setExpandedSummaryPlatform(null)}>
+                <Icon name="x" size={11} />
+              </button>
+            </div>
+            <div style={{ fontSize: '0.82rem', color: 'var(--muted)', whiteSpace: 'pre-wrap', lineHeight: 1.6, maxHeight: 320, overflowY: 'auto' }}>
+              {explorationByPlatform[expandedSummaryPlatform].summary}
+            </div>
+          </div>
+        )}
 
         {/* The Lab sits above everything else, full width — independent of
             the engineering-health fetch below (its own loading state), so it
